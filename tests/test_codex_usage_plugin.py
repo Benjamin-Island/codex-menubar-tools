@@ -89,7 +89,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex 88% | color=#16823A"))
+        self.assertTrue(output.startswith("Codex 88%\n---"))
         self.assertIn("---", output)
         self.assertIn("5h remaining: 88%", output)
         self.assertIn("7d remaining: 96%", output)
@@ -108,7 +108,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex 55% | color=#16823A"))
+        self.assertTrue(output.startswith("Codex 55%\n---"))
         self.assertIn("5h remaining: 55%", output)
 
     def test_low_remaining_uses_red_color(self):
@@ -117,13 +117,13 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex 13% | color=#D92D20"))
+        self.assertTrue(output.startswith("Codex 13%\n---"))
         self.assertIn("5h remaining: 13%", output)
 
     def test_missing_sessions_directory_renders_unknown_state(self):
         output = self.plugin.render_for_swiftbar(self.sessions_dir / "missing")
 
-        self.assertTrue(output.startswith("Codex -- | color=#8E8E93"))
+        self.assertTrue(output.startswith("Codex --\n---"))
         self.assertIn("No Codex session directory found", output)
 
     def test_no_rate_limit_event_renders_explanation(self):
@@ -141,7 +141,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex -- | color=#8E8E93"))
+        self.assertTrue(output.startswith("Codex --\n---"))
         self.assertIn("No rate limit event found yet", output)
 
 

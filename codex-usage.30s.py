@@ -13,12 +13,6 @@ from typing import Any, List, Optional, Sequence, Tuple, Union
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
 
-COLOR_GREEN = "#16823A"
-COLOR_YELLOW = "#B7791F"
-COLOR_RED = "#D92D20"
-COLOR_GRAY = "#8E8E93"
-
-
 @dataclass(frozen=True)
 class WindowUsage:
     label: str
@@ -41,7 +35,6 @@ class UsageSnapshot:
 class UsageError:
     menu_value: str
     message: str
-    color: str = COLOR_GRAY
     detail: Optional[str] = None
 
 
@@ -170,7 +163,6 @@ def find_latest_snapshot(sessions_dir: Path) -> Union[UsageSnapshot, UsageError]
         return UsageError(
             menu_value="!",
             message="Unable to read Codex session logs",
-            color=COLOR_RED,
             detail=f"{type(exc).__name__}: {exc}",
         )
 
@@ -189,7 +181,6 @@ def find_latest_snapshot(sessions_dir: Path) -> Union[UsageSnapshot, UsageError]
         return UsageError(
             menu_value="!",
             message="Unable to read Codex session logs",
-            color=COLOR_RED,
             detail=first_read_error,
         )
 
@@ -197,16 +188,6 @@ def find_latest_snapshot(sessions_dir: Path) -> Union[UsageSnapshot, UsageError]
         menu_value="--",
         message="No rate limit event found yet. Open or use Codex once to generate usage data.",
     )
-
-
-def color_for_remaining(remaining_percent: Optional[int]) -> str:
-    if remaining_percent is None:
-        return COLOR_GRAY
-    if remaining_percent >= 50:
-        return COLOR_GREEN
-    if remaining_percent >= 20:
-        return COLOR_YELLOW
-    return COLOR_RED
 
 
 def format_percent(value: Optional[int]) -> str:
@@ -258,7 +239,7 @@ def line_for_window(prefix: str, window: Optional[WindowUsage]) -> Sequence[str]
 
 def render_error(error: UsageError) -> str:
     lines = [
-        f"Codex {error.menu_value} | color={error.color}",
+        f"Codex {error.menu_value}",
         "---",
         error.message,
     ]
@@ -271,10 +252,9 @@ def render_error(error: UsageError) -> str:
 def render_snapshot(snapshot: UsageSnapshot) -> str:
     primary_remaining = snapshot.primary.remaining_percent if snapshot.primary else None
     menu_value = format_percent(primary_remaining)
-    color = color_for_remaining(primary_remaining)
 
     lines = [
-        f"Codex {menu_value} | color={color}",
+        f"Codex {menu_value}",
         "---",
         "Codex usage",
     ]
