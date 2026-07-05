@@ -3,15 +3,23 @@
 
 from __future__ import annotations
 
+import base64
 import json
 import os
+import struct
+import zlib
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, List, Optional, Sequence, Tuple, Union
+from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
+BATTERY_ICON_WIDTH = 52
+BATTERY_ICON_HEIGHT = 16
+
+_BATTERY_ICON_CACHE: Dict[Optional[int], str] = {}
+
 
 @dataclass(frozen=True)
 class WindowUsage:
@@ -196,6 +204,130 @@ def format_percent(value: Optional[int]) -> str:
     return f"{value}%"
 
 
+def clamp_percent(value: Optional[int]) -> Optional[int]:
+    if value is None:
+        return None
+    return min(100, max(0, int(value)))
+
+
+def set_pixel(pixels: bytearray, width: int, x: int, y: int, alpha: int) -> None:
+    if x < 0 or y < 0 or x >= width:
+        return
+    index = ((y * width) + x) * 4
+    if index < 0 or index + 3 >= len(pixels):
+        return
+    pixels[index] = 0
+    pixels[index + 1] = 0
+    pixels[index + 2] = 0
+    pixels[index + 3] = max(pixels[index + 3], min(255, max(0, alpha)))
+
+
+def fill_rect(
+    pixels: bytearray,
+    width: int,
+    x: int,
+    y: int,
+    rect_width: int,
+    rect_height: int,
+    alpha: int,
+) -> None:
+    for row in range(y, y + rect_height):
+        for col in range(x, x + rect_width):
+            set_pixel(pixels, width, col, row, alpha)
+
+
+def png_chunk(kind: bytes, data: bytes) -> bytes:
+    checksum = zlib.crc32(kind + data) & 0xFFFFFFFF
+    return struct.pack(">I", len(data)) + kind + data + struct.pack(">I", checksum)
+
+
+def encode_png_rgba(width: int, height: int, pixels: bytes) -> bytes:
+    raw_rows = bytearray()
+    stride = width * 4
+    for row in range(height):
+        raw_rows.append(0)
+        start = row * stride
+        raw_rows.extend(pixels[start : start + stride])
+
+    return b"".join(
+        [
+            b"\x89PNG\r\n\x1a\n",
+            png_chunk(b"IHDR", struct.pack(">IIBBBBB", width, height, 8, 6, 0, 0, 0)),
+            png_chunk(b"IDAT", zlib.compress(bytes(raw_rows), 9)),
+            png_chunk(b"IEND", b""),
+        ]
+    )
+
+
+def battery_template_image(remaining_percent: Optional[int]) -> str:
+    percent = clamp_percent(remaining_percent)
+    if percent in _BATTERY_ICON_CACHE:
+        return _BATTERY_ICON_CACHE[percent]
+
+    pixels = bytearray(BATTERY_ICON_WIDTH * BATTERY_ICON_HEIGHT * 4)
+
+    body_x = 0
+    body_y = 2
+    body_width = 46
+    body_height = 12
+    fill_x = 4
+    fill_y = 5
+    fill_width = 38
+    fill_height = 6
+
+    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + 2, body_y, body_width - 4, 1, 255)
+    fill_rect(
+        pixels,
+        BATTERY_ICON_WIDTH,
+        body_x + 2,
+        body_y + body_height - 1,
+        body_width - 4,
+        1,
+        255,
+    )
+    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x, body_y + 2, 1, body_height - 4, 255)
+    fill_rect(
+        pixels,
+        BATTERY_ICON_WIDTH,
+        body_x + body_width - 1,
+        body_y + 2,
+        1,
+        body_height - 4,
+        255,
+    )
+    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + 1, body_y + 1, 1, 1, 255)
+    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + body_width - 2, body_y + 1, 1, 1, 255)
+    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + 1, body_y + body_height - 2, 1, 1, 255)
+    fill_rect(
+        pixels,
+        BATTERY_ICON_WIDTH,
+        body_x + body_width - 2,
+        body_y + body_height - 2,
+        1,
+        1,
+        255,
+    )
+
+    fill_rect(pixels, BATTERY_ICON_WIDTH, 47, 5, 3, 6, 255)
+    fill_rect(pixels, BATTERY_ICON_WIDTH, 46, 6, 1, 4, 255)
+    fill_rect(pixels, BATTERY_ICON_WIDTH, fill_x, fill_y, fill_width, fill_height, 64)
+
+    if percent is not None:
+        charged_width = int(round(fill_width * (percent / 100.0)))
+        if percent > 0:
+            charged_width = max(1, charged_width)
+        fill_rect(pixels, BATTERY_ICON_WIDTH, fill_x, fill_y, charged_width, fill_height, 255)
+
+    png_data = encode_png_rgba(BATTERY_ICON_WIDTH, BATTERY_ICON_HEIGHT, bytes(pixels))
+    encoded = base64.b64encode(png_data).decode("ascii")
+    _BATTERY_ICON_CACHE[percent] = encoded
+    return encoded
+
+
+def render_menu_line(menu_value: str, remaining_percent: Optional[int]) -> str:
+    return f"Codex {menu_value} | templateImage={battery_template_image(remaining_percent)}"
+
+
 def format_datetime(value: Optional[datetime]) -> str:
     if value is None:
         return "--"
@@ -239,7 +371,7 @@ def line_for_window(prefix: str, window: Optional[WindowUsage]) -> Sequence[str]
 
 def render_error(error: UsageError) -> str:
     lines = [
-        f"Codex {error.menu_value}",
+        render_menu_line(error.menu_value, None),
         "---",
         error.message,
     ]
@@ -254,7 +386,7 @@ def render_snapshot(snapshot: UsageSnapshot) -> str:
     menu_value = format_percent(primary_remaining)
 
     lines = [
-        f"Codex {menu_value}",
+        render_menu_line(menu_value, primary_remaining),
         "---",
         "Codex usage",
     ]

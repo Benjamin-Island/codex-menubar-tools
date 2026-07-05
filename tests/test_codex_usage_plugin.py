@@ -1,3 +1,4 @@
+import base64
 import importlib.util
 import json
 import sys
@@ -25,6 +26,16 @@ def write_jsonl(path, records):
                 handle.write(record + "\n")
             else:
                 handle.write(json.dumps(record) + "\n")
+
+
+def assert_battery_menu_line(testcase, output, menu_value):
+    lines = output.splitlines()
+    first_line = lines[0]
+    testcase.assertTrue(first_line.startswith(f"Codex {menu_value} | templateImage="))
+    testcase.assertEqual(lines[1], "---")
+    encoded = first_line.split("templateImage=", 1)[1]
+    png_data = base64.b64decode(encoded, validate=True)
+    testcase.assertTrue(png_data.startswith(b"\x89PNG\r\n\x1a\n"))
 
 
 def token_count_event(used_primary=12.0, used_secondary=4.0, timestamp="2026-07-03T04:38:11.000Z"):
@@ -89,7 +100,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex 88%\n---"))
+        assert_battery_menu_line(self, output, "88%")
         self.assertIn("---", output)
         self.assertIn("5h remaining: 88%", output)
         self.assertIn("7d remaining: 96%", output)
@@ -108,22 +119,22 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex 55%\n---"))
+        assert_battery_menu_line(self, output, "55%")
         self.assertIn("5h remaining: 55%", output)
 
-    def test_low_remaining_uses_red_color(self):
+    def test_low_remaining_uses_battery_style(self):
         session_path = self.sessions_dir / "2026" / "07" / "03" / "rollout.jsonl"
         write_jsonl(session_path, [token_count_event(used_primary=87.0, used_secondary=60.0)])
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex 13%\n---"))
+        assert_battery_menu_line(self, output, "13%")
         self.assertIn("5h remaining: 13%", output)
 
     def test_missing_sessions_directory_renders_unknown_state(self):
         output = self.plugin.render_for_swiftbar(self.sessions_dir / "missing")
 
-        self.assertTrue(output.startswith("Codex --\n---"))
+        assert_battery_menu_line(self, output, "--")
         self.assertIn("No Codex session directory found", output)
 
     def test_no_rate_limit_event_renders_explanation(self):
@@ -141,7 +152,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        self.assertTrue(output.startswith("Codex --\n---"))
+        assert_battery_menu_line(self, output, "--")
         self.assertIn("No rate limit event found yet", output)
 
 
