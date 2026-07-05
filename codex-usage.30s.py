@@ -24,8 +24,8 @@ except ImportError:  # pragma: no cover - exercised only on minimal Python insta
 
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
-USAGE_BAR_WIDTH = 96
-USAGE_BAR_HEIGHT = 22
+USAGE_BAR_WIDTH = 58
+USAGE_BAR_HEIGHT = 16
 USAGE_BAR_RENDER_SCALE = 4
 
 _USAGE_BAR_IMAGE_CACHE: Dict[Tuple[str, Optional[int]], str] = {}
@@ -746,93 +746,63 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
 
     logical_width = USAGE_BAR_WIDTH
     logical_height = USAGE_BAR_HEIGHT
-    pill = (s(5), s(3), s(logical_width - 5), s(logical_height - 3))
-    radius = s((logical_height - 6) / 2)
-
-    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    glow_draw = ImageDraw.Draw(glow)
-    glow_draw.rounded_rectangle(
-        (s(1), s(1), s(logical_width - 1), s(logical_height - 1)),
-        radius=s(logical_height / 2),
-        fill=(255, 255, 255, 58),
-    )
-    glow = glow.filter(ImageFilter.GaussianBlur(s(2.2)))
-    image.alpha_composite(glow)
+    pill = (s(2), s(2), s(logical_width - 2), s(logical_height - 2))
+    radius = s((logical_height - 4) / 2)
 
     shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
     shadow_draw = ImageDraw.Draw(shadow)
     shadow_draw.rounded_rectangle(
-        (pill[0], pill[1] + s(1), pill[2], pill[3] + s(1)),
+        (pill[0], pill[1] + s(0.5), pill[2], pill[3] + s(0.5)),
         radius=radius,
-        fill=(27, 37, 49, 56),
+        fill=(24, 34, 45, 26),
     )
-    shadow = shadow.filter(ImageFilter.GaussianBlur(s(0.9)))
+    shadow = shadow.filter(ImageFilter.GaussianBlur(s(0.45)))
     image.alpha_composite(shadow)
 
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(pill, radius=radius, fill=(231, 241, 249, 156))
+    draw.rounded_rectangle(pill, radius=radius, fill=(238, 246, 252, 132))
 
     if percent is not None:
-        progress_width = int(round((pill[2] - pill[0] - s(7)) * (percent / 100.0)))
+        progress_width = int(round((pill[2] - pill[0] - s(5)) * (percent / 100.0)))
         if percent > 0:
-            progress_width = max(s(3), progress_width)
-        progress_right = min(pill[0] + s(4) + progress_width, pill[2] - s(3))
+            progress_width = max(s(2), progress_width)
+        progress_right = min(pill[0] + s(2.5) + progress_width, pill[2] - s(2.5))
         draw.rounded_rectangle(
-            (pill[0] + s(4), pill[1] + s(8.8), progress_right, pill[3] - s(2.5)),
-            radius=s(3.2),
+            (pill[0] + s(2.5), pill[1] + s(7.3), progress_right, pill[3] - s(2.2)),
+            radius=s(2.4),
             fill=glass_fill_color(percent),
         )
 
     draw.rounded_rectangle(
-        (pill[0] + s(2), pill[1] + s(1), pill[2] - s(2), pill[1] + s(9.5)),
-        radius=s(7),
-        fill=(255, 255, 255, 90),
+        (pill[0] + s(1.5), pill[1] + s(1), pill[2] - s(1.5), pill[1] + s(6.7)),
+        radius=s(5),
+        fill=(255, 255, 255, 68),
     )
     draw.line(
-        (pill[0] + s(5), pill[1] + s(8.8), pill[2] - s(5), pill[1] + s(8.8)),
-        fill=(255, 255, 255, 64),
-        width=s(0.6),
-    )
-    draw.line(
-        (s(logical_width * 0.49), s(4), s(logical_width * 0.49), s(logical_height - 5)),
-        fill=(255, 255, 255, 34),
-        width=s(0.5),
-    )
-    draw.line(
-        (s(logical_width * 0.69), s(4.5), s(logical_width * 0.69), s(logical_height - 5.5)),
-        fill=(255, 255, 255, 24),
+        (pill[0] + s(4), pill[1] + s(7.2), pill[2] - s(4), pill[1] + s(7.2)),
+        fill=(255, 255, 255, 42),
         width=s(0.5),
     )
 
-    draw.rounded_rectangle(pill, radius=radius, outline=(255, 255, 255, 196), width=s(1))
+    draw.rounded_rectangle(pill, radius=radius, outline=(255, 255, 255, 142), width=s(0.75))
     draw.rounded_rectangle(
         (pill[0] + s(1), pill[1] + s(1), pill[2] - s(1), pill[3] - s(1)),
         radius=max(1, radius - s(1)),
-        outline=(75, 91, 108, 58),
-        width=s(0.7),
+        outline=(56, 72, 90, 20),
+        width=s(0.5),
     )
 
-    font = load_menu_font(s(20))
-    text_bbox = draw.textbbox((0, 0), label, font=font, stroke_width=s(0.5))
+    font = load_menu_font(s(12.5))
+    text_bbox = draw.textbbox((0, 0), label, font=font)
     text_width_px = text_bbox[2] - text_bbox[0]
     text_height_px = text_bbox[3] - text_bbox[1]
     text_x = (width - text_width_px) // 2 - text_bbox[0]
-    text_y = (height - text_height_px) // 2 - text_bbox[1] - s(1.2)
-    draw.text(
-        (text_x, text_y + s(1.2)),
-        label,
-        font=font,
-        fill=(62, 80, 99, 128),
-        stroke_width=s(0.7),
-        stroke_fill=(62, 80, 99, 92),
-    )
+    text_y = (height - text_height_px) // 2 - text_bbox[1] - s(0.4)
     draw.text(
         (text_x, text_y),
         label,
         font=font,
-        fill=(255, 255, 255, 242),
-        stroke_width=s(0.5),
-        stroke_fill=(93, 110, 130, 108),
+        fill=(42, 54, 66, 232),
     )
 
     resize_filter = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
