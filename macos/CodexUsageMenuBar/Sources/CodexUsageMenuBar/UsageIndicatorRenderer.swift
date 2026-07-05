@@ -35,22 +35,25 @@ struct UsageIndicatorRenderer {
         if let progress {
             let innerRect = rect.insetBy(dx: 1.8, dy: 2.0)
             let clamped = min(1.0, max(0.0, progress))
-            let progressWidth = max(1.0, innerRect.width * clamped)
-            let progressRect = CGRect(
-                x: innerRect.minX,
-                y: innerRect.minY,
-                width: progressWidth,
-                height: innerRect.height
-            )
+            let progressWidth = innerRect.width * clamped
 
-            context.addPath(CGPath(
-                roundedRect: progressRect,
-                cornerWidth: innerRect.height / 2,
-                cornerHeight: innerRect.height / 2,
-                transform: nil
-            ))
-            context.setFillColor(NSColor.labelColor.withAlphaComponent(0.96).cgColor)
-            context.fillPath()
+            if progressWidth > 0 {
+                let progressRect = CGRect(
+                    x: innerRect.minX,
+                    y: innerRect.minY,
+                    width: progressWidth,
+                    height: innerRect.height
+                )
+
+                context.addPath(CGPath(
+                    roundedRect: progressRect,
+                    cornerWidth: innerRect.height / 2,
+                    cornerHeight: innerRect.height / 2,
+                    transform: nil
+                ))
+                context.setFillColor(NSColor.labelColor.withAlphaComponent(0.96).cgColor)
+                context.fillPath()
+            }
         }
 
         drawKnockout(label: label, in: size)

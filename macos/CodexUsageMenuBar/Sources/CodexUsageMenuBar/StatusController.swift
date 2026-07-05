@@ -12,6 +12,7 @@ final class StatusController: NSObject {
     private var timer: Timer?
     private var lastResult: UsageReadResult?
     private var isRefreshing = false
+    private var needsRefresh = false
 
     init(
         sessionsDirectory: URL,
@@ -49,8 +50,12 @@ final class StatusController: NSObject {
     }
 
     private func refresh() {
-        guard !isRefreshing else { return }
+        guard !isRefreshing else {
+            needsRefresh = true
+            return
+        }
         isRefreshing = true
+        needsRefresh = false
 
         let sessionsDirectory = sessionsDirectory
         let makeReader = makeReader
@@ -61,6 +66,9 @@ final class StatusController: NSObject {
                 guard let self else { return }
                 self.isRefreshing = false
                 self.apply(result)
+                if self.needsRefresh {
+                    self.refresh()
+                }
             }
         }
     }
