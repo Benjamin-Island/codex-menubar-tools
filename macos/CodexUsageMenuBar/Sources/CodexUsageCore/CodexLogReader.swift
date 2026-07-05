@@ -18,7 +18,16 @@ public final class CodexLogReader {
             ))
         }
 
-        let files = discoverSessionFileCandidates(in: sessionsDirectory)
+        let files: [SessionFileCandidate]
+        do {
+            files = try discoverSessionFileCandidates(in: sessionsDirectory)
+        } catch {
+            return .failure(UsageReadError(
+                menuValue: "!",
+                message: "Unable to read Codex session logs",
+                detail: "\(type(of: error)): \(error.localizedDescription)"
+            ))
+        }
 
         var firstReadError: String?
         var newestSnapshot: SnapshotCandidate?
@@ -56,16 +65,27 @@ public final class CodexLogReader {
     }
 
     public func discoverSessionFiles(in directory: URL) throws -> [URL] {
-        discoverSessionFileCandidates(in: directory).map(\.url)
+        try discoverSessionFileCandidates(in: directory).map(\.url)
     }
 
-    private func discoverSessionFileCandidates(in directory: URL) -> [SessionFileCandidate] {
+    private func discoverSessionFileCandidates(in directory: URL) throws -> [SessionFileCandidate] {
+        guard fileManager.isReadableFile(atPath: directory.path) else {
+            throw CodexLogReaderError.unreadableDirectory(directory.path)
+        }
+
+        var rootEnumerationError: Error?
         guard let enumerator = fileManager.enumerator(
             at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
-            options: [.skipsHiddenFiles]
+            options: [.skipsHiddenFiles],
+            errorHandler: { url, error in
+                if url.path == directory.path {
+                    rootEnumerationError = error
+                }
+                return true
+            }
         ) else {
-            return []
+            throw CodexLogReaderError.unableToEnumerateDirectory(directory.path)
         }
 
         var candidates: [(Date, URL)] = []
@@ -75,6 +95,9 @@ public final class CodexLogReader {
             }
             guard values.isRegularFile == true else { continue }
             candidates.append((values.contentModificationDate ?? .distantPast, fileURL))
+        }
+        if let rootEnumerationError {
+            throw CodexLogReaderError.enumerationFailed(directory.path, rootEnumerationError)
         }
         return candidates
             .sorted { $0.0 > $1.0 }
@@ -180,6 +203,23 @@ public final class CodexLogReader {
     }
 }
 
+private enum CodexLogReaderError: LocalizedError {
+    case unreadableDirectory(String)
+    case unableToEnumerateDirectory(String)
+    case enumerationFailed(String, Error)
+
+    var errorDescription: String? {
+        switch self {
+        case let .unreadableDirectory(path):
+            return "Directory is not readable: \(path)"
+        case let .unableToEnumerateDirectory(path):
+            return "Unable to enumerate directory: \(path)"
+        case let .enumerationFailed(path, error):
+            return "Unable to enumerate directory: \(path): \(error.localizedDescription)"
+        }
+    }
+}
+
 private struct SessionFileCandidate {
     let url: URL
     let modificationDate: Date
@@ -220,6 +260,14 @@ private struct RateLimits: Decodable {
         case credits
         case planType = "plan_type"
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        primary = try? container.decode(RateLimitWindow.self, forKey: .primary)
+        secondary = try? container.decode(RateLimitWindow.self, forKey: .secondary)
+        credits = try? container.decode(Credits.self, forKey: .credits)
+        planType = try? container.decode(String.self, forKey: .planType)
+    }
 }
 
 private struct RateLimitWindow: Decodable {
@@ -232,6 +280,13 @@ private struct RateLimitWindow: Decodable {
         case windowMinutes = "window_minutes"
         case resetsAt = "resets_at"
     }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        usedPercent = container.decodeTolerantDouble(forKey: .usedPercent)
+        windowMinutes = container.decodeTolerantDouble(forKey: .windowMinutes)
+        resetsAt = container.decodeTolerantDouble(forKey: .resetsAt)
+    }
 }
 
 private struct Credits: Decodable {
@@ -243,5 +298,58 @@ private struct Credits: Decodable {
         case hasCredits = "has_credits"
         case unlimited
         case balance
+    }
+
+    init(from decoder: Decoder) throws {
+        let container = try decoder.container(keyedBy: CodingKeys.self)
+        hasCredits = container.decodeTolerantBool(forKey: .hasCredits)
+        unlimited = container.decodeTolerantBool(forKey: .unlimited)
+        balance = container.decodeTolerantInt(forKey: .balance)
+    }
+}
+
+private extension KeyedDecodingContainer {
+    func decodeTolerantBool(forKey key: Key) -> Bool? {
+        if let value = try? decode(Bool.self, forKey: key) {
+            return value
+        }
+        if let value = try? decode(Int.self, forKey: key) {
+            if value == 0 { return false }
+            if value == 1 { return true }
+        }
+        if let value = try? decode(String.self, forKey: key) {
+            switch value.lowercased() {
+            case "true", "yes", "1":
+                return true
+            case "false", "no", "0":
+                return false
+            default:
+                return nil
+            }
+        }
+        return nil
+    }
+
+    func decodeTolerantDouble(forKey key: Key) -> Double? {
+        if let value = try? decode(Double.self, forKey: key) {
+            return value
+        }
+        if let value = try? decode(String.self, forKey: key) {
+            return Double(value)
+        }
+        return nil
+    }
+
+    func decodeTolerantInt(forKey key: Key) -> Int? {
+        if let value = try? decode(Int.self, forKey: key) {
+            return value
+        }
+        if let value = try? decode(Double.self, forKey: key), value.isFinite {
+            return Int(value)
+        }
+        if let value = try? decode(String.self, forKey: key) {
+            return Int(value)
+        }
+        return nil
     }
 }

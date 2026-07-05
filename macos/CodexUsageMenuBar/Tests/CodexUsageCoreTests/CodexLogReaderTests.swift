@@ -91,6 +91,29 @@ final class CodexLogReaderTests: XCTestCase {
         XCTAssertEqual(snapshot.primary?.remainingPercent, 70)
     }
 
+    func testUnreadableSessionsDirectoryReturnsUnableToReadFailure() throws {
+        let unreadable = tempDirectory.appendingPathComponent("unreadable")
+        try FileManager.default.createDirectory(at: unreadable, withIntermediateDirectories: true)
+        try FileManager.default.setAttributes([.posixPermissions: 0o000], ofItemAtPath: unreadable.path)
+        defer {
+            try? FileManager.default.setAttributes([.posixPermissions: 0o700], ofItemAtPath: unreadable.path)
+        }
+
+        guard !FileManager.default.isReadableFile(atPath: unreadable.path) else {
+            throw XCTSkip("chmod 000 directory is still readable in this environment")
+        }
+
+        let result = reader.readLatestSnapshot(sessionsDirectory: unreadable)
+
+        guard case let .failure(error) = result else {
+            return XCTFail("Expected failure, got \(result)")
+        }
+        XCTAssertEqual(error.menuValue, "!")
+        XCTAssertEqual(error.message, "Unable to read Codex session logs")
+        XCTAssertTrue(error.detail?.contains("Directory is not readable") == true)
+        XCTAssertTrue(error.detail?.contains(unreadable.path) == true)
+    }
+
     func testMissingSessionsDirectoryReturnsFailure() {
         let missing = tempDirectory.appendingPathComponent("missing")
 
@@ -116,6 +139,67 @@ final class CodexLogReaderTests: XCTestCase {
         XCTAssertTrue(error.message.contains("No rate limit event"))
     }
 
+    func testUnexpectedCreditsBalanceTypeDoesNotSkipUsageRecord() throws {
+        let session = tempDirectory.appendingPathComponent("session.jsonl")
+        try write(records: [tokenCountEvent(
+            usedPrimary: 25,
+            usedSecondary: 40,
+            creditsBalanceJSON: #"{"unexpected":true}"#,
+            hasCredits: true
+        )], to: session)
+
+        let result = reader.readLatestSnapshot(sessionsDirectory: tempDirectory)
+
+        guard case let .snapshot(snapshot) = result else {
+            return XCTFail("Expected snapshot, got \(result)")
+        }
+        XCTAssertEqual(snapshot.primary?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.secondary?.remainingPercent, 60)
+        XCTAssertEqual(snapshot.creditsDescription, "available")
+    }
+
+    func testUnexpectedWindowNumericTypesDoNotSkipUsageRecord() throws {
+        let session = tempDirectory.appendingPathComponent("session.jsonl")
+        try write(records: [
+            """
+            {"timestamp":"2026-07-03T04:38:11.000Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":25,"window_minutes":{"unexpected":true},"resets_at":["soon"]},"secondary":{"used_percent":"40","window_minutes":"10080","resets_at":"1783630800"},"credits":{"has_credits":"true","unlimited":"false","balance":"12"},"plan_type":"plus"}}}
+            """
+        ], to: session)
+
+        let result = reader.readLatestSnapshot(sessionsDirectory: tempDirectory)
+
+        guard case let .snapshot(snapshot) = result else {
+            return XCTFail("Expected snapshot, got \(result)")
+        }
+        XCTAssertEqual(snapshot.primary?.label, "--")
+        XCTAssertEqual(snapshot.primary?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.secondary?.label, "7d")
+        XCTAssertEqual(snapshot.secondary?.remainingPercent, 60)
+        XCTAssertEqual(snapshot.creditsDescription, "12")
+    }
+
+    func testFormattingHelpers() {
+        XCTAssertNil(UsageFormatting.remainingFromUsed(nil))
+        XCTAssertEqual(UsageFormatting.remainingFromUsed(-10), 100)
+        XCTAssertEqual(UsageFormatting.remainingFromUsed(12.4), 88)
+        XCTAssertEqual(UsageFormatting.remainingFromUsed(120), 0)
+
+        XCTAssertEqual(UsageFormatting.menuLabel(nil), "--")
+        XCTAssertEqual(UsageFormatting.menuLabel(-10), "0")
+        XCTAssertEqual(UsageFormatting.menuLabel(42), "42")
+        XCTAssertEqual(UsageFormatting.menuLabel(120), "100")
+
+        XCTAssertEqual(UsageFormatting.percentLabel(nil), "--")
+        XCTAssertEqual(UsageFormatting.percentLabel(42), "42%")
+
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: nil), "--")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: 45), "45m")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: 60), "1h")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: 300), "5h")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: 1_440), "1d")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: 10_080), "7d")
+    }
+
     private func write(records: [String], to url: URL) throws {
         try FileManager.default.createDirectory(at: url.deletingLastPathComponent(), withIntermediateDirectories: true)
         try records.joined(separator: "\n").appending("\n").write(to: url, atomically: true, encoding: .utf8)
@@ -128,11 +212,13 @@ final class CodexLogReaderTests: XCTestCase {
     private func tokenCountEvent(
         usedPrimary: Int,
         usedSecondary: Int,
-        timestamp: String? = "2026-07-03T04:38:11.000Z"
+        timestamp: String? = "2026-07-03T04:38:11.000Z",
+        creditsBalanceJSON: String = "null",
+        hasCredits: Bool = false
     ) -> String {
         let timestampField = timestamp.map { #""timestamp":"\#($0)","# } ?? ""
         """
-        {\(timestampField)"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":\(usedPrimary),"window_minutes":300,"resets_at":1783070400},"secondary":{"used_percent":\(usedSecondary),"window_minutes":10080,"resets_at":1783630800},"credits":{"has_credits":false,"unlimited":false,"balance":null},"plan_type":"plus"}}}
+        {\(timestampField)"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":\(usedPrimary),"window_minutes":300,"resets_at":1783070400},"secondary":{"used_percent":\(usedSecondary),"window_minutes":10080,"resets_at":1783630800},"credits":{"has_credits":\(hasCredits),"unlimited":false,"balance":\(creditsBalanceJSON)},"plan_type":"plus"}}}
         """
     }
 }

@@ -21,12 +21,34 @@ public struct UsageSnapshot: Equatable, Sendable {
     public let creditsDescription: String?
     public let reportedAt: Date?
     public let sourcePath: String
+
+    public init(
+        primary: WindowUsage?,
+        secondary: WindowUsage?,
+        planType: String?,
+        creditsDescription: String?,
+        reportedAt: Date?,
+        sourcePath: String
+    ) {
+        self.primary = primary
+        self.secondary = secondary
+        self.planType = planType
+        self.creditsDescription = creditsDescription
+        self.reportedAt = reportedAt
+        self.sourcePath = sourcePath
+    }
 }
 
 public struct UsageReadError: Error, Equatable, Sendable {
     public let menuValue: String
     public let message: String
     public let detail: String?
+
+    public init(menuValue: String, message: String, detail: String?) {
+        self.menuValue = menuValue
+        self.message = message
+        self.detail = detail
+    }
 }
 
 public enum UsageReadResult: Equatable, Sendable {
