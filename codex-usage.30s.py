@@ -24,8 +24,8 @@ except ImportError:  # pragma: no cover - exercised only on minimal Python insta
 
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
-USAGE_BAR_WIDTH = 58
-USAGE_BAR_HEIGHT = 16
+USAGE_BAR_WIDTH = 64
+USAGE_BAR_HEIGHT = 18
 USAGE_BAR_RENDER_SCALE = 4
 
 _USAGE_BAR_IMAGE_CACHE: Dict[Tuple[str, Optional[int]], str] = {}
@@ -718,6 +718,7 @@ def load_menu_font(size: int) -> Any:
         return None
 
     font_paths = (
+        "/System/Library/Fonts/SFNSMono.ttf",
         "/System/Library/Fonts/SFNSRounded.ttf",
         "/System/Library/Fonts/SFNS.ttf",
         "/System/Library/Fonts/HelveticaNeue.ttc",
@@ -746,63 +747,67 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
 
     logical_width = USAGE_BAR_WIDTH
     logical_height = USAGE_BAR_HEIGHT
-    pill = (s(2), s(2), s(logical_width - 2), s(logical_height - 2))
-    radius = s((logical_height - 4) / 2)
-
-    shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(shadow)
-    shadow_draw.rounded_rectangle(
-        (pill[0], pill[1] + s(0.5), pill[2], pill[3] + s(0.5)),
-        radius=radius,
-        fill=(24, 34, 45, 26),
-    )
-    shadow = shadow.filter(ImageFilter.GaussianBlur(s(0.45)))
-    image.alpha_composite(shadow)
+    rect = (s(0.5), s(0.5), s(logical_width - 0.5), s(logical_height - 0.5))
+    radius = s(9)
 
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(pill, radius=radius, fill=(238, 246, 252, 132))
+    draw.rounded_rectangle(rect, radius=radius, fill=(255, 255, 255, 56))
 
     if percent is not None:
-        progress_width = int(round((pill[2] - pill[0] - s(5)) * (percent / 100.0)))
+        inner_rect = (s(2.5), s(2.5), s(logical_width - 2.5), s(logical_height - 2.5))
+        inner_width = inner_rect[2] - inner_rect[0]
+        progress_width = int(round(inner_width * (percent / 100.0)))
         if percent > 0:
-            progress_width = max(s(2), progress_width)
-        progress_right = min(pill[0] + s(2.5) + progress_width, pill[2] - s(2.5))
-        draw.rounded_rectangle(
-            (pill[0] + s(2.5), pill[1] + s(7.3), progress_right, pill[3] - s(2.2)),
-            radius=s(2.4),
-            fill=glass_fill_color(percent),
+            progress_width = max(s(1), progress_width)
+        progress_right = min(inner_rect[0] + progress_width, inner_rect[2])
+
+        progress_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+        progress_draw = ImageDraw.Draw(progress_layer)
+        progress_draw.rounded_rectangle(
+            (inner_rect[0], inner_rect[1], progress_right, inner_rect[3]),
+            radius=s(7),
+            fill=(52, 199, 89, 56),
         )
+        image.alpha_composite(progress_layer)
+        draw = ImageDraw.Draw(image)
 
     draw.rounded_rectangle(
-        (pill[0] + s(1.5), pill[1] + s(1), pill[2] - s(1.5), pill[1] + s(6.7)),
-        radius=s(5),
-        fill=(255, 255, 255, 68),
-    )
-    draw.line(
-        (pill[0] + s(4), pill[1] + s(7.2), pill[2] - s(4), pill[1] + s(7.2)),
-        fill=(255, 255, 255, 42),
-        width=s(0.5),
+        (s(2.5), s(0.5), s(logical_width - 2.5), s(logical_height / 2 - 0.5)),
+        radius=s(7),
+        fill=(255, 255, 255, 56),
     )
 
-    draw.rounded_rectangle(pill, radius=radius, outline=(255, 255, 255, 142), width=s(0.75))
+    draw.rounded_rectangle(rect, radius=radius, outline=(255, 255, 255, 122), width=max(1, s(0.7)))
     draw.rounded_rectangle(
-        (pill[0] + s(1), pill[1] + s(1), pill[2] - s(1), pill[3] - s(1)),
-        radius=max(1, radius - s(1)),
-        outline=(56, 72, 90, 20),
-        width=s(0.5),
+        (s(1.7), s(1.7), s(logical_width - 1.7), s(logical_height - 1.7)),
+        radius=s(7.8),
+        outline=(0, 0, 0, 41),
+        width=max(1, s(0.5)),
     )
 
-    font = load_menu_font(s(12.5))
+    font = load_menu_font(s(12))
     text_bbox = draw.textbbox((0, 0), label, font=font)
     text_width_px = text_bbox[2] - text_bbox[0]
     text_height_px = text_bbox[3] - text_bbox[1]
     text_x = (width - text_width_px) // 2 - text_bbox[0]
-    text_y = (height - text_height_px) // 2 - text_bbox[1] - s(0.4)
+    text_y = s(1.6) - text_bbox[1]
+
+    shadow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    shadow_draw = ImageDraw.Draw(shadow_layer)
+    shadow_draw.text(
+        (text_x, text_y - s(0.4)),
+        label,
+        font=font,
+        fill=(255, 255, 255, 89),
+    )
+    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(s(0.4)))
+    image.alpha_composite(shadow_layer)
+    draw = ImageDraw.Draw(image)
     draw.text(
         (text_x, text_y),
         label,
         font=font,
-        fill=(42, 54, 66, 232),
+        fill=(0, 0, 0, 224),
     )
 
     resize_filter = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
@@ -829,7 +834,7 @@ def glass_usage_bar_image(label: str, remaining_percent: Optional[int]) -> str:
 
 
 def render_menu_line(label: str, remaining_percent: Optional[int]) -> str:
-    return f" | image={glass_usage_bar_image(label, remaining_percent)}"
+    return f"| image={glass_usage_bar_image(label, remaining_percent)}"
 
 
 def format_datetime(value: Optional[datetime]) -> str:
