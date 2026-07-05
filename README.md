@@ -1,13 +1,13 @@
 # Codex Usage Menu Bar
 
-A lightweight SwiftBar plugin for macOS that displays the latest locally reported Codex rate-limit remaining percentage as a battery-style progress indicator.
+A lightweight SwiftBar plugin for macOS that displays the latest locally reported Codex rate-limit remaining percentage as a frosted-glass progress indicator.
 
 ## What It Shows
 
-The menu bar displays a battery-style progress indicator next to the primary Codex rate-limit window remaining percentage:
+The menu bar displays a frosted-glass progress bar with the primary Codex rate-limit window remaining number inside it:
 
 ```text
-[battery bar] Codex 88%
+[frosted progress bar: 88]
 ```
 
 The dropdown shows:
@@ -68,7 +68,7 @@ Run the plugin directly:
 python3 codex-usage.30s.py
 ```
 
-Expected output starts with `Codex NN% | templateImage=...` when local Codex rate-limit data exists. SwiftBar renders the encoded image as the battery-style menu bar indicator. If there is no local event yet, it starts with `Codex -- | templateImage=...` and explains the missing data in the dropdown lines.
+Expected output starts with ` | image=...` when local Codex rate-limit data exists. SwiftBar renders the encoded image as the frosted-glass menu bar progress indicator. If there is no local event yet, it still starts with ` | image=...` and explains the missing data in the dropdown lines.
 
 Run focused verification:
 

@@ -28,12 +28,14 @@ def write_jsonl(path, records):
                 handle.write(json.dumps(record) + "\n")
 
 
-def assert_battery_menu_line(testcase, output, menu_value):
+def assert_glass_menu_line(testcase, output):
     lines = output.splitlines()
     first_line = lines[0]
-    testcase.assertTrue(first_line.startswith(f"Codex {menu_value} | templateImage="))
+    testcase.assertTrue(first_line.startswith(" | image="))
+    testcase.assertNotIn("Codex", first_line)
+    testcase.assertNotIn("templateImage=", first_line)
     testcase.assertEqual(lines[1], "---")
-    encoded = first_line.split("templateImage=", 1)[1]
+    encoded = first_line.split("image=", 1)[1]
     png_data = base64.b64decode(encoded, validate=True)
     testcase.assertTrue(png_data.startswith(b"\x89PNG\r\n\x1a\n"))
 
@@ -100,7 +102,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        assert_battery_menu_line(self, output, "88%")
+        assert_glass_menu_line(self, output)
         self.assertIn("---", output)
         self.assertIn("5h remaining: 88%", output)
         self.assertIn("7d remaining: 96%", output)
@@ -119,7 +121,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        assert_battery_menu_line(self, output, "55%")
+        assert_glass_menu_line(self, output)
         self.assertIn("5h remaining: 55%", output)
 
     def test_low_remaining_uses_battery_style(self):
@@ -128,13 +130,13 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        assert_battery_menu_line(self, output, "13%")
+        assert_glass_menu_line(self, output)
         self.assertIn("5h remaining: 13%", output)
 
     def test_missing_sessions_directory_renders_unknown_state(self):
         output = self.plugin.render_for_swiftbar(self.sessions_dir / "missing")
 
-        assert_battery_menu_line(self, output, "--")
+        assert_glass_menu_line(self, output)
         self.assertIn("No Codex session directory found", output)
 
     def test_no_rate_limit_event_renders_explanation(self):
@@ -152,7 +154,7 @@ class CodexUsagePluginTest(unittest.TestCase):
 
         output = self.plugin.render_for_swiftbar(self.sessions_dir)
 
-        assert_battery_menu_line(self, output, "--")
+        assert_glass_menu_line(self, output)
         self.assertIn("No rate limit event found yet", output)
 
 

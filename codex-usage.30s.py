@@ -15,10 +15,24 @@ from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
-BATTERY_ICON_WIDTH = 52
-BATTERY_ICON_HEIGHT = 16
+USAGE_BAR_WIDTH = 64
+USAGE_BAR_HEIGHT = 18
 
-_BATTERY_ICON_CACHE: Dict[Optional[int], str] = {}
+_USAGE_BAR_IMAGE_CACHE: Dict[Tuple[str, Optional[int]], str] = {}
+GLASS_DIGITS: Dict[str, Sequence[str]] = {
+    "0": ("111", "101", "101", "101", "111"),
+    "1": ("010", "110", "010", "010", "111"),
+    "2": ("111", "001", "111", "100", "111"),
+    "3": ("111", "001", "111", "001", "111"),
+    "4": ("101", "101", "111", "001", "001"),
+    "5": ("111", "100", "111", "001", "111"),
+    "6": ("111", "100", "111", "101", "111"),
+    "7": ("111", "001", "010", "010", "010"),
+    "8": ("111", "101", "111", "101", "111"),
+    "9": ("111", "101", "111", "001", "111"),
+    "-": ("000", "000", "111", "000", "000"),
+    "!": ("1", "1", "1", "0", "1"),
+}
 
 
 @dataclass(frozen=True)
@@ -210,30 +224,168 @@ def clamp_percent(value: Optional[int]) -> Optional[int]:
     return min(100, max(0, int(value)))
 
 
-def set_pixel(pixels: bytearray, width: int, x: int, y: int, alpha: int) -> None:
-    if x < 0 or y < 0 or x >= width:
+def format_menu_value(value: Optional[int]) -> str:
+    if value is None:
+        return "--"
+    return str(clamp_percent(value))
+
+
+def blend_pixel(
+    pixels: bytearray,
+    width: int,
+    height: int,
+    x: int,
+    y: int,
+    color: Tuple[int, int, int, int],
+) -> None:
+    if x < 0 or y < 0 or x >= width or y >= height:
         return
     index = ((y * width) + x) * 4
     if index < 0 or index + 3 >= len(pixels):
         return
-    pixels[index] = 0
-    pixels[index + 1] = 0
-    pixels[index + 2] = 0
-    pixels[index + 3] = max(pixels[index + 3], min(255, max(0, alpha)))
+
+    src_r, src_g, src_b, src_a = color
+    src_alpha = min(255, max(0, src_a)) / 255.0
+    if src_alpha <= 0:
+        return
+
+    dst_alpha = pixels[index + 3] / 255.0
+    out_alpha = src_alpha + dst_alpha * (1.0 - src_alpha)
+    if out_alpha <= 0:
+        return
+
+    for offset, src_channel in enumerate((src_r, src_g, src_b)):
+        dst_channel = pixels[index + offset]
+        blended = (
+            src_channel * src_alpha
+            + dst_channel * dst_alpha * (1.0 - src_alpha)
+        ) / out_alpha
+        pixels[index + offset] = int(round(blended))
+    pixels[index + 3] = int(round(out_alpha * 255))
 
 
 def fill_rect(
     pixels: bytearray,
     width: int,
+    height: int,
     x: int,
     y: int,
     rect_width: int,
     rect_height: int,
-    alpha: int,
+    color: Tuple[int, int, int, int],
 ) -> None:
     for row in range(y, y + rect_height):
         for col in range(x, x + rect_width):
-            set_pixel(pixels, width, col, row, alpha)
+            blend_pixel(pixels, width, height, col, row, color)
+
+
+def point_in_rounded_rect(
+    point_x: float,
+    point_y: float,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    radius: int,
+) -> bool:
+    right = x + width
+    bottom = y + height
+    if point_x < x or point_y < y or point_x >= right or point_y >= bottom:
+        return False
+
+    corner_x = min(max(point_x, x + radius), right - radius)
+    corner_y = min(max(point_y, y + radius), bottom - radius)
+    return (point_x - corner_x) ** 2 + (point_y - corner_y) ** 2 <= radius ** 2
+
+
+def rounded_rect_coverage(
+    pixel_x: int,
+    pixel_y: int,
+    x: int,
+    y: int,
+    width: int,
+    height: int,
+    radius: int,
+) -> float:
+    hits = 0
+    samples = ((0.25, 0.25), (0.75, 0.25), (0.25, 0.75), (0.75, 0.75))
+    for offset_x, offset_y in samples:
+        if point_in_rounded_rect(
+            pixel_x + offset_x,
+            pixel_y + offset_y,
+            x,
+            y,
+            width,
+            height,
+            radius,
+        ):
+            hits += 1
+    return hits / len(samples)
+
+
+def fill_rounded_rect(
+    pixels: bytearray,
+    canvas_width: int,
+    canvas_height: int,
+    x: int,
+    y: int,
+    rect_width: int,
+    rect_height: int,
+    radius: int,
+    color: Tuple[int, int, int, int],
+) -> None:
+    for row in range(y, y + rect_height):
+        for col in range(x, x + rect_width):
+            coverage = rounded_rect_coverage(col, row, x, y, rect_width, rect_height, radius)
+            if coverage <= 0:
+                continue
+            r, g, b, alpha = color
+            blend_pixel(
+                pixels,
+                canvas_width,
+                canvas_height,
+                col,
+                row,
+                (r, g, b, int(round(alpha * coverage))),
+            )
+
+
+def stroke_rounded_rect(
+    pixels: bytearray,
+    canvas_width: int,
+    canvas_height: int,
+    x: int,
+    y: int,
+    rect_width: int,
+    rect_height: int,
+    radius: int,
+    stroke_width: int,
+    color: Tuple[int, int, int, int],
+) -> None:
+    for row in range(y, y + rect_height):
+        for col in range(x, x + rect_width):
+            outer = rounded_rect_coverage(col, row, x, y, rect_width, rect_height, radius)
+            inner = rounded_rect_coverage(
+                col,
+                row,
+                x + stroke_width,
+                y + stroke_width,
+                rect_width - stroke_width * 2,
+                rect_height - stroke_width * 2,
+                max(0, radius - stroke_width),
+            )
+            coverage = max(0.0, outer - inner)
+            if coverage <= 0:
+                continue
+            r, g, b, alpha = color
+            blend_pixel(
+                pixels,
+                canvas_width,
+                canvas_height,
+                col,
+                row,
+                (r, g, b, int(round(alpha * coverage))),
+            )
 
 
 def png_chunk(kind: bytes, data: bytes) -> bytes:
@@ -259,73 +411,125 @@ def encode_png_rgba(width: int, height: int, pixels: bytes) -> bytes:
     )
 
 
-def battery_template_image(remaining_percent: Optional[int]) -> str:
+def glass_fill_color(percent: Optional[int]) -> Tuple[int, int, int, int]:
+    if percent is None:
+        return (160, 170, 185, 118)
+    if percent <= 20:
+        return (255, 103, 103, 174)
+    if percent <= 50:
+        return (255, 194, 91, 166)
+    return (91, 176, 255, 174)
+
+
+def add_glass_texture(pixels: bytearray, width: int, height: int) -> None:
+    for y in range(3, height - 3):
+        for x in range(3, width - 3):
+            value = (x * 17 + y * 31) % 29
+            if value == 0:
+                blend_pixel(pixels, width, height, x, y, (255, 255, 255, 18))
+            elif value == 7:
+                blend_pixel(pixels, width, height, x, y, (70, 90, 120, 8))
+
+
+def text_width(text: str, scale: int, spacing: int) -> int:
+    total = 0
+    for char in text:
+        glyph = GLASS_DIGITS.get(char)
+        if glyph is None:
+            continue
+        total += len(glyph[0]) * scale + spacing
+    return max(0, total - spacing)
+
+
+def draw_text(
+    pixels: bytearray,
+    width: int,
+    height: int,
+    text: str,
+    x: int,
+    y: int,
+    scale: int,
+    color: Tuple[int, int, int, int],
+) -> None:
+    cursor_x = x
+    spacing = 1
+    for char in text:
+        glyph = GLASS_DIGITS.get(char)
+        if glyph is None:
+            continue
+        for glyph_y, row in enumerate(glyph):
+            for glyph_x, value in enumerate(row):
+                if value != "1":
+                    continue
+                fill_rect(
+                    pixels,
+                    width,
+                    height,
+                    cursor_x + glyph_x * scale,
+                    y + glyph_y * scale,
+                    scale,
+                    scale,
+                    color,
+                )
+        cursor_x += len(glyph[0]) * scale + spacing
+
+
+def glass_usage_bar_image(label: str, remaining_percent: Optional[int]) -> str:
     percent = clamp_percent(remaining_percent)
-    if percent in _BATTERY_ICON_CACHE:
-        return _BATTERY_ICON_CACHE[percent]
+    cache_key = (label, percent)
+    if cache_key in _USAGE_BAR_IMAGE_CACHE:
+        return _USAGE_BAR_IMAGE_CACHE[cache_key]
 
-    pixels = bytearray(BATTERY_ICON_WIDTH * BATTERY_ICON_HEIGHT * 4)
+    width = USAGE_BAR_WIDTH
+    height = USAGE_BAR_HEIGHT
+    pixels = bytearray(width * height * 4)
 
-    body_x = 0
-    body_y = 2
-    body_width = 46
-    body_height = 12
-    fill_x = 4
-    fill_y = 5
-    fill_width = 38
-    fill_height = 6
+    fill_rounded_rect(pixels, width, height, 1, 2, width - 2, height - 4, 8, (20, 26, 34, 42))
+    fill_rounded_rect(pixels, width, height, 0, 1, width, height - 3, 8, (244, 248, 252, 126))
+    add_glass_texture(pixels, width, height)
+    fill_rounded_rect(pixels, width, height, 3, 4, width - 6, height - 8, 5, (255, 255, 255, 58))
 
-    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + 2, body_y, body_width - 4, 1, 255)
-    fill_rect(
-        pixels,
-        BATTERY_ICON_WIDTH,
-        body_x + 2,
-        body_y + body_height - 1,
-        body_width - 4,
-        1,
-        255,
-    )
-    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x, body_y + 2, 1, body_height - 4, 255)
-    fill_rect(
-        pixels,
-        BATTERY_ICON_WIDTH,
-        body_x + body_width - 1,
-        body_y + 2,
-        1,
-        body_height - 4,
-        255,
-    )
-    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + 1, body_y + 1, 1, 1, 255)
-    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + body_width - 2, body_y + 1, 1, 1, 255)
-    fill_rect(pixels, BATTERY_ICON_WIDTH, body_x + 1, body_y + body_height - 2, 1, 1, 255)
-    fill_rect(
-        pixels,
-        BATTERY_ICON_WIDTH,
-        body_x + body_width - 2,
-        body_y + body_height - 2,
-        1,
-        1,
-        255,
-    )
-
-    fill_rect(pixels, BATTERY_ICON_WIDTH, 47, 5, 3, 6, 255)
-    fill_rect(pixels, BATTERY_ICON_WIDTH, 46, 6, 1, 4, 255)
-    fill_rect(pixels, BATTERY_ICON_WIDTH, fill_x, fill_y, fill_width, fill_height, 64)
-
+    track_x = 4
+    track_y = 5
+    track_width = width - 8
+    track_height = height - 10
     if percent is not None:
-        charged_width = int(round(fill_width * (percent / 100.0)))
+        progress_width = int(round(track_width * (percent / 100.0)))
         if percent > 0:
-            charged_width = max(1, charged_width)
-        fill_rect(pixels, BATTERY_ICON_WIDTH, fill_x, fill_y, charged_width, fill_height, 255)
+            progress_width = max(2, progress_width)
+        progress_width = min(track_width, progress_width)
+        fill_rounded_rect(
+            pixels,
+            width,
+            height,
+            track_x,
+            track_y,
+            progress_width,
+            track_height,
+            min(4, max(1, progress_width // 2)),
+            glass_fill_color(percent),
+        )
 
-    png_data = encode_png_rgba(BATTERY_ICON_WIDTH, BATTERY_ICON_HEIGHT, bytes(pixels))
+    fill_rounded_rect(pixels, width, height, 1, 2, width - 2, 7, 7, (255, 255, 255, 62))
+    stroke_rounded_rect(pixels, width, height, 0, 1, width, height - 3, 8, 1, (255, 255, 255, 118))
+    stroke_rounded_rect(pixels, width, height, 1, 2, width - 2, height - 5, 7, 1, (42, 58, 78, 34))
+
+    scale = 2
+    spacing = 1
+    draw_width = text_width(label, scale, spacing)
+    text_x = max(0, (width - draw_width) // 2)
+    text_y = 4
+    draw_text(pixels, width, height, label, text_x, text_y + 1, scale, (255, 255, 255, 92))
+    draw_text(pixels, width, height, label, text_x, text_y, scale, (21, 28, 38, 238))
+
+    png_data = encode_png_rgba(width, height, bytes(pixels))
     encoded = base64.b64encode(png_data).decode("ascii")
-    _BATTERY_ICON_CACHE[percent] = encoded
+    _USAGE_BAR_IMAGE_CACHE[cache_key] = encoded
     return encoded
 
 
-def render_menu_line(menu_value: str, remaining_percent: Optional[int]) -> str:
-    return f"Codex {menu_value} | templateImage={battery_template_image(remaining_percent)}"
+def render_menu_line(label: str, remaining_percent: Optional[int]) -> str:
+    return f" | image={glass_usage_bar_image(label, remaining_percent)}"
 
 
 def format_datetime(value: Optional[datetime]) -> str:
@@ -383,7 +587,7 @@ def render_error(error: UsageError) -> str:
 
 def render_snapshot(snapshot: UsageSnapshot) -> str:
     primary_remaining = snapshot.primary.remaining_percent if snapshot.primary else None
-    menu_value = format_percent(primary_remaining)
+    menu_value = format_menu_value(primary_remaining)
 
     lines = [
         render_menu_line(menu_value, primary_remaining),
