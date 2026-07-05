@@ -332,10 +332,13 @@ private extension KeyedDecodingContainer {
 
     func decodeTolerantDouble(forKey key: Key) -> Double? {
         if let value = try? decode(Double.self, forKey: key) {
-            return value
+            return value.isFinite ? value : nil
         }
         if let value = try? decode(String.self, forKey: key) {
-            return Double(value)
+            guard let parsed = Double(value), parsed.isFinite else {
+                return nil
+            }
+            return parsed
         }
         return nil
     }
@@ -344,7 +347,11 @@ private extension KeyedDecodingContainer {
         if let value = try? decode(Int.self, forKey: key) {
             return value
         }
-        if let value = try? decode(Double.self, forKey: key), value.isFinite {
+        if let value = try? decode(Double.self, forKey: key),
+           value.isFinite,
+           value >= Double(Int.min),
+           value < Double(Int.max)
+        {
             return Int(value)
         }
         if let value = try? decode(String.self, forKey: key) {

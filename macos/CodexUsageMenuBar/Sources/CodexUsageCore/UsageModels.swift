@@ -58,13 +58,19 @@ public enum UsageReadResult: Equatable, Sendable {
 
 public enum UsageFormatting {
     public static func remainingFromUsed(_ usedPercent: Double?) -> Int? {
-        guard let usedPercent else { return nil }
+        guard let usedPercent, usedPercent.isFinite else { return nil }
         let remaining = 100.0 - usedPercent
         return Int(min(100.0, max(0.0, remaining)).rounded())
     }
 
     public static func windowLabel(minutes: Double?) -> String {
-        guard let minutes else { return "--" }
+        guard let minutes,
+              minutes.isFinite,
+              minutes >= Double(Int.min),
+              minutes < Double(Int.max)
+        else {
+            return "--"
+        }
         let wholeMinutes = Int(minutes)
         if wholeMinutes % 1440 == 0 {
             return "\(wholeMinutes / 1440)d"
@@ -89,7 +95,7 @@ public enum UsageFormatting {
         guard let date else { return "--" }
         let formatter = DateFormatter()
         formatter.locale = Locale(identifier: "en_US_POSIX")
-        formatter.timeZone = .current
+        formatter.timeZone = calendar.timeZone
         if calendar.isDate(date, inSameDayAs: now) {
             formatter.dateFormat = "HH:mm:ss"
         } else {

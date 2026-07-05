@@ -178,8 +178,48 @@ final class CodexLogReaderTests: XCTestCase {
         XCTAssertEqual(snapshot.creditsDescription, "12")
     }
 
+    func testNonFiniteWindowStringsDecodeAsNilWithoutSkippingRecord() throws {
+        let session = tempDirectory.appendingPathComponent("session.jsonl")
+        try write(records: [
+            """
+            {"timestamp":"2026-07-03T04:38:11.000Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":"NaN","window_minutes":"Infinity","resets_at":"inf"},"secondary":{"used_percent":40,"window_minutes":10080,"resets_at":1783630800},"credits":{"has_credits":true,"unlimited":false,"balance":"Infinity"},"plan_type":"plus"}}}
+            """
+        ], to: session)
+
+        let result = reader.readLatestSnapshot(sessionsDirectory: tempDirectory)
+
+        guard case let .snapshot(snapshot) = result else {
+            return XCTFail("Expected snapshot, got \(result)")
+        }
+        XCTAssertEqual(snapshot.primary?.label, "--")
+        XCTAssertNil(snapshot.primary?.remainingPercent)
+        XCTAssertNil(snapshot.primary?.resetsAt)
+        XCTAssertEqual(snapshot.secondary?.remainingPercent, 60)
+        XCTAssertEqual(snapshot.creditsDescription, "available")
+    }
+
+    func testOversizedNumericCreditsBalanceDoesNotSkipUsageRecord() throws {
+        let session = tempDirectory.appendingPathComponent("session.jsonl")
+        try write(records: [
+            """
+            {"timestamp":"2026-07-03T04:38:11.000Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":25,"window_minutes":300,"resets_at":1783070400},"secondary":{"used_percent":40,"window_minutes":10080,"resets_at":1783630800},"credits":{"has_credits":true,"unlimited":false,"balance":92233720368547758070},"plan_type":"plus"}}}
+            """
+        ], to: session)
+
+        let result = reader.readLatestSnapshot(sessionsDirectory: tempDirectory)
+
+        guard case let .snapshot(snapshot) = result else {
+            return XCTFail("Expected snapshot, got \(result)")
+        }
+        XCTAssertEqual(snapshot.primary?.remainingPercent, 75)
+        XCTAssertEqual(snapshot.secondary?.remainingPercent, 60)
+        XCTAssertEqual(snapshot.creditsDescription, "available")
+    }
+
     func testFormattingHelpers() {
         XCTAssertNil(UsageFormatting.remainingFromUsed(nil))
+        XCTAssertNil(UsageFormatting.remainingFromUsed(.nan))
+        XCTAssertNil(UsageFormatting.remainingFromUsed(.infinity))
         XCTAssertEqual(UsageFormatting.remainingFromUsed(-10), 100)
         XCTAssertEqual(UsageFormatting.remainingFromUsed(12.4), 88)
         XCTAssertEqual(UsageFormatting.remainingFromUsed(120), 0)
@@ -193,11 +233,30 @@ final class CodexLogReaderTests: XCTestCase {
         XCTAssertEqual(UsageFormatting.percentLabel(42), "42%")
 
         XCTAssertEqual(UsageFormatting.windowLabel(minutes: nil), "--")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: .nan), "--")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: .infinity), "--")
+        XCTAssertEqual(UsageFormatting.windowLabel(minutes: Double(Int.max)), "--")
         XCTAssertEqual(UsageFormatting.windowLabel(minutes: 45), "45m")
         XCTAssertEqual(UsageFormatting.windowLabel(minutes: 60), "1h")
         XCTAssertEqual(UsageFormatting.windowLabel(minutes: 300), "5h")
         XCTAssertEqual(UsageFormatting.windowLabel(minutes: 1_440), "1d")
         XCTAssertEqual(UsageFormatting.windowLabel(minutes: 10_080), "7d")
+    }
+
+    func testDateLabelUsesSameDayTimeFormat() throws {
+        let calendar = utcCalendar()
+        let date = try isoDate("2026-07-05T13:38:30Z")
+        let now = try isoDate("2026-07-05T23:59:00Z")
+
+        XCTAssertEqual(UsageFormatting.dateLabel(date, calendar: calendar, now: now), "13:38:30")
+    }
+
+    func testDateLabelUsesMonthDayTimeFormatForDifferentDay() throws {
+        let calendar = utcCalendar()
+        let date = try isoDate("2026-07-04T13:38:30Z")
+        let now = try isoDate("2026-07-05T00:00:00Z")
+
+        XCTAssertEqual(UsageFormatting.dateLabel(date, calendar: calendar, now: now), "Jul 4 13:38")
     }
 
     private func write(records: [String], to url: URL) throws {
@@ -207,6 +266,19 @@ final class CodexLogReaderTests: XCTestCase {
 
     private func setModificationDate(_ date: Date, for url: URL) throws {
         try FileManager.default.setAttributes([.modificationDate: date], ofItemAtPath: url.path)
+    }
+
+    private func utcCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.locale = Locale(identifier: "en_US_POSIX")
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
+    }
+
+    private func isoDate(_ value: String) throws -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return try XCTUnwrap(formatter.date(from: value))
     }
 
     private func tokenCountEvent(
