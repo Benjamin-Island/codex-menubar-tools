@@ -11,6 +11,7 @@ final class StatusController: NSObject {
     private let refreshInterval: TimeInterval
     private var timer: Timer?
     private var lastResult: UsageReadResult?
+    private var isRefreshing = false
 
     init(
         sessionsDirectory: URL,
@@ -27,13 +28,16 @@ final class StatusController: NSObject {
     }
 
     func start() {
+        updateStatusItem(label: "--", remainingPercent: nil)
         configureMenu()
         refresh()
-        timer = Timer.scheduledTimer(withTimeInterval: refreshInterval, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.refresh()
             }
         }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
     }
 
     @objc private func refreshFromMenu() {
@@ -45,13 +49,18 @@ final class StatusController: NSObject {
     }
 
     private func refresh() {
+        guard !isRefreshing else { return }
+        isRefreshing = true
+
         let sessionsDirectory = sessionsDirectory
         let makeReader = makeReader
         DispatchQueue.global(qos: .utility).async {
             let reader = makeReader()
             let result = reader.readLatestSnapshot(sessionsDirectory: sessionsDirectory)
             DispatchQueue.main.async { [weak self] in
-                self?.apply(result)
+                guard let self else { return }
+                self.isRefreshing = false
+                self.apply(result)
             }
         }
     }
@@ -70,15 +79,21 @@ final class StatusController: NSObject {
             label = error.menuValue
         }
 
+        updateStatusItem(label: label, remainingPercent: remainingPercent)
+        configureMenu()
+    }
+
+    private func updateStatusItem(label: String, remainingPercent: Int?) {
         statusItem.button?.image = renderer.image(
             label: label,
             progress: remainingPercent.map { Double($0) / 100.0 }
         )
         statusItem.button?.imagePosition = .imageOnly
-        statusItem.button?.toolTip = label == "--" || label == "!"
-            ? "Codex usage unavailable"
-            : "Codex usage \(label)% remaining"
-        configureMenu()
+
+        let description = remainingPercent.map { "Codex usage \($0)% remaining" } ?? "Codex usage unavailable"
+        statusItem.button?.toolTip = description
+        statusItem.button?.setAccessibilityLabel("Codex usage")
+        statusItem.button?.setAccessibilityValue(remainingPercent.map { "\($0)%" } ?? label)
     }
 
     private func configureMenu() {
@@ -132,12 +147,12 @@ final class StatusController: NSObject {
         }
 
         menu.addItem(NSMenuItem(
-            title: "\(window.label) remaining: \(UsageFormatting.percentLabel(window.remainingPercent))",
+            title: "\(prefix) \(window.label) remaining: \(UsageFormatting.percentLabel(window.remainingPercent))",
             action: nil,
             keyEquivalent: ""
         ))
         menu.addItem(NSMenuItem(
-            title: "\(window.label) resets: \(UsageFormatting.dateLabel(window.resetsAt))",
+            title: "\(prefix) \(window.label) resets: \(UsageFormatting.dateLabel(window.resetsAt))",
             action: nil,
             keyEquivalent: ""
         ))
