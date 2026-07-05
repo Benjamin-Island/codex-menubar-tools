@@ -4,6 +4,7 @@
 from __future__ import annotations
 
 import base64
+import io
 import json
 import os
 import struct
@@ -13,25 +14,34 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Sequence, Tuple, Union
 
+try:
+    from PIL import Image, ImageDraw, ImageFilter, ImageFont
+except ImportError:  # pragma: no cover - exercised only on minimal Python installs.
+    Image = None
+    ImageDraw = None
+    ImageFilter = None
+    ImageFont = None
+
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
-USAGE_BAR_WIDTH = 64
-USAGE_BAR_HEIGHT = 18
+USAGE_BAR_WIDTH = 96
+USAGE_BAR_HEIGHT = 22
+USAGE_BAR_RENDER_SCALE = 4
 
 _USAGE_BAR_IMAGE_CACHE: Dict[Tuple[str, Optional[int]], str] = {}
 GLASS_DIGITS: Dict[str, Sequence[str]] = {
-    "0": ("111", "101", "101", "101", "111"),
-    "1": ("010", "110", "010", "010", "111"),
-    "2": ("111", "001", "111", "100", "111"),
-    "3": ("111", "001", "111", "001", "111"),
-    "4": ("101", "101", "111", "001", "001"),
-    "5": ("111", "100", "111", "001", "111"),
-    "6": ("111", "100", "111", "101", "111"),
-    "7": ("111", "001", "010", "010", "010"),
-    "8": ("111", "101", "111", "101", "111"),
-    "9": ("111", "101", "111", "001", "111"),
-    "-": ("000", "000", "111", "000", "000"),
-    "!": ("1", "1", "1", "0", "1"),
+    "0": ("01110", "10001", "10011", "10101", "11001", "10001", "01110"),
+    "1": ("00100", "01100", "00100", "00100", "00100", "00100", "01110"),
+    "2": ("01110", "10001", "00001", "00010", "00100", "01000", "11111"),
+    "3": ("11110", "00001", "00001", "01110", "00001", "00001", "11110"),
+    "4": ("00010", "00110", "01010", "10010", "11111", "00010", "00010"),
+    "5": ("11111", "10000", "11110", "00001", "00001", "10001", "01110"),
+    "6": ("00110", "01000", "10000", "11110", "10001", "10001", "01110"),
+    "7": ("11111", "00001", "00010", "00100", "01000", "01000", "01000"),
+    "8": ("01110", "10001", "10001", "01110", "10001", "10001", "01110"),
+    "9": ("01110", "10001", "10001", "01111", "00001", "00010", "01100"),
+    "-": ("00000", "00000", "00000", "11111", "00000", "00000", "00000"),
+    "!": ("1", "1", "1", "1", "0", "0", "1"),
 }
 
 
@@ -411,14 +421,54 @@ def encode_png_rgba(width: int, height: int, pixels: bytes) -> bytes:
     )
 
 
+def downsample_rgba(
+    source: bytes,
+    source_width: int,
+    source_height: int,
+    scale: int,
+) -> bytes:
+    target_width = source_width // scale
+    target_height = source_height // scale
+    target = bytearray(target_width * target_height * 4)
+
+    for target_y in range(target_height):
+        for target_x in range(target_width):
+            alpha_sum = 0
+            red_sum = 0
+            green_sum = 0
+            blue_sum = 0
+            for offset_y in range(scale):
+                for offset_x in range(scale):
+                    source_x = target_x * scale + offset_x
+                    source_y = target_y * scale + offset_y
+                    source_index = ((source_y * source_width) + source_x) * 4
+                    alpha = source[source_index + 3]
+                    alpha_sum += alpha
+                    red_sum += source[source_index] * alpha
+                    green_sum += source[source_index + 1] * alpha
+                    blue_sum += source[source_index + 2] * alpha
+
+            sample_count = scale * scale
+            target_index = ((target_y * target_width) + target_x) * 4
+            target_alpha = int(round(alpha_sum / sample_count))
+            if alpha_sum == 0:
+                continue
+            target[target_index] = int(round(red_sum / alpha_sum))
+            target[target_index + 1] = int(round(green_sum / alpha_sum))
+            target[target_index + 2] = int(round(blue_sum / alpha_sum))
+            target[target_index + 3] = target_alpha
+
+    return bytes(target)
+
+
 def glass_fill_color(percent: Optional[int]) -> Tuple[int, int, int, int]:
     if percent is None:
         return (160, 170, 185, 118)
     if percent <= 20:
-        return (255, 103, 103, 174)
+        return (214, 118, 118, 148)
     if percent <= 50:
-        return (255, 194, 91, 166)
-    return (91, 176, 255, 174)
+        return (185, 154, 105, 140)
+    return (108, 128, 148, 148)
 
 
 def add_glass_texture(pixels: bytearray, width: int, height: int) -> None:
@@ -449,10 +499,10 @@ def draw_text(
     x: int,
     y: int,
     scale: int,
+    spacing: int,
     color: Tuple[int, int, int, int],
 ) -> None:
     cursor_x = x
-    spacing = 1
     for char in text:
         glyph = GLASS_DIGITS.get(char)
         if glyph is None:
@@ -474,29 +524,84 @@ def draw_text(
         cursor_x += len(glyph[0]) * scale + spacing
 
 
-def glass_usage_bar_image(label: str, remaining_percent: Optional[int]) -> str:
+def fallback_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> bytes:
     percent = clamp_percent(remaining_percent)
-    cache_key = (label, percent)
-    if cache_key in _USAGE_BAR_IMAGE_CACHE:
-        return _USAGE_BAR_IMAGE_CACHE[cache_key]
-
-    width = USAGE_BAR_WIDTH
-    height = USAGE_BAR_HEIGHT
+    render_scale = USAGE_BAR_RENDER_SCALE
+    width = USAGE_BAR_WIDTH * render_scale
+    height = USAGE_BAR_HEIGHT * render_scale
     pixels = bytearray(width * height * 4)
 
-    fill_rounded_rect(pixels, width, height, 1, 2, width - 2, height - 4, 8, (20, 26, 34, 42))
-    fill_rounded_rect(pixels, width, height, 0, 1, width, height - 3, 8, (244, 248, 252, 126))
-    add_glass_texture(pixels, width, height)
-    fill_rounded_rect(pixels, width, height, 3, 4, width - 6, height - 8, 5, (255, 255, 255, 58))
+    def s(value: int) -> int:
+        return value * render_scale
 
-    track_x = 4
-    track_y = 5
-    track_width = width - 8
-    track_height = height - 10
+    pill_x = s(3)
+    pill_y = s(2)
+    pill_width = s(80)
+    pill_height = s(14)
+    pill_radius = s(7)
+
+    for spread, alpha in ((5, 10), (4, 16), (3, 22), (2, 28)):
+        fill_rounded_rect(
+            pixels,
+            width,
+            height,
+            pill_x - s(spread),
+            pill_y - s(spread // 2),
+            pill_width + s(spread * 2),
+            pill_height + s(spread),
+            pill_radius + s(spread),
+            (255, 255, 255, alpha),
+        )
+
+    fill_rounded_rect(
+        pixels,
+        width,
+        height,
+        pill_x + s(1),
+        pill_y + s(1),
+        pill_width,
+        pill_height,
+        pill_radius,
+        (10, 16, 24, 34),
+    )
+    fill_rounded_rect(
+        pixels,
+        width,
+        height,
+        pill_x,
+        pill_y,
+        pill_width,
+        pill_height,
+        pill_radius,
+        (232, 242, 250, 156),
+    )
+    add_glass_texture(pixels, width, height)
+
+    inner_x = pill_x + s(3)
+    inner_y = pill_y + s(3)
+    inner_width = pill_width - s(6)
+    inner_height = pill_height - s(6)
+
+    fill_rounded_rect(
+        pixels,
+        width,
+        height,
+        inner_x,
+        inner_y,
+        inner_width,
+        inner_height,
+        s(4),
+        (255, 255, 255, 46),
+    )
+
+    track_x = pill_x + s(3)
+    track_y = pill_y + s(7)
+    track_width = pill_width - s(6)
+    track_height = s(6)
     if percent is not None:
         progress_width = int(round(track_width * (percent / 100.0)))
         if percent > 0:
-            progress_width = max(2, progress_width)
+            progress_width = max(s(2), progress_width)
         progress_width = min(track_width, progress_width)
         fill_rounded_rect(
             pixels,
@@ -506,23 +611,248 @@ def glass_usage_bar_image(label: str, remaining_percent: Optional[int]) -> str:
             track_y,
             progress_width,
             track_height,
-            min(4, max(1, progress_width // 2)),
+            min(s(4), max(s(1), progress_width // 2)),
             glass_fill_color(percent),
         )
 
-    fill_rounded_rect(pixels, width, height, 1, 2, width - 2, 7, 7, (255, 255, 255, 62))
-    stroke_rounded_rect(pixels, width, height, 0, 1, width, height - 3, 8, 1, (255, 255, 255, 118))
-    stroke_rounded_rect(pixels, width, height, 1, 2, width - 2, height - 5, 7, 1, (42, 58, 78, 34))
+    fill_rect(
+        pixels,
+        width,
+        height,
+        track_x,
+        track_y,
+        min(track_width, max(0, progress_width if percent is not None else 0)),
+        s(1),
+        (255, 255, 255, 36),
+    )
+    fill_rounded_rect(
+        pixels,
+        width,
+        height,
+        pill_x + s(2),
+        pill_y + s(1),
+        pill_width - s(4),
+        s(7),
+        s(6),
+        (255, 255, 255, 84),
+    )
+    fill_rect(
+        pixels,
+        width,
+        height,
+        pill_x + s(37),
+        pill_y + s(2),
+        s(1),
+        pill_height - s(4),
+        (255, 255, 255, 34),
+    )
+    fill_rect(
+        pixels,
+        width,
+        height,
+        pill_x + s(58),
+        pill_y + s(2),
+        s(1),
+        pill_height - s(4),
+        (255, 255, 255, 26),
+    )
+    stroke_rounded_rect(
+        pixels,
+        width,
+        height,
+        pill_x,
+        pill_y,
+        pill_width,
+        pill_height,
+        pill_radius,
+        s(1),
+        (255, 255, 255, 178),
+    )
+    stroke_rounded_rect(
+        pixels,
+        width,
+        height,
+        pill_x + s(1),
+        pill_y + s(1),
+        pill_width - s(2),
+        pill_height - s(2),
+        s(6),
+        s(1),
+        (64, 82, 102, 48),
+    )
 
-    scale = 2
-    spacing = 1
-    draw_width = text_width(label, scale, spacing)
+    digit_scale = s(2)
+    spacing = s(1)
+    draw_width = text_width(label, digit_scale, spacing)
     text_x = max(0, (width - draw_width) // 2)
-    text_y = 4
-    draw_text(pixels, width, height, label, text_x, text_y + 1, scale, (255, 255, 255, 92))
-    draw_text(pixels, width, height, label, text_x, text_y, scale, (21, 28, 38, 238))
+    text_y = s(2)
+    draw_text(
+        pixels,
+        width,
+        height,
+        label,
+        text_x,
+        text_y + s(1),
+        digit_scale,
+        spacing,
+        (52, 70, 90, 132),
+    )
+    draw_text(
+        pixels,
+        width,
+        height,
+        label,
+        text_x - s(1) // 2,
+        text_y,
+        digit_scale,
+        spacing,
+        (255, 255, 255, 234),
+    )
 
-    png_data = encode_png_rgba(width, height, bytes(pixels))
+    final_pixels = downsample_rgba(bytes(pixels), width, height, render_scale)
+    return encode_png_rgba(USAGE_BAR_WIDTH, USAGE_BAR_HEIGHT, final_pixels)
+
+
+def load_menu_font(size: int) -> Any:
+    if ImageFont is None:
+        return None
+
+    font_paths = (
+        "/System/Library/Fonts/SFNSRounded.ttf",
+        "/System/Library/Fonts/SFNS.ttf",
+        "/System/Library/Fonts/HelveticaNeue.ttc",
+        "/System/Library/Fonts/Helvetica.ttc",
+    )
+    for path in font_paths:
+        try:
+            return ImageFont.truetype(path, size=size)
+        except OSError:
+            continue
+    return ImageFont.load_default()
+
+
+def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> Optional[bytes]:
+    if Image is None or ImageDraw is None or ImageFilter is None:
+        return None
+
+    percent = clamp_percent(remaining_percent)
+    scale = 4
+    width = USAGE_BAR_WIDTH * scale
+    height = USAGE_BAR_HEIGHT * scale
+    image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+
+    def s(value: float) -> int:
+        return int(round(value * scale))
+
+    logical_width = USAGE_BAR_WIDTH
+    logical_height = USAGE_BAR_HEIGHT
+    pill = (s(5), s(3), s(logical_width - 5), s(logical_height - 3))
+    radius = s((logical_height - 6) / 2)
+
+    glow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    glow_draw = ImageDraw.Draw(glow)
+    glow_draw.rounded_rectangle(
+        (s(1), s(1), s(logical_width - 1), s(logical_height - 1)),
+        radius=s(logical_height / 2),
+        fill=(255, 255, 255, 58),
+    )
+    glow = glow.filter(ImageFilter.GaussianBlur(s(2.2)))
+    image.alpha_composite(glow)
+
+    shadow = Image.new("RGBA", (width, height), (0, 0, 0, 0))
+    shadow_draw = ImageDraw.Draw(shadow)
+    shadow_draw.rounded_rectangle(
+        (pill[0], pill[1] + s(1), pill[2], pill[3] + s(1)),
+        radius=radius,
+        fill=(27, 37, 49, 56),
+    )
+    shadow = shadow.filter(ImageFilter.GaussianBlur(s(0.9)))
+    image.alpha_composite(shadow)
+
+    draw = ImageDraw.Draw(image)
+    draw.rounded_rectangle(pill, radius=radius, fill=(231, 241, 249, 156))
+
+    if percent is not None:
+        progress_width = int(round((pill[2] - pill[0] - s(7)) * (percent / 100.0)))
+        if percent > 0:
+            progress_width = max(s(3), progress_width)
+        progress_right = min(pill[0] + s(4) + progress_width, pill[2] - s(3))
+        draw.rounded_rectangle(
+            (pill[0] + s(4), pill[1] + s(8.8), progress_right, pill[3] - s(2.5)),
+            radius=s(3.2),
+            fill=glass_fill_color(percent),
+        )
+
+    draw.rounded_rectangle(
+        (pill[0] + s(2), pill[1] + s(1), pill[2] - s(2), pill[1] + s(9.5)),
+        radius=s(7),
+        fill=(255, 255, 255, 90),
+    )
+    draw.line(
+        (pill[0] + s(5), pill[1] + s(8.8), pill[2] - s(5), pill[1] + s(8.8)),
+        fill=(255, 255, 255, 64),
+        width=s(0.6),
+    )
+    draw.line(
+        (s(logical_width * 0.49), s(4), s(logical_width * 0.49), s(logical_height - 5)),
+        fill=(255, 255, 255, 34),
+        width=s(0.5),
+    )
+    draw.line(
+        (s(logical_width * 0.69), s(4.5), s(logical_width * 0.69), s(logical_height - 5.5)),
+        fill=(255, 255, 255, 24),
+        width=s(0.5),
+    )
+
+    draw.rounded_rectangle(pill, radius=radius, outline=(255, 255, 255, 196), width=s(1))
+    draw.rounded_rectangle(
+        (pill[0] + s(1), pill[1] + s(1), pill[2] - s(1), pill[3] - s(1)),
+        radius=max(1, radius - s(1)),
+        outline=(75, 91, 108, 58),
+        width=s(0.7),
+    )
+
+    font = load_menu_font(s(20))
+    text_bbox = draw.textbbox((0, 0), label, font=font, stroke_width=s(0.5))
+    text_width_px = text_bbox[2] - text_bbox[0]
+    text_height_px = text_bbox[3] - text_bbox[1]
+    text_x = (width - text_width_px) // 2 - text_bbox[0]
+    text_y = (height - text_height_px) // 2 - text_bbox[1] - s(1.2)
+    draw.text(
+        (text_x, text_y + s(1.2)),
+        label,
+        font=font,
+        fill=(62, 80, 99, 128),
+        stroke_width=s(0.7),
+        stroke_fill=(62, 80, 99, 92),
+    )
+    draw.text(
+        (text_x, text_y),
+        label,
+        font=font,
+        fill=(255, 255, 255, 242),
+        stroke_width=s(0.5),
+        stroke_fill=(93, 110, 130, 108),
+    )
+
+    resize_filter = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
+    image = image.resize((USAGE_BAR_WIDTH, USAGE_BAR_HEIGHT), resize_filter)
+
+    output = io.BytesIO()
+    image.save(output, format="PNG")
+    return output.getvalue()
+
+
+def glass_usage_bar_image(label: str, remaining_percent: Optional[int]) -> str:
+    percent = clamp_percent(remaining_percent)
+    cache_key = (label, percent)
+    if cache_key in _USAGE_BAR_IMAGE_CACHE:
+        return _USAGE_BAR_IMAGE_CACHE[cache_key]
+
+    png_data = pillow_glass_usage_bar_png(label, percent)
+    if png_data is None:
+        png_data = fallback_glass_usage_bar_png(label, percent)
+
     encoded = base64.b64encode(png_data).decode("ascii")
     _USAGE_BAR_IMAGE_CACHE[cache_key] = encoded
     return encoded

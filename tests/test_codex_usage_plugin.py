@@ -1,6 +1,7 @@
 import base64
 import importlib.util
 import json
+import struct
 import sys
 import tempfile
 import unittest
@@ -38,6 +39,7 @@ def assert_glass_menu_line(testcase, output):
     encoded = first_line.split("image=", 1)[1]
     png_data = base64.b64decode(encoded, validate=True)
     testcase.assertTrue(png_data.startswith(b"\x89PNG\r\n\x1a\n"))
+    testcase.assertEqual(struct.unpack(">II", png_data[16:24]), (96, 22))
 
 
 def token_count_event(used_primary=12.0, used_secondary=4.0, timestamp="2026-07-03T04:38:11.000Z"):
