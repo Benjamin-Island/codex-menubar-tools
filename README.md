@@ -68,7 +68,7 @@ Run the plugin directly:
 python3 codex-usage.30s.py
 ```
 
-Expected output starts with ` | image=...` when local Codex rate-limit data exists. SwiftBar renders the encoded image as the frosted-glass menu bar progress indicator. If there is no local event yet, it still starts with ` | image=...` and explains the missing data in the dropdown lines.
+Expected output starts with `| templateImage=...` when local Codex rate-limit data exists. SwiftBar renders the encoded mask using the active macOS menu bar color so it sits with nearby status icons. If there is no local event yet, it still starts with `| templateImage=...` and explains the missing data in the dropdown lines.
 
 Run focused verification:
 

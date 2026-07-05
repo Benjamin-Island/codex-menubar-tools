@@ -24,8 +24,8 @@ except ImportError:  # pragma: no cover - exercised only on minimal Python insta
 
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
-USAGE_BAR_WIDTH = 64
-USAGE_BAR_HEIGHT = 18
+USAGE_BAR_WIDTH = 52
+USAGE_BAR_HEIGHT = 16
 USAGE_BAR_RENDER_SCALE = 4
 
 _USAGE_BAR_IMAGE_CACHE: Dict[Tuple[str, Optional[int]], str] = {}
@@ -748,10 +748,10 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
     logical_width = USAGE_BAR_WIDTH
     logical_height = USAGE_BAR_HEIGHT
     rect = (s(0.5), s(0.5), s(logical_width - 0.5), s(logical_height - 0.5))
-    radius = s(9)
+    radius = s(logical_height / 2)
 
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(rect, radius=radius, fill=(255, 255, 255, 56))
+    draw.rounded_rectangle(rect, radius=radius, fill=(0, 0, 0, 38))
 
     if percent is not None:
         inner_rect = (s(2.5), s(2.5), s(logical_width - 2.5), s(logical_height - 2.5))
@@ -766,7 +766,7 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
         progress_draw.rounded_rectangle(
             (inner_rect[0], inner_rect[1], progress_right, inner_rect[3]),
             radius=s(7),
-            fill=(52, 199, 89, 56),
+            fill=(0, 0, 0, 78),
         )
         image.alpha_composite(progress_layer)
         draw = ImageDraw.Draw(image)
@@ -774,40 +774,28 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
     draw.rounded_rectangle(
         (s(2.5), s(0.5), s(logical_width - 2.5), s(logical_height / 2 - 0.5)),
         radius=s(7),
-        fill=(255, 255, 255, 56),
+        fill=(0, 0, 0, 28),
     )
 
-    draw.rounded_rectangle(rect, radius=radius, outline=(255, 255, 255, 122), width=max(1, s(0.7)))
+    draw.rounded_rectangle(rect, radius=radius, outline=(0, 0, 0, 172), width=max(1, s(0.7)))
     draw.rounded_rectangle(
         (s(1.7), s(1.7), s(logical_width - 1.7), s(logical_height - 1.7)),
         radius=s(7.8),
-        outline=(0, 0, 0, 41),
+        outline=(0, 0, 0, 42),
         width=max(1, s(0.5)),
     )
 
-    font = load_menu_font(s(12))
+    font = load_menu_font(s(11))
     text_bbox = draw.textbbox((0, 0), label, font=font)
     text_width_px = text_bbox[2] - text_bbox[0]
     text_height_px = text_bbox[3] - text_bbox[1]
     text_x = (width - text_width_px) // 2 - text_bbox[0]
-    text_y = s(1.6) - text_bbox[1]
-
-    shadow_layer = Image.new("RGBA", (width, height), (0, 0, 0, 0))
-    shadow_draw = ImageDraw.Draw(shadow_layer)
-    shadow_draw.text(
-        (text_x, text_y - s(0.4)),
-        label,
-        font=font,
-        fill=(255, 255, 255, 89),
-    )
-    shadow_layer = shadow_layer.filter(ImageFilter.GaussianBlur(s(0.4)))
-    image.alpha_composite(shadow_layer)
-    draw = ImageDraw.Draw(image)
+    text_y = (height - text_height_px) // 2 - text_bbox[1] - s(0.15)
     draw.text(
         (text_x, text_y),
         label,
         font=font,
-        fill=(0, 0, 0, 224),
+        fill=(0, 0, 0, 242),
     )
 
     resize_filter = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
@@ -834,7 +822,7 @@ def glass_usage_bar_image(label: str, remaining_percent: Optional[int]) -> str:
 
 
 def render_menu_line(label: str, remaining_percent: Optional[int]) -> str:
-    return f"| image={glass_usage_bar_image(label, remaining_percent)}"
+    return f"| templateImage={glass_usage_bar_image(label, remaining_percent)}"
 
 
 def format_datetime(value: Optional[datetime]) -> str:
