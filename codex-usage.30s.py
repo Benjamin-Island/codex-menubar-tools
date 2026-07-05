@@ -24,8 +24,8 @@ except ImportError:  # pragma: no cover - exercised only on minimal Python insta
 
 
 DEFAULT_SESSIONS_DIR = Path.home() / ".codex" / "sessions"
-USAGE_BAR_WIDTH = 52
-USAGE_BAR_HEIGHT = 16
+USAGE_BAR_WIDTH = 34
+USAGE_BAR_HEIGHT = 14
 USAGE_BAR_RENDER_SCALE = 4
 
 _USAGE_BAR_IMAGE_CACHE: Dict[Tuple[str, Optional[int]], str] = {}
@@ -754,7 +754,7 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
     draw.rounded_rectangle(rect, radius=radius, fill=(0, 0, 0, 38))
 
     if percent is not None:
-        inner_rect = (s(2.5), s(2.5), s(logical_width - 2.5), s(logical_height - 2.5))
+        inner_rect = (s(1.8), s(2.0), s(logical_width - 1.8), s(logical_height - 2.0))
         inner_width = inner_rect[2] - inner_rect[0]
         progress_width = int(round(inner_width * (percent / 100.0)))
         if percent > 0:
@@ -765,27 +765,27 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
         progress_draw = ImageDraw.Draw(progress_layer)
         progress_draw.rounded_rectangle(
             (inner_rect[0], inner_rect[1], progress_right, inner_rect[3]),
-            radius=s(7),
+            radius=s(5),
             fill=(0, 0, 0, 78),
         )
         image.alpha_composite(progress_layer)
         draw = ImageDraw.Draw(image)
 
     draw.rounded_rectangle(
-        (s(2.5), s(0.5), s(logical_width - 2.5), s(logical_height / 2 - 0.5)),
-        radius=s(7),
+        (s(1.8), s(0.5), s(logical_width - 1.8), s(logical_height / 2 - 0.5)),
+        radius=s(5),
         fill=(0, 0, 0, 28),
     )
 
     draw.rounded_rectangle(rect, radius=radius, outline=(0, 0, 0, 172), width=max(1, s(0.7)))
     draw.rounded_rectangle(
-        (s(1.7), s(1.7), s(logical_width - 1.7), s(logical_height - 1.7)),
-        radius=s(7.8),
+        (s(1.3), s(1.3), s(logical_width - 1.3), s(logical_height - 1.3)),
+        radius=s(5.8),
         outline=(0, 0, 0, 42),
         width=max(1, s(0.5)),
     )
 
-    font = load_menu_font(s(11))
+    font = load_menu_font(s(9))
     text_bbox = draw.textbbox((0, 0), label, font=font)
     text_width_px = text_bbox[2] - text_bbox[0]
     text_height_px = text_bbox[3] - text_bbox[1]
