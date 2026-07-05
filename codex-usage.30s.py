@@ -737,7 +737,7 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
         return None
 
     percent = clamp_percent(remaining_percent)
-    scale = 4
+    scale = 8
     width = USAGE_BAR_WIDTH * scale
     height = USAGE_BAR_HEIGHT * scale
     image = Image.new("RGBA", (width, height), (0, 0, 0, 0))
@@ -751,7 +751,7 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
     radius = s(logical_height / 2)
 
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(rect, radius=radius, fill=(0, 0, 0, 104))
+    draw.rounded_rectangle(rect, radius=radius, fill=(0, 0, 0, 132))
 
     if percent is not None:
         inner_rect = (s(1.8), s(2.0), s(logical_width - 1.8), s(logical_height - 2.0))
@@ -766,18 +766,10 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
         progress_draw.rounded_rectangle(
             (inner_rect[0], inner_rect[1], progress_right, inner_rect[3]),
             radius=s(5),
-            fill=(0, 0, 0, 216),
+            fill=(0, 0, 0, 245),
         )
         image.alpha_composite(progress_layer)
         draw = ImageDraw.Draw(image)
-
-    draw.rounded_rectangle(rect, radius=radius, outline=(0, 0, 0, 255), width=max(1, s(0.8)))
-    draw.rounded_rectangle(
-        (s(1.3), s(1.3), s(logical_width - 1.3), s(logical_height - 1.3)),
-        radius=s(5.8),
-        outline=(0, 0, 0, 72),
-        width=max(1, s(0.5)),
-    )
 
     font = load_menu_font(s(9))
     text_bbox = draw.textbbox((0, 0), label, font=font)
@@ -792,8 +784,6 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
         label,
         font=font,
         fill=255,
-        stroke_width=max(1, s(0.15)),
-        stroke_fill=255,
     )
     alpha = image.getchannel("A")
     alpha.paste(0, mask=text_mask)
