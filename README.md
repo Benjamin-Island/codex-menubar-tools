@@ -1,6 +1,6 @@
 # Codex Usage Menu Bar
 
-A lightweight SwiftBar plugin for macOS that displays the latest locally reported Codex rate-limit remaining percentage as a native solid template indicator.
+A lightweight macOS menu bar indicator that displays the latest locally reported Codex rate-limit remaining percentage. This repo includes a native AppKit menu bar app and a SwiftBar plugin fallback.
 
 ## What It Shows
 
@@ -23,13 +23,49 @@ The value is based on the newest `token_count` event found in local Codex sessio
 
 ## Security Boundary
 
-The plugin:
+Both implementations:
 
 - Reads `~/.codex/sessions/**/*.jsonl`
 - Does not read `~/.codex/auth.json`
 - Does not make network requests
 - Does not write cache files
 - Does not run shell commands
+
+## Native Menu Bar App
+
+Build the native app bundle:
+
+```bash
+macos/CodexUsageMenuBar/scripts/build-app.sh
+```
+
+The generated app is:
+
+```text
+macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app
+```
+
+Open it:
+
+```bash
+open macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app
+```
+
+The native app is an accessory menu bar app, so it does not show a Dock icon. It refreshes every 30 seconds, reads the same local Codex session logs as the SwiftBar plugin, and provides Refresh and Quit actions from the dropdown menu.
+
+To point the app at a non-default session directory when launching the executable directly:
+
+```bash
+CODEX_SESSIONS_DIR="/path/to/sessions" \
+  macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app/Contents/MacOS/CodexUsageMenuBar
+```
+
+If launching through Finder or `open`, set the environment first:
+
+```bash
+launchctl setenv CODEX_SESSIONS_DIR "/path/to/sessions"
+open macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app
+```
 
 ## Install SwiftBar
 
