@@ -1,13 +1,13 @@
 # Codex Usage Menu Bar
 
-A lightweight SwiftBar plugin for macOS that displays the latest locally reported Codex rate-limit remaining percentage as a frosted-glass progress indicator.
+A lightweight SwiftBar plugin for macOS that displays the latest locally reported Codex rate-limit remaining percentage as a native solid template indicator.
 
 ## What It Shows
 
-The menu bar displays a frosted-glass progress bar with the primary Codex rate-limit window remaining number inside it:
+The menu bar displays a compact solid progress indicator with the primary Codex rate-limit window remaining number knocked out inside it:
 
 ```text
-[frosted progress bar: 88]
+[solid progress indicator: 88]
 ```
 
 The dropdown shows:

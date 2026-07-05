@@ -751,7 +751,7 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
     radius = s(logical_height / 2)
 
     draw = ImageDraw.Draw(image)
-    draw.rounded_rectangle(rect, radius=radius, fill=(0, 0, 0, 38))
+    draw.rounded_rectangle(rect, radius=radius, fill=(0, 0, 0, 104))
 
     if percent is not None:
         inner_rect = (s(1.8), s(2.0), s(logical_width - 1.8), s(logical_height - 2.0))
@@ -766,22 +766,16 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
         progress_draw.rounded_rectangle(
             (inner_rect[0], inner_rect[1], progress_right, inner_rect[3]),
             radius=s(5),
-            fill=(0, 0, 0, 78),
+            fill=(0, 0, 0, 216),
         )
         image.alpha_composite(progress_layer)
         draw = ImageDraw.Draw(image)
 
-    draw.rounded_rectangle(
-        (s(1.8), s(0.5), s(logical_width - 1.8), s(logical_height / 2 - 0.5)),
-        radius=s(5),
-        fill=(0, 0, 0, 28),
-    )
-
-    draw.rounded_rectangle(rect, radius=radius, outline=(0, 0, 0, 172), width=max(1, s(0.7)))
+    draw.rounded_rectangle(rect, radius=radius, outline=(0, 0, 0, 255), width=max(1, s(0.8)))
     draw.rounded_rectangle(
         (s(1.3), s(1.3), s(logical_width - 1.3), s(logical_height - 1.3)),
         radius=s(5.8),
-        outline=(0, 0, 0, 42),
+        outline=(0, 0, 0, 72),
         width=max(1, s(0.5)),
     )
 
@@ -791,12 +785,19 @@ def pillow_glass_usage_bar_png(label: str, remaining_percent: Optional[int]) -> 
     text_height_px = text_bbox[3] - text_bbox[1]
     text_x = (width - text_width_px) // 2 - text_bbox[0]
     text_y = (height - text_height_px) // 2 - text_bbox[1] - s(0.15)
-    draw.text(
+    text_mask = Image.new("L", (width, height), 0)
+    text_mask_draw = ImageDraw.Draw(text_mask)
+    text_mask_draw.text(
         (text_x, text_y),
         label,
         font=font,
-        fill=(0, 0, 0, 242),
+        fill=255,
+        stroke_width=max(1, s(0.15)),
+        stroke_fill=255,
     )
+    alpha = image.getchannel("A")
+    alpha.paste(0, mask=text_mask)
+    image.putalpha(alpha)
 
     resize_filter = getattr(getattr(Image, "Resampling", Image), "LANCZOS")
     image = image.resize((USAGE_BAR_WIDTH, USAGE_BAR_HEIGHT), resize_filter)
