@@ -18,28 +18,26 @@ public final class CodexLogReader {
             ))
         }
 
-        let files: [URL]
-        do {
-            files = try discoverSessionFiles(in: sessionsDirectory)
-        } catch {
-            return .failure(UsageReadError(
-                menuValue: "!",
-                message: "Unable to read Codex session logs",
-                detail: "\(type(of: error)): \(error.localizedDescription)"
-            ))
-        }
+        let files = discoverSessionFileCandidates(in: sessionsDirectory)
 
         var firstReadError: String?
+        var newestSnapshot: SnapshotCandidate?
         for file in files {
             do {
-                if let snapshot = try readLatestSnapshot(from: file) {
-                    return .snapshot(snapshot)
+                for snapshot in try readSnapshotCandidates(from: file.url, fileModificationDate: file.modificationDate) {
+                    if isNewer(snapshot, than: newestSnapshot) {
+                        newestSnapshot = snapshot
+                    }
                 }
             } catch {
                 if firstReadError == nil {
-                    firstReadError = "\(file.path): \(type(of: error)): \(error.localizedDescription)"
+                    firstReadError = "\(file.url.path): \(type(of: error)): \(error.localizedDescription)"
                 }
             }
+        }
+
+        if let newestSnapshot {
+            return .snapshot(newestSnapshot.snapshot)
         }
 
         if let firstReadError {
@@ -58,6 +56,10 @@ public final class CodexLogReader {
     }
 
     public func discoverSessionFiles(in directory: URL) throws -> [URL] {
+        discoverSessionFileCandidates(in: directory).map(\.url)
+    }
+
+    private func discoverSessionFileCandidates(in directory: URL) -> [SessionFileCandidate] {
         guard let enumerator = fileManager.enumerator(
             at: directory,
             includingPropertiesForKeys: [.contentModificationDateKey, .isRegularFileKey],
@@ -68,24 +70,61 @@ public final class CodexLogReader {
 
         var candidates: [(Date, URL)] = []
         for case let fileURL as URL in enumerator where fileURL.pathExtension == "jsonl" {
-            let values = try fileURL.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey])
+            guard let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey, .isRegularFileKey]) else {
+                continue
+            }
             guard values.isRegularFile == true else { continue }
             candidates.append((values.contentModificationDate ?? .distantPast, fileURL))
         }
-        return candidates.sorted { $0.0 > $1.0 }.map(\.1)
+        return candidates
+            .sorted { $0.0 > $1.0 }
+            .map { SessionFileCandidate(url: $0.1, modificationDate: $0.0) }
     }
 
     public func readLatestSnapshot(from fileURL: URL) throws -> UsageSnapshot? {
+        let fileModificationDate = modificationDate(for: fileURL)
+        var newestSnapshot: SnapshotCandidate?
+        for snapshot in try readSnapshotCandidates(from: fileURL, fileModificationDate: fileModificationDate) {
+            if isNewer(snapshot, than: newestSnapshot) {
+                newestSnapshot = snapshot
+            }
+        }
+        return newestSnapshot?.snapshot
+    }
+
+    private func readSnapshotCandidates(from fileURL: URL, fileModificationDate: Date) throws -> [SnapshotCandidate] {
         let contents = try String(contentsOf: fileURL, encoding: .utf8)
-        for rawLine in contents.split(separator: "\n", omittingEmptySubsequences: false).reversed() {
+        var candidates: [SnapshotCandidate] = []
+        for (sequence, rawLine) in contents.split(separator: "\n", omittingEmptySubsequences: false).enumerated() {
             let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
             guard !line.isEmpty, let data = line.data(using: .utf8) else { continue }
             guard let record = try? decoder.decode(SessionRecord.self, from: data) else { continue }
             if let snapshot = makeSnapshot(from: record, sourcePath: fileURL.path) {
-                return snapshot
+                candidates.append(SnapshotCandidate(
+                    snapshot: snapshot,
+                    sortDate: snapshot.reportedAt ?? fileModificationDate,
+                    fileModificationDate: fileModificationDate,
+                    sequence: sequence
+                ))
             }
         }
-        return nil
+        return candidates
+    }
+
+    private func modificationDate(for fileURL: URL) -> Date {
+        let values = try? fileURL.resourceValues(forKeys: [.contentModificationDateKey])
+        return values?.contentModificationDate ?? .distantPast
+    }
+
+    private func isNewer(_ candidate: SnapshotCandidate, than current: SnapshotCandidate?) -> Bool {
+        guard let current else { return true }
+        if candidate.sortDate != current.sortDate {
+            return candidate.sortDate > current.sortDate
+        }
+        if candidate.fileModificationDate != current.fileModificationDate {
+            return candidate.fileModificationDate > current.fileModificationDate
+        }
+        return candidate.sequence > current.sequence
     }
 
     private func makeSnapshot(from record: SessionRecord, sourcePath: String) -> UsageSnapshot? {
@@ -139,6 +178,18 @@ public final class CodexLogReader {
         formatter.formatOptions = [.withInternetDateTime]
         return formatter.date(from: value)
     }
+}
+
+private struct SessionFileCandidate {
+    let url: URL
+    let modificationDate: Date
+}
+
+private struct SnapshotCandidate {
+    let snapshot: UsageSnapshot
+    let sortDate: Date
+    let fileModificationDate: Date
+    let sequence: Int
 }
 
 private struct SessionRecord: Decodable {
