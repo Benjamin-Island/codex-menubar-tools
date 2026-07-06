@@ -1,0 +1,168 @@
+import AppKit
+import CodexUsageCore
+import Foundation
+
+@MainActor
+final class StatusController: NSObject {
+    private let statusItem: NSStatusItem
+    private let sessionsDirectory: URL
+    private let makeReader: @Sendable () -> CodexLogReader
+    private let renderer: UsageIndicatorRenderer
+    private let refreshInterval: TimeInterval
+    private var timer: Timer?
+    private var lastResult: UsageReadResult?
+    private var isRefreshing = false
+    private var needsRefresh = false
+
+    init(
+        sessionsDirectory: URL,
+        makeReader: @escaping @Sendable () -> CodexLogReader,
+        renderer: UsageIndicatorRenderer = UsageIndicatorRenderer(),
+        refreshInterval: TimeInterval
+    ) {
+        self.sessionsDirectory = sessionsDirectory
+        self.makeReader = makeReader
+        self.renderer = renderer
+        self.refreshInterval = refreshInterval
+        self.statusItem = NSStatusBar.system.statusItem(withLength: UsageIndicatorRenderer.imageSize.width)
+        super.init()
+    }
+
+    func start() {
+        updateStatusItem(label: "--", remainingPercent: nil)
+        configureMenu()
+        refresh()
+        let timer = Timer(timeInterval: refreshInterval, repeats: true) { [weak self] _ in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
+        RunLoop.main.add(timer, forMode: .common)
+        self.timer = timer
+    }
+
+    @objc private func refreshFromMenu() {
+        refresh()
+    }
+
+    @objc private func quit() {
+        NSApplication.shared.terminate(nil)
+    }
+
+    private func refresh() {
+        guard !isRefreshing else {
+            needsRefresh = true
+            return
+        }
+        isRefreshing = true
+        needsRefresh = false
+
+        let sessionsDirectory = sessionsDirectory
+        let makeReader = makeReader
+        DispatchQueue.global(qos: .utility).async {
+            let reader = makeReader()
+            let result = reader.readLatestSnapshot(sessionsDirectory: sessionsDirectory)
+            DispatchQueue.main.async { [weak self] in
+                guard let self else { return }
+                self.isRefreshing = false
+                self.apply(result)
+                if self.needsRefresh {
+                    self.refresh()
+                }
+            }
+        }
+    }
+
+    private func apply(_ result: UsageReadResult) {
+        lastResult = result
+
+        let remainingPercent: Int?
+        let label: String
+        switch result {
+        case .snapshot(let snapshot):
+            remainingPercent = snapshot.primary?.remainingPercent
+            label = UsageFormatting.menuLabel(remainingPercent)
+        case .failure(let error):
+            remainingPercent = nil
+            label = error.menuValue
+        }
+
+        updateStatusItem(label: label, remainingPercent: remainingPercent)
+        configureMenu()
+    }
+
+    private func updateStatusItem(label: String, remainingPercent: Int?) {
+        statusItem.button?.image = renderer.image(
+            label: label,
+            progress: remainingPercent.map { Double($0) / 100.0 }
+        )
+        statusItem.button?.imagePosition = .imageOnly
+
+        let description = remainingPercent.map { "Codex usage \($0)% remaining" } ?? "Codex usage unavailable"
+        statusItem.button?.toolTip = description
+        statusItem.button?.setAccessibilityLabel("Codex usage")
+        statusItem.button?.setAccessibilityValue(remainingPercent.map { "\($0)%" } ?? label)
+    }
+
+    private func configureMenu() {
+        let menu = NSMenu()
+
+        switch lastResult {
+        case .snapshot(let snapshot):
+            menu.addItem(NSMenuItem(title: "Codex usage", action: nil, keyEquivalent: ""))
+            menu.addItem(.separator())
+            addWindowItems(to: menu, prefix: "Primary", window: snapshot.primary)
+            addWindowItems(to: menu, prefix: "Secondary", window: snapshot.secondary)
+            menu.addItem(NSMenuItem(title: "Plan: \(snapshot.planType ?? "--")", action: nil, keyEquivalent: ""))
+            if let credits = snapshot.creditsDescription {
+                menu.addItem(NSMenuItem(title: "Credits: \(credits)", action: nil, keyEquivalent: ""))
+            }
+            menu.addItem(NSMenuItem(
+                title: "Last reported: \(UsageFormatting.dateLabel(snapshot.reportedAt))",
+                action: nil,
+                keyEquivalent: ""
+            ))
+            menu.addItem(NSMenuItem(title: "Source: local Codex session logs", action: nil, keyEquivalent: ""))
+
+        case .failure(let error):
+            menu.addItem(NSMenuItem(title: error.message, action: nil, keyEquivalent: ""))
+            if let detail = error.detail {
+                menu.addItem(NSMenuItem(title: "Detail: \(detail)", action: nil, keyEquivalent: ""))
+            }
+            menu.addItem(NSMenuItem(title: "Source: local Codex session logs", action: nil, keyEquivalent: ""))
+
+        case nil:
+            menu.addItem(NSMenuItem(title: "Loading Codex usage", action: nil, keyEquivalent: ""))
+        }
+
+        menu.addItem(.separator())
+        let refreshItem = NSMenuItem(title: "Refresh", action: #selector(refreshFromMenu), keyEquivalent: "r")
+        refreshItem.target = self
+        menu.addItem(refreshItem)
+
+        let quitItem = NSMenuItem(title: "Quit", action: #selector(quit), keyEquivalent: "q")
+        quitItem.target = self
+        menu.addItem(quitItem)
+
+        statusItem.menu = menu
+    }
+
+    private func addWindowItems(to menu: NSMenu, prefix: String, window: WindowUsage?) {
+        guard let window else {
+            menu.addItem(NSMenuItem(title: "\(prefix) remaining: --", action: nil, keyEquivalent: ""))
+            menu.addItem(NSMenuItem(title: "\(prefix) resets: --", action: nil, keyEquivalent: ""))
+            return
+        }
+
+        menu.addItem(NSMenuItem(
+            title: "\(prefix) \(window.label) remaining: \(UsageFormatting.percentLabel(window.remainingPercent))",
+            action: nil,
+            keyEquivalent: ""
+        ))
+        menu.addItem(NSMenuItem(
+            title: "\(prefix) \(window.label) resets: \(UsageFormatting.dateLabel(window.resetsAt))",
+            action: nil,
+            keyEquivalent: ""
+        ))
+    }
+}
