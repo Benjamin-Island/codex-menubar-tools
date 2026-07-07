@@ -51,7 +51,7 @@ Open it:
 open macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app
 ```
 
-The native app is an accessory menu bar app, so it does not show a Dock icon. It refreshes every 30 seconds, reads the same local Codex session logs as the SwiftBar plugin, and provides Refresh and Quit actions from the dropdown menu.
+The native app is an accessory menu bar app, so it does not show a Dock icon. It refreshes when local Codex session logs change, keeps a 5-second fallback refresh, reads the same local Codex session logs as the SwiftBar plugin, and provides Refresh and Quit actions from the dropdown menu.
 
 To point the app at a non-default session directory when launching the executable directly:
 

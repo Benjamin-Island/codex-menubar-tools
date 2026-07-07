@@ -10,6 +10,7 @@ final class StatusController: NSObject {
     private let renderer: UsageIndicatorRenderer
     private let refreshInterval: TimeInterval
     private var timer: Timer?
+    private var sessionMonitor: SessionDirectoryMonitor?
     private var lastResult: UsageReadResult?
     private var isRefreshing = false
     private var needsRefresh = false
@@ -31,6 +32,7 @@ final class StatusController: NSObject {
     func start() {
         updateStatusItem(label: "--", remainingPercent: nil)
         configureMenu()
+        ensureSessionMonitorStarted()
         refresh()
         let timer = Timer(timeInterval: refreshInterval, repeats: true) { [weak self] _ in
             Task { @MainActor in
@@ -65,12 +67,25 @@ final class StatusController: NSObject {
             DispatchQueue.main.async { [weak self] in
                 guard let self else { return }
                 self.isRefreshing = false
+                self.ensureSessionMonitorStarted()
                 self.apply(result)
                 if self.needsRefresh {
                     self.refresh()
                 }
             }
         }
+    }
+
+    private func ensureSessionMonitorStarted() {
+        guard sessionMonitor == nil else { return }
+
+        let monitor = SessionDirectoryMonitor(directory: sessionsDirectory) { [weak self] in
+            Task { @MainActor in
+                self?.refresh()
+            }
+        }
+        guard monitor.start() else { return }
+        sessionMonitor = monitor
     }
 
     private func apply(_ result: UsageReadResult) {
