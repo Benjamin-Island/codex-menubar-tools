@@ -17,7 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         statusController = StatusController(
             sessionsDirectory: sessionsDirectory,
             makeReader: { CodexLogReader() },
-            refreshInterval: 30
+            refreshInterval: 5
         )
         statusController?.start()
     }
