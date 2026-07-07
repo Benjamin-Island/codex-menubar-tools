@@ -2,7 +2,7 @@
 
 > **For agentic workers:** REQUIRED SUB-SKILL: Use superpowers:subagent-driven-development (recommended) or superpowers:executing-plans to implement this plan task-by-task. Steps use checkbox (`- [ ]`) syntax for tracking.
 
-**Goal:** Build a native macOS menu bar app that reads local Codex session logs and displays remaining usage as a crisp, battery-sized status indicator without SwiftBar raster/base64 artifacts.
+**Goal:** Build a native macOS menu bar app that reads local Codex session logs and displays remaining usage as a crisp, battery-sized status indicator.
 
 **Architecture:** Create a new Swift Package in `macos/CodexUsageMenuBar/` with a testable `CodexUsageCore` library and an AppKit executable target. The core library owns log discovery, JSON parsing, formatting, and refresh state; the app target owns `NSStatusItem`, menu rendering, timers, and the native status image renderer.
 
@@ -20,7 +20,7 @@
 - Create `macos/CodexUsageMenuBar/Sources/CodexUsageMenuBar/UsageIndicatorRenderer.swift`: native `NSImage` drawing for a filled, battery-sized template indicator.
 - Create `macos/CodexUsageMenuBar/Tests/CodexUsageCoreTests/CodexLogReaderTests.swift`: parsing and discovery tests using temp directories.
 - Create `macos/CodexUsageMenuBar/scripts/build-app.sh`: builds release binary and creates `CodexUsageMenuBar.app`.
-- Modify `README.md`: document SwiftBar fallback and native app build/run workflow.
+- Modify `README.md`: document native app build/run workflow.
 
 ## Task 1: Swift Package And Core Log Parser
 
@@ -770,12 +770,12 @@ chmod +x macos/CodexUsageMenuBar/scripts/build-app.sh
 
 - [ ] **Step 2: Update README**
 
-Add a "Native macOS App" section before the SwiftBar install section:
+Add a "Native macOS App" section:
 
 ```markdown
 ## Native macOS App
 
-The native app is the preferred UI when you want the menu bar item to match macOS status icons. It renders the indicator through AppKit instead of sending a raster image through SwiftBar.
+The native app renders the indicator through AppKit so the menu bar item matches macOS status icons.
 
 Build and test:
 
@@ -822,11 +822,10 @@ Expected: script prints the `.app` path and executable exists.
 Run:
 
 ```bash
-python -m unittest discover -s tests -p 'test_*.py'
 cd macos/CodexUsageMenuBar && swift test
 ```
 
-Expected: Python SwiftBar fallback tests pass and Swift native app tests pass.
+Expected: Swift native app tests pass.
 
 - [ ] **Step 5: Commit**
 
@@ -840,7 +839,6 @@ git commit -m "Document native menu bar app"
 Run:
 
 ```bash
-python -m unittest discover -s tests -p 'test_*.py'
 cd macos/CodexUsageMenuBar && swift test
 cd macos/CodexUsageMenuBar && swift build
 macos/CodexUsageMenuBar/scripts/build-app.sh

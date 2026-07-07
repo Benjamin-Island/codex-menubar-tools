@@ -1,6 +1,6 @@
 # Codex Usage Menu Bar
 
-A lightweight macOS menu bar indicator that displays the latest locally reported Codex rate-limit remaining percentage. This repo includes a native AppKit menu bar app and a SwiftBar plugin fallback.
+A lightweight native macOS menu bar indicator that displays the latest locally reported Codex rate-limit remaining percentage.
 
 ## What It Shows
 
@@ -23,7 +23,7 @@ The value is based on the newest `token_count` event found in local Codex sessio
 
 ## Security Boundary
 
-Both implementations:
+The app:
 
 - Reads `~/.codex/sessions/**/*.jsonl`
 - Does not read `~/.codex/auth.json`
@@ -51,7 +51,7 @@ Open it:
 open macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app
 ```
 
-The native app is an accessory menu bar app, so it does not show a Dock icon. It refreshes when local Codex session logs change, keeps a 5-second fallback refresh, reads the same local Codex session logs as the SwiftBar plugin, and provides Refresh and Quit actions from the dropdown menu.
+The native app is an accessory menu bar app, so it does not show a Dock icon. It refreshes when local Codex session logs change, keeps a 5-second fallback refresh, and provides Refresh and Quit actions from the dropdown menu.
 
 To point the app at a non-default session directory when launching the executable directly:
 
@@ -67,55 +67,16 @@ launchctl setenv CODEX_SESSIONS_DIR "/path/to/sessions"
 open macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app
 ```
 
-## Install SwiftBar
-
-```bash
-brew install swiftbar
-```
-
-## Install The Plugin
-
-Create the SwiftBar plugin directory:
-
-```bash
-mkdir -p "$HOME/Library/Application Support/SwiftBar/Plugins"
-```
-
-Copy the plugin:
-
-```bash
-cp codex-usage.30s.py "$HOME/Library/Application Support/SwiftBar/Plugins/codex-usage.30s.py"
-chmod +x "$HOME/Library/Application Support/SwiftBar/Plugins/codex-usage.30s.py"
-```
-
-Open SwiftBar and select:
-
-```text
-~/Library/Application Support/SwiftBar/Plugins
-```
-
-SwiftBar will run the plugin every 30 seconds.
-
 ## Local Verification
-
-Run the plugin directly:
-
-```bash
-python3 codex-usage.30s.py
-```
-
-Expected output starts with `| templateImage=...` when local Codex rate-limit data exists. SwiftBar renders the encoded mask using the active macOS menu bar color so it sits with nearby status icons. If there is no local event yet, it still starts with `| templateImage=...` and explains the missing data in the dropdown lines.
 
 Run focused verification:
 
 ```bash
-python3 -m unittest discover -s tests -p 'test_*.py'
+swift build --package-path macos/CodexUsageMenuBar
 ```
 
-Expected output:
+Build the app bundle:
 
-```text
-Ran 5 tests
-
-OK
+```bash
+macos/CodexUsageMenuBar/scripts/build-app.sh
 ```
