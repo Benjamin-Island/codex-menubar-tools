@@ -19,7 +19,7 @@ The dropdown shows:
 - Last reported timestamp
 - Source note
 
-The value is based on the newest `token_count` event found in local Codex session logs. It is not an official public usage API.
+The value is based on `token_count` events found in local Codex session logs. When Codex reports both the standard `codex` limit and model-specific limits, the app shows the newest standard-limit event; otherwise it falls back to the newest available limit event. It is not an official public usage API.
 
 ## Security Boundary
 

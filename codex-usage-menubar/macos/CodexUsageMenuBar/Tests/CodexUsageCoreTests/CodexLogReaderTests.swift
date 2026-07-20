@@ -76,6 +76,65 @@ final class CodexLogReaderTests: XCTestCase {
         XCTAssertEqual(snapshot.primary?.remainingPercent, 80)
     }
 
+    func testPrefersCanonicalCodexLimitOverNewerNamedLimit() throws {
+        let canonicalSession = tempDirectory.appendingPathComponent("canonical.jsonl")
+        try write(records: [tokenCountEvent(
+            usedPrimary: 58,
+            usedSecondary: 10,
+            timestamp: "2026-07-20T09:43:49.411Z",
+            limitID: "codex"
+        )], to: canonicalSession)
+
+        let namedLimitSession = tempDirectory.appendingPathComponent("named-limit.jsonl")
+        try write(records: [tokenCountEvent(
+            usedPrimary: 0,
+            usedSecondary: 10,
+            timestamp: "2026-07-20T09:44:07.974Z",
+            limitID: "codex_bengalfox",
+            limitName: "GPT-5.3-Codex-Spark"
+        )], to: namedLimitSession)
+
+        let result = reader.readLatestSnapshot(sessionsDirectory: tempDirectory)
+
+        guard case let .snapshot(snapshot) = result else {
+            return XCTFail("Expected snapshot, got \(result)")
+        }
+        XCTAssertEqual(snapshot.primary?.remainingPercent, 42)
+        XCTAssertEqual(
+            URL(fileURLWithPath: snapshot.sourcePath).resolvingSymlinksInPath().path,
+            canonicalSession.resolvingSymlinksInPath().path
+        )
+    }
+
+    func testUsesNewestNamedLimitWhenCanonicalCodexLimitIsAbsent() throws {
+        let olderNamedLimit = tempDirectory.appendingPathComponent("older-named-limit.jsonl")
+        try write(records: [tokenCountEvent(
+            usedPrimary: 20,
+            usedSecondary: 10,
+            timestamp: "2026-07-20T09:43:49.411Z",
+            limitID: "codex_alpha"
+        )], to: olderNamedLimit)
+
+        let newerNamedLimit = tempDirectory.appendingPathComponent("newer-named-limit.jsonl")
+        try write(records: [tokenCountEvent(
+            usedPrimary: 30,
+            usedSecondary: 10,
+            timestamp: "2026-07-20T09:44:07.974Z",
+            limitID: "codex_beta"
+        )], to: newerNamedLimit)
+
+        let result = reader.readLatestSnapshot(sessionsDirectory: tempDirectory)
+
+        guard case let .snapshot(snapshot) = result else {
+            return XCTFail("Expected snapshot, got \(result)")
+        }
+        XCTAssertEqual(snapshot.primary?.remainingPercent, 70)
+        XCTAssertEqual(
+            URL(fileURLWithPath: snapshot.sourcePath).resolvingSymlinksInPath().path,
+            newerNamedLimit.resolvingSymlinksInPath().path
+        )
+    }
+
     func testUsesFileModificationDateWhenEventTimestampIsMissing() throws {
         let olderSession = tempDirectory.appendingPathComponent("older.jsonl")
         try write(records: [tokenCountEvent(usedPrimary: 70, usedSecondary: 10, timestamp: nil)], to: olderSession)
@@ -292,11 +351,15 @@ final class CodexLogReaderTests: XCTestCase {
         usedSecondary: Int,
         timestamp: String? = "2026-07-03T04:38:11.000Z",
         creditsBalanceJSON: String = "null",
-        hasCredits: Bool = false
+        hasCredits: Bool = false,
+        limitID: String? = nil,
+        limitName: String? = nil
     ) -> String {
         let timestampField = timestamp.map { #""timestamp":"\#($0)","# } ?? ""
+        let limitIDField = limitID.map { #""limit_id":"\#($0)","# } ?? ""
+        let limitNameField = limitName.map { #""limit_name":"\#($0)","# } ?? ""
         return """
-        {\(timestampField)"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":\(usedPrimary),"window_minutes":300,"resets_at":1783070400},"secondary":{"used_percent":\(usedSecondary),"window_minutes":10080,"resets_at":1783630800},"credits":{"has_credits":\(hasCredits),"unlimited":false,"balance":\(creditsBalanceJSON)},"plan_type":"plus"}}}
+        {\(timestampField)"type":"event_msg","payload":{"type":"token_count","rate_limits":{\(limitIDField)\(limitNameField)"primary":{"used_percent":\(usedPrimary),"window_minutes":300,"resets_at":1783070400},"secondary":{"used_percent":\(usedSecondary),"window_minutes":10080,"resets_at":1783630800},"credits":{"has_credits":\(hasCredits),"unlimited":false,"balance":\(creditsBalanceJSON)},"plan_type":"plus"}}}
         """
     }
 }
