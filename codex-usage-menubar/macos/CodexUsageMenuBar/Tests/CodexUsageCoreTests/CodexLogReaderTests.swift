@@ -69,7 +69,10 @@ final class CodexLogReaderTests: XCTestCase {
         guard case let .snapshot(snapshot) = result else {
             return XCTFail("Expected snapshot, got \(result)")
         }
-        XCTAssertEqual(snapshot.sourcePath, olderFileMtimeNewerEvent.path)
+        XCTAssertEqual(
+            URL(fileURLWithPath: snapshot.sourcePath).resolvingSymlinksInPath().path,
+            olderFileMtimeNewerEvent.resolvingSymlinksInPath().path
+        )
         XCTAssertEqual(snapshot.primary?.remainingPercent, 80)
     }
 
@@ -87,7 +90,10 @@ final class CodexLogReaderTests: XCTestCase {
         guard case let .snapshot(snapshot) = result else {
             return XCTFail("Expected snapshot, got \(result)")
         }
-        XCTAssertEqual(snapshot.sourcePath, newerSession.path)
+        XCTAssertEqual(
+            URL(fileURLWithPath: snapshot.sourcePath).resolvingSymlinksInPath().path,
+            newerSession.resolvingSymlinksInPath().path
+        )
         XCTAssertEqual(snapshot.primary?.remainingPercent, 70)
     }
 
@@ -289,7 +295,7 @@ final class CodexLogReaderTests: XCTestCase {
         hasCredits: Bool = false
     ) -> String {
         let timestampField = timestamp.map { #""timestamp":"\#($0)","# } ?? ""
-        """
+        return """
         {\(timestampField)"type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":\(usedPrimary),"window_minutes":300,"resets_at":1783070400},"secondary":{"used_percent":\(usedSecondary),"window_minutes":10080,"resets_at":1783630800},"credits":{"has_credits":\(hasCredits),"unlimited":false,"balance":\(creditsBalanceJSON)},"plan_type":"plus"}}}
         """
     }
