@@ -47,6 +47,16 @@ public final class DarwinProcessProvider: ProcessProviding, @unchecked Sendable 
     private func snapshot(pid: Int32) -> ProcessSnapshot? {
         do {
             let info = try reader.bsdInfo(pid: pid)
+            let arguments = try reader.arguments(pid: pid)
+            let executablePath: String
+            do {
+                executablePath = try reader.executablePath(pid: pid)
+            } catch {
+                guard let argumentZero = arguments.first, !argumentZero.isEmpty else {
+                    return nil
+                }
+                executablePath = argumentZero
+            }
             let openFilePaths = try reader.openFiles(pid: pid)
                 .filter { isWritable($0.openFlags) && isSessionLog($0.path) }
                 .map(\.path)
@@ -56,8 +66,8 @@ public final class DarwinProcessProvider: ProcessProviding, @unchecked Sendable 
                 parentPID: info.parentPID,
                 userID: info.userID,
                 startedAt: info.startedAt,
-                executablePath: try reader.executablePath(pid: pid),
-                arguments: try reader.arguments(pid: pid),
+                executablePath: executablePath,
+                arguments: arguments,
                 workingDirectory: try reader.workingDirectory(pid: pid),
                 hasControllingTerminal: info.hasControllingTerminal,
                 openFilePaths: openFilePaths

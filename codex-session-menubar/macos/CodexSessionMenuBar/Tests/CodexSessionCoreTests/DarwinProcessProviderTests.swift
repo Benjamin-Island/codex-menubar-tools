@@ -99,6 +99,67 @@ final class DarwinProcessProviderTests: XCTestCase {
         XCTAssertEqual(snapshots.map(\.pid), [20])
     }
 
+    func testUsesArgumentZeroWhenExecutablePathIsUnavailable() throws {
+        let reader = FakeDarwinProcessReader(
+            pids: .success([42]),
+            processes: [
+                42: .success(FakeDarwinProcess(
+                    bsdInfo: DarwinBSDInfo(
+                        pid: 42,
+                        parentPID: 7,
+                        userID: 501,
+                        startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                        hasControllingTerminal: true
+                    ),
+                    executablePath: "/stale/install/codex",
+                    arguments: ["/stale/install/codex"],
+                    workingDirectory: "/Users/test/project",
+                    openFiles: []
+                ))
+            ],
+            executablePathFailures: [42]
+        )
+        let provider = DarwinProcessProvider(
+            reader: reader,
+            sessionsDirectory: URL(fileURLWithPath: "/Users/test/.codex/sessions")
+        )
+
+        let snapshots = try provider.processSnapshots()
+
+        let snapshot = try XCTUnwrap(snapshots.first)
+        XCTAssertEqual(snapshots.count, 1)
+        XCTAssertEqual(snapshot.pid, 42)
+        XCTAssertEqual(snapshot.executablePath, "/stale/install/codex")
+    }
+
+    func testSkipsProcessWhenExecutablePathAndArgumentZeroAreUnavailable() throws {
+        let reader = FakeDarwinProcessReader(
+            pids: .success([42]),
+            processes: [
+                42: .success(FakeDarwinProcess(
+                    bsdInfo: DarwinBSDInfo(
+                        pid: 42,
+                        parentPID: 7,
+                        userID: 501,
+                        startedAt: Date(timeIntervalSince1970: 1_700_000_000),
+                        hasControllingTerminal: true
+                    ),
+                    executablePath: "/stale/install/codex",
+                    arguments: [],
+                    workingDirectory: "/Users/test/project",
+                    openFiles: []
+                ))
+            ],
+            executablePathFailures: [42]
+        )
+        let provider = DarwinProcessProvider(
+            reader: reader,
+            sessionsDirectory: URL(fileURLWithPath: "/Users/test/.codex/sessions")
+        )
+
+        XCTAssertTrue(try provider.processSnapshots().isEmpty)
+    }
+
     func testPropagatesTopLevelEnumerationFailure() {
         let reader = FakeDarwinProcessReader(
             pids: .failure(FakeError.enumerationFailed),
@@ -118,6 +179,7 @@ final class DarwinProcessProviderTests: XCTestCase {
 private enum FakeError: Error, Equatable {
     case enumerationFailed
     case processDisappeared
+    case executablePathUnavailable
 }
 
 private struct FakeDarwinProcess {
@@ -131,13 +193,16 @@ private struct FakeDarwinProcess {
 private final class FakeDarwinProcessReader: DarwinProcessReading, @unchecked Sendable {
     let pids: Result<[Int32], Error>
     let processes: [Int32: Result<FakeDarwinProcess, Error>]
+    let executablePathFailures: Set<Int32>
 
     init(
         pids: Result<[Int32], Error>,
-        processes: [Int32: Result<FakeDarwinProcess, Error>]
+        processes: [Int32: Result<FakeDarwinProcess, Error>],
+        executablePathFailures: Set<Int32> = []
     ) {
         self.pids = pids
         self.processes = processes
+        self.executablePathFailures = executablePathFailures
     }
 
     func allPIDs() throws -> [Int32] {
@@ -149,7 +214,10 @@ private final class FakeDarwinProcessReader: DarwinProcessReading, @unchecked Se
     }
 
     func executablePath(pid: Int32) throws -> String {
-        try process(pid).executablePath
+        if executablePathFailures.contains(pid) {
+            throw FakeError.executablePathUnavailable
+        }
+        return try process(pid).executablePath
     }
 
     func arguments(pid: Int32) throws -> [String] {
