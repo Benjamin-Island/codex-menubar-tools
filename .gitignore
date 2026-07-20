@@ -5,5 +5,7 @@ __pycache__/
 .pytest_cache/
 .coverage
 htmlcov/
-macos/CodexUsageMenuBar/.build/
-macos/CodexUsageMenuBar/dist/
+codex-usage-menubar/macos/CodexUsageMenuBar/.build/
+codex-usage-menubar/macos/CodexUsageMenuBar/dist/
+codex-session-menubar/macos/CodexSessionMenuBar/.build/
+codex-session-menubar/macos/CodexSessionMenuBar/dist/
