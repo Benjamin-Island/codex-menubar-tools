@@ -125,6 +125,7 @@ public final class CodexLogReader {
             if let snapshot = makeSnapshot(from: record, sourcePath: fileURL.path) {
                 candidates.append(SnapshotCandidate(
                     snapshot: snapshot,
+                    isCanonicalCodexLimit: record.payload.rateLimits?.limitId == "codex",
                     sortDate: snapshot.reportedAt ?? fileModificationDate,
                     fileModificationDate: fileModificationDate,
                     sequence: sequence
@@ -141,6 +142,9 @@ public final class CodexLogReader {
 
     private func isNewer(_ candidate: SnapshotCandidate, than current: SnapshotCandidate?) -> Bool {
         guard let current else { return true }
+        if candidate.isCanonicalCodexLimit != current.isCanonicalCodexLimit {
+            return candidate.isCanonicalCodexLimit
+        }
         if candidate.sortDate != current.sortDate {
             return candidate.sortDate > current.sortDate
         }
@@ -227,6 +231,7 @@ private struct SessionFileCandidate {
 
 private struct SnapshotCandidate {
     let snapshot: UsageSnapshot
+    let isCanonicalCodexLimit: Bool
     let sortDate: Date
     let fileModificationDate: Date
     let sequence: Int
@@ -249,12 +254,14 @@ private struct Payload: Decodable {
 }
 
 private struct RateLimits: Decodable {
+    let limitId: String?
     let primary: RateLimitWindow?
     let secondary: RateLimitWindow?
     let credits: Credits?
     let planType: String?
 
     enum CodingKeys: String, CodingKey {
+        case limitId = "limit_id"
         case primary
         case secondary
         case credits
@@ -263,6 +270,7 @@ private struct RateLimits: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        limitId = try? container.decode(String.self, forKey: .limitId)
         primary = try? container.decode(RateLimitWindow.self, forKey: .primary)
         secondary = try? container.decode(RateLimitWindow.self, forKey: .secondary)
         credits = try? container.decode(Credits.self, forKey: .credits)
