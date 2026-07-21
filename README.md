@@ -1,16 +1,40 @@
-# Codex Menu Bar Tools
+# Codex Menu Bar
 
-Native, local-only macOS menu bar tools for Codex.
+A native, local-only macOS menu bar dashboard for Codex usage, Token history, and live interactive CLI sessions.
 
-- [`codex-usage-menubar`](codex-usage-menubar/README.md): local Codex rate-limit indicator.
-- [`codex-session-menubar`](codex-session-menubar/README.md): live interactive Codex CLI TUI monitor.
+One menu bar item shows the primary usage remaining and the number of live interactive sessions. Click it to open a SwiftUI dashboard with three pages:
 
-Each tool is an independent Swift package and `.app` bundle.
+- **Overview** — primary and secondary rate-limit windows, a compact Token heatmap, and live-session shortcuts.
+- **History** — exactly 30 Monday-first weeks, daily Total/Input/Cached/Output/Reasoning details, and per-session breakdowns.
+- **Sessions** — strictly detected top-level Codex terminal TUIs, with activity, working directory, last update, and cumulative Tokens.
+
+## Why
+
+Codex already records useful local session data, but checking usage and understanding activity across days normally requires leaving the current workflow. Codex Menu Bar turns that local data into a small read-only dashboard without Electron, accounts, or a background service.
+
+## Privacy and read-only behavior
+
+The app:
+
+- reads `~/.codex/sessions/**/*.jsonl` and `~/.codex/session_index.jsonl`;
+- inspects current-user process metadata and writable rollout file associations to identify interactive TUIs;
+- does **not** read Codex credentials or `auth.json`;
+- does **not** make network requests;
+- does **not** write a cache, database, analytics, or log file;
+- does **not** start, stop, or otherwise control Codex sessions.
+
+The in-memory index disappears when the app quits. History includes every local rollout source, while the live Sessions page intentionally includes only top-level interactive terminal TUIs.
+
+## Token semantics
+
+Codex records cumulative Token counters. The app converts consecutive cumulative values into increments, handles counter resets independently, and groups increments by system-local calendar day.
+
+`Total` is used as reported. Cached input and Reasoning are shown as detail fields and are never added to Total again.
 
 ## Requirements
 
 - macOS 14 or later
-- Xcode 16 or the Swift 6 command-line tools
+- Xcode 16 or Swift 6 command-line tools
 - A local Codex installation with session data under `~/.codex`
 
 Install Apple's command-line developer tools if needed:
@@ -19,36 +43,43 @@ Install Apple's command-line developer tools if needed:
 xcode-select --install
 ```
 
-## Clone and Run
+## Clone, build, and open
 
-There are no prebuilt releases yet. Clone the repository and build the apps locally:
+There are no prebuilt Releases yet. Build the app locally:
 
 ```bash
 git clone https://github.com/benjaminazz1210/codex-menubar-tools.git
 cd codex-menubar-tools
+codex-menubar/macos/CodexMenuBar/scripts/build-app.sh
+open codex-menubar/macos/CodexMenuBar/dist/CodexMenuBar.app
 ```
 
-Build and open the usage indicator:
+The app runs only in the menu bar and has no Dock icon. The first scan may take a little longer for very large Codex histories; later refreshes reuse an in-memory fingerprint index.
+
+Optional path overrides are available for development:
 
 ```bash
-codex-usage-menubar/macos/CodexUsageMenuBar/scripts/build-app.sh
-open codex-usage-menubar/macos/CodexUsageMenuBar/dist/CodexUsageMenuBar.app
+CODEX_SESSIONS_DIR=/path/to/sessions \
+CODEX_SESSION_INDEX=/path/to/session_index.jsonl \
+codex-menubar/macos/CodexMenuBar/dist/CodexMenuBar.app/Contents/MacOS/CodexMenuBar
 ```
-
-Build and open the live session monitor:
-
-```bash
-codex-session-menubar/macos/CodexSessionMenuBar/scripts/build-app.sh
-open codex-session-menubar/macos/CodexSessionMenuBar/dist/CodexSessionMenuBar.app
-```
-
-Both apps run only in the macOS menu bar and do not show Dock icons. Use each app's menu bar dropdown to refresh or quit it.
 
 ## Test
 
-Run the test suites independently from the repository root:
+From the repository root:
 
 ```bash
-swift test --package-path codex-usage-menubar/macos/CodexUsageMenuBar
-swift test --package-path codex-session-menubar/macos/CodexSessionMenuBar
+swift test --package-path codex-menubar/macos/CodexMenuBar
 ```
+
+The suite includes parser, aggregation, rate-limit, process-classification, routing, SwiftUI layout, and read-only live smoke coverage.
+
+## Demo video
+
+A short MP4 or GIF can be added to this section without changing the app. For GitHub's inline video player, upload the clip to a GitHub issue or pull-request comment, copy the generated `user-attachments` URL, and place that URL here. A compact recording should show the combined menu bar indicator and the Overview, History, and Sessions tabs.
+
+## Notes
+
+- This is an independent project, not an official OpenAI application.
+- Usage data comes from local Codex session events, not an official Usage API.
+- The locally built app is ad-hoc signed and not notarized. If macOS blocks the first launch, right-click the app and choose **Open**.

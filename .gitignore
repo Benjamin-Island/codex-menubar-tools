@@ -1,11 +1,11 @@
 .DS_Store
 **/.DS_Store
+.superpowers/
+.worktrees/
 __pycache__/
 *.py[cod]
 .pytest_cache/
 .coverage
 htmlcov/
-codex-usage-menubar/macos/CodexUsageMenuBar/.build/
-codex-usage-menubar/macos/CodexUsageMenuBar/dist/
-codex-session-menubar/macos/CodexSessionMenuBar/.build/
-codex-session-menubar/macos/CodexSessionMenuBar/dist/
+codex-menubar/macos/CodexMenuBar/.build/
+codex-menubar/macos/CodexMenuBar/dist/
