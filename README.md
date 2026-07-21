@@ -43,9 +43,20 @@ Install Apple's command-line developer tools if needed:
 xcode-select --install
 ```
 
-## Clone, build, and open
+## Download — Apple Silicon preview
 
-There are no prebuilt Releases yet. Build the app locally:
+> [!WARNING]
+> This free preview is built for Apple Silicon Macs, uses an ad-hoc signature, and is not Apple-notarized. macOS may block the first launch.
+
+[Download Codex Menu Bar v0.2.0](https://github.com/benjaminazz1210/codex-menubar-tools/releases/download/v0.2.0/CodexMenuBar-v0.2.0-apple-silicon.zip)
+
+[SHA-256 checksum](https://github.com/benjaminazz1210/codex-menubar-tools/releases/download/v0.2.0/CodexMenuBar-v0.2.0-apple-silicon.zip.sha256)
+
+Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click the app and choose **Open** for the first launch. If macOS still refuses to open it, build from source below instead of disabling system-wide security controls.
+
+## Build from source
+
+Clone the repository, build the app locally, and open it:
 
 ```bash
 git clone https://github.com/benjaminazz1210/codex-menubar-tools.git
