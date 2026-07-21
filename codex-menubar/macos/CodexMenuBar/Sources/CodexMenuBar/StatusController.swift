@@ -4,24 +4,31 @@ import SwiftUI
 import CodexMenuBarCore
 
 @MainActor
-final class StatusController: NSObject {
+final class StatusController: NSObject, NSPopoverDelegate {
     private let statusItem: NSStatusItem
     private let popover = NSPopover()
     private let store: DashboardStore
     private let sessionsDirectory: URL
     private let renderer: StatusItemRenderer
+    private let outsideClickEventSource: any OutsideClickEventSource
     private var cancellables: Set<AnyCancellable> = []
     private var monitor: SessionDirectoryMonitor?
     private var refreshTimer: Timer?
+    private lazy var dismissalCoordinator = PopoverDismissalCoordinator(
+        eventSource: outsideClickEventSource,
+        closePopover: { [weak self] in self?.popover.performClose(nil) }
+    )
 
     init(
         store: DashboardStore,
         sessionsDirectory: URL,
-        renderer: StatusItemRenderer = StatusItemRenderer()
+        renderer: StatusItemRenderer = StatusItemRenderer(),
+        outsideClickEventSource: any OutsideClickEventSource = GlobalMouseDownEventSource()
     ) {
         self.store = store
         self.sessionsDirectory = sessionsDirectory
         self.renderer = renderer
+        self.outsideClickEventSource = outsideClickEventSource
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
     }
@@ -29,6 +36,7 @@ final class StatusController: NSObject {
     func start() {
         popover.behavior = .transient
         popover.animates = true
+        popover.delegate = self
         popover.contentSize = NSSize(width: 620, height: 520)
         popover.contentViewController = NSHostingController(rootView: DashboardView(store: store))
 
@@ -62,8 +70,13 @@ final class StatusController: NSObject {
             popover.performClose(nil)
         } else {
             popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+            dismissalCoordinator.start()
             store.refresh()
         }
+    }
+
+    func popoverDidClose(_ notification: Notification) {
+        dismissalCoordinator.stop()
     }
 
     private func ensureMonitor() {
