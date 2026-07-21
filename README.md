@@ -5,7 +5,7 @@ A native, local-only macOS menu bar dashboard for Codex usage, Token history, an
 One menu bar item shows the primary usage remaining and the number of live interactive sessions. Click it to open a SwiftUI dashboard with three pages:
 
 - **Overview** — primary and secondary rate-limit windows, a compact Token heatmap, and live-session shortcuts.
-- **History** — exactly 30 Monday-first weeks, daily Total/Input/Cached/Output/Reasoning details, and per-session breakdowns.
+- **History** — the latest 60 local days, daily Total/Input/Cached/Output/Reasoning details, and per-session breakdowns.
 - **Sessions** — strictly detected top-level Codex terminal TUIs, with activity, working directory, last update, and cumulative Tokens.
 
 ## Why
@@ -23,7 +23,9 @@ The app:
 - does **not** write a cache, database, analytics, or log file;
 - does **not** start, stop, or otherwise control Codex sessions.
 
-The in-memory index disappears when the app quits. History includes every local rollout source, while the live Sessions page intentionally includes only top-level interactive terminal TUIs.
+Session JSONL files are streamed in bounded chunks. While the app is running, appended bytes update pure-memory daily summaries; raw historical Token events are not retained. The index is never written to disk, so restarting the app performs a fresh streaming scan.
+
+History includes every indexed local rollout source from the latest 60 local calendar days, while the live Sessions page intentionally includes only top-level interactive terminal TUIs. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
 
 ## Token semantics
 
@@ -65,7 +67,7 @@ codex-menubar/macos/CodexMenuBar/scripts/build-app.sh
 open codex-menubar/macos/CodexMenuBar/dist/CodexMenuBar.app
 ```
 
-The app runs only in the menu bar and has no Dock icon. The first scan may take a little longer for very large Codex histories; later refreshes reuse an in-memory fingerprint index.
+The app runs only in the menu bar and has no Dock icon. The first scan may take a little longer for large Codex histories; later refreshes validate the saved file boundary and read only appended bytes whenever possible.
 
 Optional path overrides are available for development:
 
