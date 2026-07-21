@@ -30,27 +30,44 @@ final class TokenHistoryAggregatorTests: XCTestCase {
         XCTAssertEqual(usage.sessions.map(\.counts.total), [180])
     }
 
-    func testHistoryContainsExactlyThirtyMondayFirstWeeksAndDisablesFutureDays() throws {
+    func testHistoryContainsExactlySixtyDaysAndMondayAlignedPadding() throws {
         let calendar = utcCalendar()
         let history = TokenHistoryAggregator().makeHistory(
-            logs: [
-                makeLog(
-                    id: "future",
-                    name: "Future log",
-                    events: [event("2026-07-24T10:00:00Z", total: 50, sequence: 1)]
-                )
-            ],
+            logs: [],
             calendar: calendar,
             now: try date("2026-07-21T12:00:00Z")
         )
 
-        XCTAssertEqual(history.days.count, 210)
-        XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.days.first).date), 2)
-        XCTAssertEqual(history.days.filter(\.isFuture).count, 5)
-        let futureDate = try date("2026-07-24T00:00:00Z")
-        let future = try XCTUnwrap(history.days.first { $0.date == futureDate })
-        XCTAssertEqual(future.counts, .zero)
-        XCTAssertEqual(future.heatLevel, 0)
+        XCTAssertEqual(history.days.count, 60)
+        XCTAssertEqual(history.days.first?.date, try date("2026-05-23T00:00:00Z"))
+        XCTAssertEqual(history.days.last?.date, try date("2026-07-21T00:00:00Z"))
+        XCTAssertEqual(history.heatmapDays.count, 70)
+        XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.heatmapDays.first).date), 2)
+        XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.heatmapDays.last).date), 1)
+        XCTAssertEqual(history.heatmapDays.compactMap(\.usage).count, 60)
+        XCTAssertNil(history.heatmapDays.first?.usage)
+        XCTAssertNil(history.heatmapDays.last?.usage)
+    }
+
+    func testDaySixtyOneAndFutureEventsAreExcludedButCutoffDeltaUsesPredecessor() throws {
+        let history = TokenHistoryAggregator().makeHistory(
+            logs: [
+                makeLog(
+                    id: "edge",
+                    name: "Edge",
+                    events: [
+                        event("2026-05-22T12:00:00Z", total: 10, sequence: 1),
+                        event("2026-05-23T12:00:00Z", total: 30, sequence: 2),
+                        event("2026-07-22T12:00:00Z", total: 60, sequence: 3)
+                    ]
+                )
+            ],
+            calendar: utcCalendar(),
+            now: try date("2026-07-21T12:00:00Z")
+        )
+
+        XCTAssertEqual(history.days.first?.counts.total, 20)
+        XCTAssertEqual(history.days.reduce(0) { $0 + $1.counts.total }, 20)
     }
 
     func testLocalCalendarAssignsEventsAcrossMidnightAndDST() throws {
@@ -76,7 +93,7 @@ final class TokenHistoryAggregatorTests: XCTestCase {
         let march8 = calendar.startOfDay(for: try date("2026-03-08T08:30:00Z"))
         XCTAssertEqual(history.days.first { $0.date == march7 }?.counts.total, 10)
         XCTAssertEqual(history.days.first { $0.date == march8 }?.counts.total, 50)
-        XCTAssertEqual(history.days.count, 210)
+        XCTAssertEqual(history.days.count, 60)
     }
 
     func testYearBoundaryAndSessionSpanningDaysPreserveDailyIncrements() throws {

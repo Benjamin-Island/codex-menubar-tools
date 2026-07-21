@@ -125,14 +125,32 @@ public struct DailyUsage: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct HeatmapDay: Identifiable, Equatable, Sendable {
+    public var id: Date { date }
+    public let date: Date
+    public let usage: DailyUsage?
+
+    public init(date: Date, usage: DailyUsage?) {
+        self.date = date
+        self.usage = usage
+    }
+}
+
 public struct TokenHistorySnapshot: Equatable, Sendable {
     public let interval: DateInterval
     public let days: [DailyUsage]
+    public let heatmapDays: [HeatmapDay]
     public let selectedDefaultDate: Date
 
-    public init(interval: DateInterval, days: [DailyUsage], selectedDefaultDate: Date) {
+    public init(
+        interval: DateInterval,
+        days: [DailyUsage],
+        heatmapDays: [HeatmapDay],
+        selectedDefaultDate: Date
+    ) {
         self.interval = interval
         self.days = days
+        self.heatmapDays = heatmapDays
         self.selectedDefaultDate = selectedDefaultDate
     }
 }

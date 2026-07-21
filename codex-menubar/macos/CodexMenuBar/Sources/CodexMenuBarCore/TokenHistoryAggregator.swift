@@ -11,9 +11,8 @@ public struct TokenHistoryAggregator: Sendable {
         var calendar = inputCalendar
         calendar.firstWeekday = 2
         let today = calendar.startOfDay(for: now)
-        let currentWeek = calendar.dateInterval(of: .weekOfYear, for: today)!
-        let start = calendar.date(byAdding: .weekOfYear, value: -29, to: currentWeek.start)!
-        let end = calendar.date(byAdding: .day, value: 7, to: currentWeek.start)!
+        let start = calendar.date(byAdding: .day, value: -59, to: today)!
+        let end = calendar.date(byAdding: .day, value: 1, to: today)!
         let interval = DateInterval(start: start, end: end)
 
         var sessionByID: [String: SessionIdentity] = [:]
@@ -33,16 +32,15 @@ public struct TokenHistoryAggregator: Sendable {
         }
 
         var rawDays: [(date: Date, counts: TokenCounts, sessions: [SessionDayUsage], isFuture: Bool)] = []
-        for offset in 0..<210 {
+        for offset in 0..<60 {
             let date = calendar.date(byAdding: .day, value: offset, to: start)!
-            let isFuture = date > today
-            let sessionCounts = isFuture ? [:] : countsByDayAndSession[date, default: [:]]
+            let sessionCounts = countsByDayAndSession[date, default: [:]]
             let sessions = sessionCounts.compactMap { sessionID, counts -> SessionDayUsage? in
                 guard let session = sessionByID[sessionID] else { return nil }
                 return SessionDayUsage(id: sessionID, session: session, counts: counts)
             }.sorted(by: sessionOrder)
             let total = sessions.reduce(TokenCounts.zero) { $0 + $1.counts }
-            rawDays.append((date, total, sessions, isFuture))
+            rawDays.append((date, total, sessions, false))
         }
 
         let thresholds = quartileThresholds(
@@ -59,10 +57,20 @@ public struct TokenHistoryAggregator: Sendable {
                 isFuture: day.isFuture
             )
         }
+        let usageByDate = Dictionary(uniqueKeysWithValues: days.map { ($0.date, $0) })
+        let displayStart = calendar.dateInterval(of: .weekOfYear, for: start)!.start
+        let displayEnd = calendar.dateInterval(of: .weekOfYear, for: today)!.end
+        var heatmapDays: [HeatmapDay] = []
+        var displayDate = displayStart
+        while displayDate < displayEnd {
+            heatmapDays.append(HeatmapDay(date: displayDate, usage: usageByDate[displayDate]))
+            displayDate = calendar.date(byAdding: .day, value: 1, to: displayDate)!
+        }
 
         return TokenHistorySnapshot(
             interval: interval,
             days: days,
+            heatmapDays: heatmapDays,
             selectedDefaultDate: today
         )
     }
