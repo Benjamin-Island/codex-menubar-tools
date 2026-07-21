@@ -194,9 +194,9 @@ private final class DashboardDiscoveryFake: LogFileDiscovering, @unchecked Senda
         self.results = results
         self.errors = errors
     }
-    func fingerprints(in sessionsDirectory: URL, modifiedSince: Date, requiredPaths: Set<String>) throws -> [LogFileFingerprint] {
+    func discovery(in sessionsDirectory: URL, modifiedSince: Date, requiredPaths: Set<String>) throws -> LogDiscoverySnapshot {
         if !errors.isEmpty { throw errors.removeFirst() }
-        return results.removeFirst()
+        return LogDiscoverySnapshot(fingerprints: results.removeFirst(), omittedFileCount: 0)
     }
 }
 

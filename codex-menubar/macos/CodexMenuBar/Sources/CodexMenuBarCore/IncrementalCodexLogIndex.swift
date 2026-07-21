@@ -32,6 +32,7 @@ public final class IncrementalCodexLogIndex: @unchecked Sendable {
 
     private let rangeReader: any FileRangeReading
     private let discoverer: any LogFileDiscovering
+    private let nameIndex: SessionNameIndex
     private let chunkSize: Int
     private let maximumLineBytes: Int
     private let boundaryByteCount: Int
@@ -46,6 +47,7 @@ public final class IncrementalCodexLogIndex: @unchecked Sendable {
     init(
         rangeReader: any FileRangeReading,
         discoverer: any LogFileDiscovering = FileSystemLogDiscoverer(),
+        nameIndex: SessionNameIndex = SessionNameIndex(),
         chunkSize: Int = 64 * 1_024,
         maximumLineBytes: Int = 8 * 1_024 * 1_024,
         boundaryByteCount: Int = 64
@@ -55,6 +57,7 @@ public final class IncrementalCodexLogIndex: @unchecked Sendable {
         precondition(boundaryByteCount > 0)
         self.rangeReader = rangeReader
         self.discoverer = discoverer
+        self.nameIndex = nameIndex
         self.chunkSize = chunkSize
         self.maximumLineBytes = maximumLineBytes
         self.boundaryByteCount = boundaryByteCount
@@ -71,7 +74,8 @@ public final class IncrementalCodexLogIndex: @unchecked Sendable {
         modifiedSince: Date,
         requiredPaths: Set<String>,
         calendar inputCalendar: Calendar,
-        now: Date
+        now: Date,
+        sessionIndexURL: URL? = nil
     ) throws -> IncrementalLogIndexSnapshot {
         lock.lock()
         defer { lock.unlock() }
@@ -83,11 +87,12 @@ public final class IncrementalCodexLogIndex: @unchecked Sendable {
             timeZoneIdentifier: calendar.timeZone.identifier
         )
         let requiresCalendarRebuild = calendarSignature.map { $0 != signature } ?? false
-        let fingerprints = try discoverer.fingerprints(
+        let discovery = try discoverer.discovery(
             in: sessionsDirectory,
             modifiedSince: modifiedSince,
             requiredPaths: requiredPaths
         )
+        let fingerprints = discovery.fingerprints
         let today = calendar.startOfDay(for: now)
         let cutoff = calendar.date(byAdding: .day, value: -59, to: today)
             ?? now.addingTimeInterval(-59 * 86_400)
@@ -153,17 +158,38 @@ public final class IncrementalCodexLogIndex: @unchecked Sendable {
 
         cursors = nextCursors
         calendarSignature = signature
+        var sessionNames: [String: String] = [:]
+        if let sessionIndexURL {
+            do {
+                let sessionIDs = Set(cursors.values.compactMap { $0.accumulator.sessionID })
+                sessionNames = try nameIndex.names(at: sessionIndexURL, forSessionIDs: sessionIDs)
+            } catch {
+                refreshWarnings.append(ParseWarning(
+                    path: sessionIndexURL.path,
+                    line: 0,
+                    message: "Unable to read session names: \(error.localizedDescription)"
+                ))
+            }
+        }
+
         let summaries = cursors.values.map { cursor in
             cursor.accumulator.summary(
                 modifiedAt: cursor.fingerprint.modifiedAt,
-                threadName: nil
+                threadName: cursor.accumulator.sessionID.flatMap { sessionNames[$0] }
             )
         }.sorted { $0.path < $1.path }
+        if discovery.omittedFileCount > 0 {
+            refreshWarnings.append(ParseWarning(
+                path: sessionsDirectory.path,
+                line: 0,
+                message: "Skipped \(discovery.omittedFileCount) older session logs after the 10,000-file safety limit."
+            ))
+        }
 
         return IncrementalLogIndexSnapshot(
             summaries: summaries,
             warnings: summaries.flatMap(\.warnings) + refreshWarnings,
-            omittedFileCount: 0
+            omittedFileCount: discovery.omittedFileCount
         )
     }
 

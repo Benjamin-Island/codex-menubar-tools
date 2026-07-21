@@ -143,6 +143,50 @@ final class IncrementalCodexLogIndexTests: XCTestCase {
         )
     }
 
+    func testSessionIndexNameOverlaysSummaryAndRefreshesWithoutLogChanges() throws {
+        _ = try LogFixture(url: logURL(), records: [metadata(), token(total: 100)])
+        let sessionIndexURL = root.appendingPathComponent("session_index.jsonl")
+        try Data("{\"id\":\"session-1\",\"thread_name\":\"First name\"}\n".utf8)
+            .write(to: sessionIndexURL)
+        let index = makeIndex(reader: RecordingRangeReader())
+
+        var snapshot = try index.refresh(
+            sessionsDirectory: sessions,
+            modifiedSince: .distantPast,
+            requiredPaths: [],
+            calendar: calendar(timeZone: "UTC"),
+            now: now,
+            sessionIndexURL: sessionIndexURL
+        )
+        XCTAssertEqual(snapshot.summaries.first?.session.name, "First name")
+
+        try Data("{\"id\":\"session-1\",\"thread_name\":\"Renamed\"}\n".utf8)
+            .write(to: sessionIndexURL, options: .atomic)
+        snapshot = try index.refresh(
+            sessionsDirectory: sessions,
+            modifiedSince: .distantPast,
+            requiredPaths: [],
+            calendar: calendar(timeZone: "UTC"),
+            now: now,
+            sessionIndexURL: sessionIndexURL
+        )
+        XCTAssertEqual(snapshot.summaries.first?.session.name, "Renamed")
+    }
+
+    func testOmittedFileCountProducesSafetyWarning() throws {
+        _ = try LogFixture(url: logURL(), records: [metadata(), token(total: 100)])
+        let index = IncrementalCodexLogIndex(
+            rangeReader: RecordingRangeReader(),
+            discoverer: FileSystemLogDiscoverer(ordinaryLimit: 0)
+        )
+
+        let snapshot = try refresh(index)
+
+        XCTAssertEqual(snapshot.omittedFileCount, 1)
+        XCTAssertTrue(snapshot.summaries.isEmpty)
+        XCTAssertTrue(snapshot.warnings.contains { $0.message.contains("10,000-file safety limit") })
+    }
+
     private func makeIndex(reader: RecordingRangeReader) -> IncrementalCodexLogIndex {
         IncrementalCodexLogIndex(rangeReader: reader)
     }

@@ -52,11 +52,44 @@ public protocol LogParsing: Sendable {
 }
 
 public protocol LogFileDiscovering: Sendable {
-    func fingerprints(
+    func discovery(
         in sessionsDirectory: URL,
         modifiedSince: Date,
         requiredPaths: Set<String>
-    ) throws -> [LogFileFingerprint]
+    ) throws -> LogDiscoverySnapshot
+}
+
+public struct LogDiscoverySnapshot: Equatable, Sendable {
+    public let fingerprints: [LogFileFingerprint]
+    public let omittedFileCount: Int
+
+    public init(fingerprints: [LogFileFingerprint], omittedFileCount: Int) {
+        self.fingerprints = fingerprints
+        self.omittedFileCount = omittedFileCount
+    }
+}
+
+enum LogFingerprintSelection {
+    static func select(
+        _ input: [LogFileFingerprint],
+        requiredPaths: Set<String>,
+        ordinaryLimit: Int
+    ) -> LogDiscoverySnapshot {
+        precondition(ordinaryLimit >= 0)
+        let required = Set(requiredPaths.map {
+            URL(fileURLWithPath: $0).standardizedFileURL.path
+        })
+        let requiredFiles = input.filter { required.contains($0.path) }
+        let ordinary = input.filter { !required.contains($0.path) }.sorted {
+            if $0.modifiedAt != $1.modifiedAt { return $0.modifiedAt > $1.modifiedAt }
+            return $0.path < $1.path
+        }
+        let kept = Array(ordinary.prefix(ordinaryLimit)) + requiredFiles
+        return LogDiscoverySnapshot(
+            fingerprints: kept.sorted { $0.path < $1.path },
+            omittedFileCount: max(0, ordinary.count - ordinaryLimit)
+        )
+    }
 }
 
 extension CodexLogParser: LogParsing {}
@@ -70,16 +103,19 @@ public enum LogDiscoveryError: Error, Equatable, Sendable {
 
 public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
     private let fileManager: FileManager
+    private let ordinaryLimit: Int
 
-    public init(fileManager: FileManager = .default) {
+    public init(fileManager: FileManager = .default, ordinaryLimit: Int = 10_000) {
+        precondition(ordinaryLimit >= 0)
         self.fileManager = fileManager
+        self.ordinaryLimit = ordinaryLimit
     }
 
-    public func fingerprints(
+    public func discovery(
         in sessionsDirectory: URL,
         modifiedSince: Date,
         requiredPaths: Set<String>
-    ) throws -> [LogFileFingerprint] {
+    ) throws -> LogDiscoverySnapshot {
         let directory = sessionsDirectory.standardizedFileURL
         var isDirectory: ObjCBool = false
         guard fileManager.fileExists(atPath: directory.path, isDirectory: &isDirectory) else {
@@ -117,7 +153,7 @@ public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
             urlsByPath[path] = URL(fileURLWithPath: path).standardizedFileURL
         }
 
-        return try urlsByPath.values.compactMap { url in
+        let fingerprints: [LogFileFingerprint] = try urlsByPath.values.compactMap { url in
             let values = try url.resourceValues(forKeys: Set(keys))
             guard values.isRegularFile == true else { return nil }
             let modifiedAt = values.contentModificationDate ?? .distantPast
@@ -128,7 +164,12 @@ public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
                 byteSize: Int64(values.fileSize ?? 0),
                 identity: try fileIdentity(path: url.path)
             )
-        }.sorted { $0.path < $1.path }
+        }
+        return LogFingerprintSelection.select(
+            fingerprints,
+            requiredPaths: required,
+            ordinaryLimit: ordinaryLimit
+        )
     }
 
     private func fileIdentity(path: String) throws -> LogFileIdentity {
@@ -171,11 +212,12 @@ public final class CodexLogIndex: @unchecked Sendable {
         defer { lock.unlock() }
 
         let sessionNames = try parser.readSessionNames(at: sessionIndexURL)
-        let fingerprints = try discoverer.fingerprints(
+        let discovery = try discoverer.discovery(
             in: sessionsDirectory,
             modifiedSince: modifiedSince,
             requiredPaths: requiredPaths
         )
+        let fingerprints = discovery.fingerprints
 
         var nextEntries: [String: Entry] = [:]
         var refreshWarnings: [ParseWarning] = []

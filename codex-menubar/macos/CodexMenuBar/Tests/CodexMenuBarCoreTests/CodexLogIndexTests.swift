@@ -2,6 +2,25 @@ import XCTest
 @testable import CodexMenuBarCore
 
 final class CodexLogIndexTests: XCTestCase {
+    func testSelectionKeepsNewestOrdinaryFilesAndEveryRequiredPath() {
+        let ordinary = (0..<5).map {
+            fingerprint("/sessions/\($0).jsonl", modified: TimeInterval($0), size: 10)
+        }
+        let live = fingerprint("/sessions/live.jsonl", modified: -1, size: 10)
+
+        let output = LogFingerprintSelection.select(
+            ordinary + [live],
+            requiredPaths: [live.path],
+            ordinaryLimit: 2
+        )
+
+        XCTAssertEqual(
+            Set(output.fingerprints.map(\.path)),
+            Set(["/sessions/3.jsonl", "/sessions/4.jsonl", live.path])
+        )
+        XCTAssertEqual(output.omittedFileCount, 3)
+    }
+
     func testRefreshReusesUnchangedReparsesChangedAndRemovesDeletedFiles() throws {
         let parser = ParsingSpy()
         let discoverer = DiscoveryFake()
@@ -154,12 +173,12 @@ final class CodexLogIndexTests: XCTestCase {
         )
         let discoverer = FileSystemLogDiscoverer()
 
-        let excluded = try discoverer.fingerprints(
+        let excluded = try discoverer.discovery(
             in: sessions,
             modifiedSince: Date(timeIntervalSince1970: 200),
             requiredPaths: []
         )
-        XCTAssertTrue(excluded.isEmpty)
+        XCTAssertTrue(excluded.fingerprints.isEmpty)
 
         let index = CodexLogIndex(discoverer: discoverer)
         let snapshot = try index.refresh(
@@ -212,13 +231,16 @@ private final class DiscoveryFake: LogFileDiscovering, @unchecked Sendable {
     var results: [[LogFileFingerprint]] = []
     var error: Error?
 
-    func fingerprints(
+    func discovery(
         in sessionsDirectory: URL,
         modifiedSince: Date,
         requiredPaths: Set<String>
-    ) throws -> [LogFileFingerprint] {
+    ) throws -> LogDiscoverySnapshot {
         if let error { throw error }
-        return results.removeFirst()
+        return LogDiscoverySnapshot(
+            fingerprints: results.removeFirst(),
+            omittedFileCount: 0
+        )
     }
 }
 
