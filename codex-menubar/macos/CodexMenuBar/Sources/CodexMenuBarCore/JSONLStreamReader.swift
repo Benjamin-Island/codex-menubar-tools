@@ -51,6 +51,10 @@ struct JSONLFrameOutput: Equatable, Sendable {
 }
 
 struct JSONLFramingState: Equatable, Sendable {
+    private static let responseItemMarker = Data(#""type":"response_item""#.utf8)
+    private static let customToolCallOutputMarker = Data(#""type":"custom_tool_call_output""#.utf8)
+    private static let maximumClassificationBytes = 1_024
+
     private var pending = Data()
     private var isSkippingOversizedLine = false
     private var nextLineNumber = 1
@@ -89,13 +93,18 @@ struct JSONLFramingState: Equatable, Sendable {
             }
 
             if pending.count == maximumLineBytes {
+                let classificationPrefix = Data(pending.prefix(Self.maximumClassificationBytes))
+                let isCustomToolCallOutput = classificationPrefix.range(of: Self.responseItemMarker) != nil
+                    && classificationPrefix.range(of: Self.customToolCallOutputMarker) != nil
                 pending.removeAll(keepingCapacity: true)
                 isSkippingOversizedLine = true
-                warnings.append(ParseWarning(
-                    path: path,
-                    line: nextLineNumber,
-                    message: "JSONL line exceeds the \(maximumLineBytes)-byte safety limit."
-                ))
+                if !isCustomToolCallOutput {
+                    warnings.append(ParseWarning(
+                        path: path,
+                        line: nextLineNumber,
+                        message: "JSONL line exceeds the \(maximumLineBytes)-byte safety limit."
+                    ))
+                }
                 continue
             }
 

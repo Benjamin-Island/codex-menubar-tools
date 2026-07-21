@@ -62,6 +62,47 @@ final class JSONLStreamReaderTests: XCTestCase {
         XCTAssertTrue(output.warnings.isEmpty)
     }
 
+    func testOversizedCustomToolCallOutputIsSilentlySkipped() {
+        var state = JSONLFramingState(maximumLineBytes: 96)
+        let prefix = #"{"type":"response_item","payload":{"type":"custom_tool_call_output","output":""#
+        let line = prefix + String(repeating: "x", count: 128) + #""}}"# + "\n{}\n"
+
+        let output = state.consume(Data(line.utf8), path: "/tool-output.jsonl")
+
+        XCTAssertTrue(output.warnings.isEmpty)
+        XCTAssertEqual(output.records.map(\.lineNumber), [2])
+        XCTAssertEqual(String(decoding: output.records[0].data, as: UTF8.self), "{}")
+        XCTAssertLessThanOrEqual(state.pendingByteCount, 96)
+    }
+
+    func testOversizedTokenCountRecordStillWarns() {
+        var state = JSONLFramingState(maximumLineBytes: 80)
+        let prefix = #"{"type":"event_msg","payload":{"type":"token_count","info":""#
+        let line = prefix + String(repeating: "x", count: 128) + #""}}"# + "\n"
+
+        let output = state.consume(Data(line.utf8), path: "/token-count.jsonl")
+
+        XCTAssertEqual(output.warnings, [ParseWarning(
+            path: "/token-count.jsonl",
+            line: 1,
+            message: "JSONL line exceeds the 80-byte safety limit."
+        )])
+        XCTAssertLessThanOrEqual(state.pendingByteCount, 80)
+    }
+
+    func testToolMarkersInsideOversizedTokenContentDoNotSuppressWarning() {
+        var state = JSONLFramingState(maximumLineBytes: 1_200)
+        let prefix = #"{"type":"event_msg","payload":{"type":"token_count","info":""#
+        let misleadingContent = String(repeating: "x", count: 1_050)
+            + #""type":"response_item","type":"custom_tool_call_output""#
+        let line = prefix + misleadingContent + String(repeating: "x", count: 128) + #""}}"# + "\n"
+
+        let output = state.consume(Data(line.utf8), path: "/token-content.jsonl")
+
+        XCTAssertEqual(output.warnings.count, 1)
+        XCTAssertEqual(output.warnings.first?.line, 1)
+    }
+
     private func temporaryFile(_ data: Data) throws -> URL {
         let url = FileManager.default.temporaryDirectory
             .appendingPathComponent("jsonl-stream-\(UUID().uuidString)")
