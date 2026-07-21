@@ -4,8 +4,8 @@ set -euo pipefail
 APP_NAME="CodexMenuBar"
 BUNDLE_ID="dev.benjamin.codex-menubar"
 BUNDLE_NAME="Codex Menu Bar"
-VERSION="0.2.1"
-BUILD_NUMBER="2"
+VERSION="0.3.0"
+BUILD_NUMBER="3"
 ICON_NAME="AppIcon.icns"
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
