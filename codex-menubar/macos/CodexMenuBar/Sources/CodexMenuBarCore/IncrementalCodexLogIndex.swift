@@ -30,6 +30,7 @@ public protocol IncrementalLogIndexing: Sendable {
 public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked Sendable {
     private struct LogCursor {
         var fingerprint: LogFileFingerprint
+        var calendarSignature: CalendarSignature
         var consumedOffset: UInt64
         var boundaryBytes: Data
         var framing: JSONLFramingState
@@ -49,7 +50,6 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
     private let boundaryByteCount: Int
     private let lock = NSLock()
     private var cursors: [String: LogCursor] = [:]
-    private var calendarSignature: CalendarSignature?
 
     public convenience init() {
         self.init(rangeReader: FileHandleRangeReader())
@@ -97,7 +97,6 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
             identifier: calendar.identifier,
             timeZoneIdentifier: calendar.timeZone.identifier
         )
-        let requiresCalendarRebuild = calendarSignature.map { $0 != signature } ?? false
         let discovery = try discoverer.discovery(
             in: sessionsDirectory,
             modifiedSince: modifiedSince,
@@ -113,6 +112,9 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
 
         for fingerprint in fingerprints.sorted(by: { $0.path < $1.path }) {
             let previous = cursors[fingerprint.path]
+            let requiresCalendarRebuild = previous.map {
+                $0.calendarSignature != signature
+            } ?? false
 
             if !requiresCalendarRebuild,
                var unchanged = previous,
@@ -131,6 +133,7 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
                     next = try consume(
                         cursor: previous,
                         fingerprint: fingerprint,
+                        calendarSignature: signature,
                         range: previous.consumedOffset..<UInt64(fingerprint.byteSize),
                         cutoff: cutoff,
                         today: today,
@@ -139,6 +142,7 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
                 } else {
                     let empty = LogCursor(
                         fingerprint: fingerprint,
+                        calendarSignature: signature,
                         consumedOffset: 0,
                         boundaryBytes: Data(),
                         framing: JSONLFramingState(maximumLineBytes: maximumLineBytes),
@@ -147,6 +151,7 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
                     next = try consume(
                         cursor: empty,
                         fingerprint: fingerprint,
+                        calendarSignature: signature,
                         range: 0..<UInt64(max(0, fingerprint.byteSize)),
                         cutoff: cutoff,
                         today: today,
@@ -168,7 +173,6 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
         }
 
         cursors = nextCursors
-        calendarSignature = signature
         var sessionNames: [String: String] = [:]
         if let sessionIndexURL {
             do {
@@ -225,6 +229,7 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
     private func consume(
         cursor: LogCursor,
         fingerprint: LogFileFingerprint,
+        calendarSignature: CalendarSignature,
         range: Range<UInt64>,
         cutoff: Date,
         today: Date,
@@ -256,6 +261,7 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
         }
 
         next.fingerprint = fingerprint
+        next.calendarSignature = calendarSignature
         next.consumedOffset = range.upperBound
         next.boundaryBytes = tail
         next.accumulator.prune(cutoff: cutoff, today: today)

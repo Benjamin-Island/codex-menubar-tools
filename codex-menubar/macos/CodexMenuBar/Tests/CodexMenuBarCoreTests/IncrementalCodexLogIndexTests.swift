@@ -143,6 +143,26 @@ final class IncrementalCodexLogIndexTests: XCTestCase {
         )
     }
 
+    func testFailedCalendarRebuildRetriesThatCursorOnNextRefresh() throws {
+        _ = try LogFixture(
+            url: logURL(),
+            records: [metadata(), token(total: 100, at: "2026-03-23T01:00:00Z")]
+        )
+        let reader = RecordingRangeReader()
+        let index = makeIndex(reader: reader)
+        let utcSnapshot = try refresh(index, calendar: calendar(timeZone: "UTC"))
+
+        reader.failingLowerBound = 0
+        let failed = try refresh(index, calendar: calendar(timeZone: "America/Los_Angeles"))
+        XCTAssertEqual(failed.summaries.first?.dailyCounts.keys.first, utcSnapshot.summaries.first?.dailyCounts.keys.first)
+        XCTAssertEqual(failed.warnings.filter { $0.line == 0 }.count, 1)
+
+        reader.failingLowerBound = nil
+        let retried = try refresh(index, calendar: calendar(timeZone: "America/Los_Angeles"))
+        XCTAssertNotEqual(retried.summaries.first?.dailyCounts.keys.first, utcSnapshot.summaries.first?.dailyCounts.keys.first)
+        XCTAssertEqual(reader.ranges.last?.lowerBound, 0)
+    }
+
     func testSessionIndexNameOverlaysSummaryAndRefreshesWithoutLogChanges() throws {
         _ = try LogFixture(url: logURL(), records: [metadata(), token(total: 100)])
         let sessionIndexURL = root.appendingPathComponent("session_index.jsonl")
