@@ -84,6 +84,7 @@ public struct IndexedSessionLog: Equatable, Sendable {
     public let rateLimits: [RateLimitCandidate]
     public let lifecycle: LifecycleSummary
     public let warnings: [ParseWarning]
+    public let isTopLevelInteractiveTUI: Bool
 
     public init(
         path: String,
@@ -93,7 +94,8 @@ public struct IndexedSessionLog: Equatable, Sendable {
         tokenEvents: [TokenEvent],
         rateLimits: [RateLimitCandidate],
         lifecycle: LifecycleSummary,
-        warnings: [ParseWarning]
+        warnings: [ParseWarning],
+        isTopLevelInteractiveTUI: Bool = false
     ) {
         self.path = path
         self.modifiedAt = modifiedAt
@@ -103,5 +105,6 @@ public struct IndexedSessionLog: Equatable, Sendable {
         self.rateLimits = rateLimits
         self.lifecycle = lifecycle
         self.warnings = warnings
+        self.isTopLevelInteractiveTUI = isTopLevelInteractiveTUI
     }
 }

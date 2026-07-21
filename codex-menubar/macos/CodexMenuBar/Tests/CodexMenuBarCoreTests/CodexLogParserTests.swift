@@ -41,6 +41,7 @@ final class CodexLogParserTests: XCTestCase {
         XCTAssertEqual(log.tokenEvents.map(\.cumulative.total), [100, 160])
         XCTAssertEqual(log.lifecycle, .active)
         XCTAssertEqual(log.warnings.count, 1)
+        XCTAssertTrue(log.isTopLevelInteractiveTUI)
     }
 
     func testFallsBackToNormalizedFirstUserMessage() throws {
@@ -92,11 +93,12 @@ final class CodexLogParserTests: XCTestCase {
         let log = try parse(records: [
             sessionMetadata(id: "session-6", cwd: "/tmp/project", source: "mystery"),
             """
-            {"timestamp":"2026-07-21T01:02:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":"120","input_tokens":-1,"cached_input_tokens":"40","output_tokens":"NaN","reasoning_output_tokens":7}}}}
+            {"timestamp":"2026-07-21T01:02:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":"120","input_tokens":-1,"cached_input_tokens":"40","output_tokens":9223372036854775808,"reasoning_output_tokens":7}}}}
             """
         ])
 
         XCTAssertEqual(log.session.sourceKind, "Other")
+        XCTAssertFalse(log.isTopLevelInteractiveTUI)
         XCTAssertEqual(
             log.tokenEvents[0].cumulative,
             TokenCounts(total: 120, input: 0, cachedInput: 40, output: 0, reasoning: 7)

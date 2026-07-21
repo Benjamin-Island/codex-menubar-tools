@@ -114,7 +114,10 @@ public final class CodexLogParser: @unchecked Sendable {
             tokenEvents: tokenEvents,
             rateLimits: rateLimits,
             lifecycle: lifecycle,
-            warnings: warnings
+            warnings: warnings,
+            isTopLevelInteractiveTUI: source == "cli"
+                && originator == "codex-tui"
+                && threadSource == "user"
         )
     }
 
@@ -197,7 +200,7 @@ public final class CodexLogParser: @unchecked Sendable {
     private func nonnegativeInt64(_ value: Any?) -> Int64 {
         guard let parsed = finiteDouble(value),
               parsed >= 0,
-              parsed <= Double(Int64.max)
+              parsed < 9_223_372_036_854_775_808.0
         else {
             return 0
         }
