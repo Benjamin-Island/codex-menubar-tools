@@ -2,46 +2,57 @@
 
 ## 标题
 
-[分享创造] 做了一个 macOS 菜单栏小工具，随时看 Codex 5h / 7d 剩余额度
+[分享创造] 做了一个原生 macOS 菜单栏：看 Codex 额度、30 周 Token 热力图和实时会话
 
 ## 正文
 
-最近 Codex 用得比较频繁，但每次想看剩余额度都不太顺手，于是做了一个很小的 macOS 菜单栏工具：**Codex Usage Menu Bar**。
+最近 Codex 用得比较多，我一直想在不打断工作的情况下回答三个问题：额度还剩多少、最近一段时间 Token 都花在哪些天、现在到底跑着几个交互式会话。
 
-装好之后，菜单栏会直接显示当前主窗口的剩余百分比；点开可以看到：
+所以把之前两个小工具合成了一个：**Codex Menu Bar**。
 
-- 5 小时窗口的剩余额度和重置时间
-- 7 天窗口的剩余额度和重置时间
-- 当前 Plan、Credits 状态
-- 数据最后更新时间
+菜单栏现在只有一个入口，左边是主额度剩余，右边是正在运行的交互式 TUI 数量。点开是一个原生 SwiftUI 面板，分成三页：
 
-它是原生 Swift/AppKit 写的，没有 Electron，压缩包大约 100 KB。没有 Dock 图标，Codex 日志有变化时会自动刷新，同时每 5 秒兜底刷新一次。
+- **Overview**：5h / 7d 用量卡片、30 周热力图缩略图、实时会话摘要；
+- **History**：按周一到周日排列的 30 周 Token 热力图，可以点进每天，再看 Total / Input / Cached / Output / Reasoning 和当天各会话明细；
+- **Sessions**：只显示真正的顶层 Codex 终端 TUI，排除 `exec`、review、IDE、ChatGPT App、OpenClaw 等非交互来源。
 
-隐私方面我比较在意，所以目前的实现很克制：
+这里有个容易踩坑的地方：Codex 日志里的 Token 是累计值，不能把每条记录直接相加。我做了逐字段增量和重置处理；Cached 和 Reasoning 只作为明细展示，不会重复加到 Total。
 
-- 只读取本机 `~/.codex/sessions/**/*.jsonl`
-- 不读取 `~/.codex/auth.json`
-- 不发网络请求
-- 不写缓存，也不执行 shell 命令
+隐私方面还是尽量克制：
 
-需要说明的是，这不是 OpenAI 官方工具，也不是通过官方 Usage API 获取的数据，而是读取 Codex 本地 session 日志中的 `token_count` 事件。所以要先正常使用过一次 Codex，让本地日志里产生用量数据。
+- 只读 `~/.codex/sessions/**/*.jsonl` 和 `~/.codex/session_index.jsonl`；
+- 为了识别实时 TUI，只查看当前用户的进程元数据和已经打开的 rollout 路径；
+- 不读 `auth.json`，不碰账号凭证；
+- 不发网络请求；
+- 不写缓存、数据库、分析数据或日志；
+- 不能启动、停止或控制任何 Codex 会话。
 
-下载：{{DOWNLOAD_URL}}
+整个索引只放在内存里，退出应用就消失。我的本机有大约 1.3GB / 418 个 session 日志，优化后的首次 30 周扫描约 16–17 秒，后续刷新只重解析新增或变化的文件。
 
-源码：{{SOURCE_URL}}
+技术上是 Swift 6 + AppKit + SwiftUI：AppKit 负责菜单栏、Popover、剪贴板和文件监控，面板内容全部是 SwiftUI。macOS 14 起可用，没有 Electron，也没有 Dock 图标。
 
-截图：{{SCREENSHOT_URL}}
+目前先不提供 Release，想试的话可以 clone 后本地构建：
 
-当前版本是 v0.1.0，暂时只打了 Apple Silicon（arm64）包，需要 macOS 14 或以上。应用目前是 ad-hoc 签名、没有做 Apple 公证；如果首次打开被系统拦截，可以右键应用选择“打开”，或者到“系统设置 → 隐私与安全性”里确认打开。
+```bash
+git clone https://github.com/benjaminazz1210/codex-menubar-tools.git
+cd codex-menubar-tools
+codex-menubar/macos/CodexMenuBar/scripts/build-app.sh
+open codex-menubar/macos/CodexMenuBar/dist/CodexMenuBar.app
+```
 
-使用方式很简单：下载 ZIP、解压，把 `CodexUsageMenuBar.app` 拖进“应用程序”后运行。它是纯菜单栏应用，启动后不会出现在 Dock 里。
+测试也只有一条命令：
 
-这是我自己日常在用的小工具，第一版功能比较简单。如果你也在重度使用 Codex，欢迎试试；有问题或希望支持 Intel Mac、开机启动之类的功能，也欢迎在楼里反馈或提 Issue。
+```bash
+swift test --package-path codex-menubar/macos/CodexMenuBar
+```
 
-## 发布前替换
+这不是 OpenAI 官方工具，用量数据来自本地 Codex session 事件，不是官方 Usage API。现在还是偏开发者自用的版本，如果你也重度使用 Codex，欢迎反馈热力图、会话识别和交互上哪里还不顺手。
 
-- `{{DOWNLOAD_URL}}`：公开 GitHub Release 中 ZIP 文件的下载地址
-- `{{SOURCE_URL}}`：公开后的 GitHub 仓库地址
-- `{{SCREENSHOT_URL}}`：建议放一张菜单栏数字和下拉菜单同时可见的截图；如果暂时没有截图，可删掉这一行
+## 发布前清单（不要复制到正文）
 
-仓库当前地址：<https://github.com/benjaminazz1210/codex-menubar-tools>
+- 源码地址：`{{SOURCE_URL}}`
+- Overview 截图：`{{OVERVIEW_SCREENSHOT_URL}}`
+- History 截图：`{{HISTORY_SCREENSHOT_URL}}`
+- 演示视频：`{{DEMO_VIDEO_URL}}`
+- 如果未来提供 Release，再补：`{{DOWNLOAD_URL}}`
+- 确认删除本节后再发帖
