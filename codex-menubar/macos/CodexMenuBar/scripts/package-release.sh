@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.2.0"
+VERSION="0.2.1"
 APP_NAME="CodexMenuBar"
 BUNDLE_ID="dev.benjamin.codex-menubar"
 
@@ -18,6 +18,8 @@ ASSET_PATH="$DIST_DIR/$ASSET_NAME"
 
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleShortVersionString' "$INFO_PLIST")" = "$VERSION"
 test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIdentifier' "$INFO_PLIST")" = "$BUNDLE_ID"
+test "$(/usr/libexec/PlistBuddy -c 'Print :CFBundleIconFile' "$INFO_PLIST")" = "AppIcon"
+test -s "$APP_PATH/Contents/Resources/AppIcon.icns"
 test "$(lipo -archs "$EXECUTABLE_PATH")" = "arm64"
 codesign --verify --deep --strict "$APP_PATH"
 

@@ -10,3 +10,4 @@ __pycache__/
 htmlcov/
 codex-menubar/macos/CodexMenuBar/.build/
 codex-menubar/macos/CodexMenuBar/dist/
+codex-menubar/macos/CodexMenuBar/.icon-build/
