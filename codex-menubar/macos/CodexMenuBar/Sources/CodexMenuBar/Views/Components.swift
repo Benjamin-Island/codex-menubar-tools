@@ -79,27 +79,31 @@ struct HeatmapGrid: View {
                 rows: Array(repeating: GridItem(.fixed(cell), spacing: 3), count: 7),
                 spacing: 3
             ) {
-                ForEach(history.days) { day in
-                    Button {
-                        onSelect(day.date)
-                    } label: {
-                        RoundedRectangle(cornerRadius: compact ? 2 : 3)
-                            .fill(heatColor(day.heatLevel, future: day.isFuture))
+                ForEach(history.heatmapDays) { displayDay in
+                    if let day = displayDay.usage {
+                        Button {
+                            onSelect(day.date)
+                        } label: {
+                            RoundedRectangle(cornerRadius: compact ? 2 : 3)
+                                .fill(heatColor(day.heatLevel))
+                                .frame(width: cell, height: cell)
+                        }
+                        .buttonStyle(.plain)
+                        .help("\(day.date.formatted(date: .abbreviated, time: .omitted)): \(TokenPresentation.count(day.counts.total)) Tokens")
+                        .accessibilityLabel(day.date.formatted(date: .complete, time: .omitted))
+                        .accessibilityValue("\(day.counts.total) Tokens, heat level \(day.heatLevel)")
+                    } else {
+                        Color.clear
                             .frame(width: cell, height: cell)
+                            .accessibilityHidden(true)
                     }
-                    .buttonStyle(.plain)
-                    .disabled(day.isFuture)
-                    .help("\(day.date.formatted(date: .abbreviated, time: .omitted)): \(TokenPresentation.count(day.counts.total)) Tokens")
-                    .accessibilityLabel(day.date.formatted(date: .complete, time: .omitted))
-                    .accessibilityValue("\(day.counts.total) Tokens, heat level \(day.heatLevel)")
                 }
             }
             .padding(.vertical, 2)
         }
     }
 
-    private func heatColor(_ level: Int, future: Bool) -> Color {
-        if future { return Color.secondary.opacity(0.08) }
+    private func heatColor(_ level: Int) -> Color {
         switch level {
         case 1: return Color.green.opacity(0.25)
         case 2: return Color.green.opacity(0.45)

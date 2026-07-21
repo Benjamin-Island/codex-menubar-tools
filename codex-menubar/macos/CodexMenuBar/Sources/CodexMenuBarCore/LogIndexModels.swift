@@ -75,15 +75,17 @@ public struct RateLimitCandidate: Equatable, Sendable {
     }
 }
 
-public struct IndexedSessionLog: Equatable, Sendable {
+public struct SessionLogSummary: Equatable, Sendable {
     public let path: String
     public let modifiedAt: Date
     public let session: SessionIdentity
     public let metadataTimestamp: Date?
-    public let tokenEvents: [TokenEvent]
-    public let rateLimits: [RateLimitCandidate]
+    public let dailyCounts: [Date: TokenCounts]
+    public let latestTokenCounts: TokenCounts
+    public let latestRateLimit: RateLimitCandidate?
     public let lifecycle: LifecycleSummary
     public let warnings: [ParseWarning]
+    public let suppressedWarningCount: Int
     public let isTopLevelInteractiveTUI: Bool
 
     public init(
@@ -91,20 +93,24 @@ public struct IndexedSessionLog: Equatable, Sendable {
         modifiedAt: Date,
         session: SessionIdentity,
         metadataTimestamp: Date?,
-        tokenEvents: [TokenEvent],
-        rateLimits: [RateLimitCandidate],
+        dailyCounts: [Date: TokenCounts],
+        latestTokenCounts: TokenCounts,
+        latestRateLimit: RateLimitCandidate?,
         lifecycle: LifecycleSummary,
         warnings: [ParseWarning],
-        isTopLevelInteractiveTUI: Bool = false
+        suppressedWarningCount: Int,
+        isTopLevelInteractiveTUI: Bool
     ) {
         self.path = path
         self.modifiedAt = modifiedAt
         self.session = session
         self.metadataTimestamp = metadataTimestamp
-        self.tokenEvents = tokenEvents
-        self.rateLimits = rateLimits
+        self.dailyCounts = dailyCounts
+        self.latestTokenCounts = latestTokenCounts
+        self.latestRateLimit = latestRateLimit
         self.lifecycle = lifecycle
         self.warnings = warnings
+        self.suppressedWarningCount = suppressedWarningCount
         self.isTopLevelInteractiveTUI = isTopLevelInteractiveTUI
     }
 }

@@ -39,9 +39,9 @@ public final class SessionInventory: @unchecked Sendable {
         return Set(candidates.flatMap(\.openFilePaths) + cached)
     }
 
-    public func read(logs: [IndexedSessionLog], now: Date) -> SessionInventoryResult {
+    public func read(summaries: [SessionLogSummary], now: Date) -> SessionInventoryResult {
         do {
-            return read(logs: logs, candidates: try scanProcesses(), now: now)
+            return read(summaries: summaries, candidates: try scanProcesses(), now: now)
         } catch {
             return .failure(SessionInventoryError(
                 message: "Unable to scan Codex CLI processes",
@@ -51,7 +51,7 @@ public final class SessionInventory: @unchecked Sendable {
     }
 
     public func read(
-        logs: [IndexedSessionLog],
+        summaries: [SessionLogSummary],
         candidates: [ProcessSnapshot],
         now: Date
     ) -> SessionInventoryResult {
@@ -63,7 +63,7 @@ public final class SessionInventory: @unchecked Sendable {
             processStartByPID[pid] == association.processStartedAt
         }
 
-        let eligibleLogs = logs.filter(\.isTopLevelInteractiveTUI)
+        let eligibleLogs = summaries.filter(\.isTopLevelInteractiveTUI)
         let logsByPath = Dictionary(uniqueKeysWithValues: eligibleLogs.map {
             (URL(fileURLWithPath: $0.path).standardizedFileURL.path, $0)
         })
@@ -125,9 +125,9 @@ public final class SessionInventory: @unchecked Sendable {
 
     private func fallbackMatch(
         for process: ProcessSnapshot,
-        logs: [IndexedSessionLog],
+        logs: [SessionLogSummary],
         excluding assignedPaths: Set<String>
-    ) -> IndexedSessionLog? {
+    ) -> SessionLogSummary? {
         guard let cwd = process.workingDirectory else { return nil }
         return logs.filter { log in
             let path = URL(fileURLWithPath: log.path).standardizedFileURL.path
@@ -156,17 +156,13 @@ public final class SessionInventory: @unchecked Sendable {
 
     private func displaySnapshot(
         process: ProcessSnapshot,
-        log: IndexedSessionLog,
+        log: SessionLogSummary,
         now: Date
     ) -> SessionDisplaySnapshot {
         let activity: SessionActivity = log.lifecycle == .active
             && now.timeIntervalSince(log.modifiedAt) < 300
             ? .running
             : .stalled
-        let latestCounts = log.tokenEvents.max { lhs, rhs in
-            if lhs.timestamp != rhs.timestamp { return lhs.timestamp < rhs.timestamp }
-            return lhs.sequence < rhs.sequence
-        }?.cumulative ?? .zero
         let taskDescription = log.session.name
         return SessionDisplaySnapshot(
             pid: process.pid,
@@ -179,7 +175,7 @@ public final class SessionInventory: @unchecked Sendable {
                 ?? "Unknown working directory",
             sourcePath: log.path,
             lastUpdatedAt: log.modifiedAt,
-            tokenCounts: latestCounts
+            tokenCounts: log.latestTokenCounts
         )
     }
 

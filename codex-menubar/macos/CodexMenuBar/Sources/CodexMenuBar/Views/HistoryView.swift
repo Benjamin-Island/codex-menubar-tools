@@ -24,7 +24,7 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Panel {
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionTitle("Token history", subtitle: "30 weeks · Monday–Sunday · Local time")
+                        SectionTitle("Token history", subtitle: "60 days · Monday–Sunday · Local time")
                         HeatmapGrid(history: history) { date in store.showDay(date) }
                         HStack(spacing: 12) {
                             Text("Less").font(.caption).foregroundStyle(.secondary)

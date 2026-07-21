@@ -43,7 +43,7 @@ final class DashboardViewSmokeTests: XCTestCase {
 
     private func fullSnapshot() -> DashboardSnapshot {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
-        let days = (0..<210).map { offset in
+        let days = (0..<60).map { offset in
             DailyUsage(
                 date: start.addingTimeInterval(Double(offset * 86_400)),
                 counts: TokenCounts(total: Int64(offset), input: 10, cachedInput: 2, output: 3, reasoning: 1),
@@ -53,8 +53,9 @@ final class DashboardViewSmokeTests: XCTestCase {
             )
         }
         let history = TokenHistorySnapshot(
-            interval: DateInterval(start: start, duration: 210 * 86_400),
+            interval: DateInterval(start: start, duration: 60 * 86_400),
             days: days,
+            heatmapDays: days.map { HeatmapDay(date: $0.date, usage: $0) },
             selectedDefaultDate: days.last!.date
         )
         let session = SessionDisplaySnapshot(

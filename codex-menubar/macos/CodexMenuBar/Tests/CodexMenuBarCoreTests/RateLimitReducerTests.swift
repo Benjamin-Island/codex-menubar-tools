@@ -3,7 +3,7 @@ import XCTest
 
 final class RateLimitReducerTests: XCTestCase {
     func testBuildsPrimarySecondaryPlanAndCredits() throws {
-        let result = RateLimitReducer().reduce(logs: [log(
+        let result = RateLimitReducer().reduce(summaries: [log(
             path: "/a.jsonl",
             candidates: [candidate(
                 usedPrimary: 12,
@@ -33,7 +33,7 @@ final class RateLimitReducerTests: XCTestCase {
             reportedAt: date("2026-07-20T09:44:07Z")
         )
 
-        let snapshot = try snapshot(from: RateLimitReducer().reduce(logs: [
+        let snapshot = try snapshot(from: RateLimitReducer().reduce(summaries: [
             log(path: "/canonical.jsonl", candidates: [canonical]),
             log(path: "/named.jsonl", candidates: [named])
         ]))
@@ -54,7 +54,7 @@ final class RateLimitReducerTests: XCTestCase {
             reportedAt: date("2026-07-20T09:44:07Z")
         )
 
-        let snapshot = try snapshot(from: RateLimitReducer().reduce(logs: [
+        let snapshot = try snapshot(from: RateLimitReducer().reduce(summaries: [
             log(path: "/older.jsonl", candidates: [older]),
             log(path: "/newer.jsonl", candidates: [newer])
         ]))
@@ -73,7 +73,7 @@ final class RateLimitReducerTests: XCTestCase {
             reportedAt: date("2026-07-04T04:38:11Z"),
             fileModifiedAt: Date(timeIntervalSince1970: 1_700_000_000)
         )
-        var output = try snapshot(from: RateLimitReducer().reduce(logs: [
+        var output = try snapshot(from: RateLimitReducer().reduce(summaries: [
             log(path: "/newer-file.jsonl", candidates: [olderReported]),
             log(path: "/newer-event.jsonl", candidates: [newerReported])
         ]))
@@ -82,7 +82,7 @@ final class RateLimitReducerTests: XCTestCase {
 
         let olderFile = candidate(usedPrimary: 70, reportedAt: nil, fileModifiedAt: Date(timeIntervalSince1970: 10))
         let newerFile = candidate(usedPrimary: 30, reportedAt: nil, fileModifiedAt: Date(timeIntervalSince1970: 20))
-        output = try snapshot(from: RateLimitReducer().reduce(logs: [
+        output = try snapshot(from: RateLimitReducer().reduce(summaries: [
             log(path: "/older.jsonl", candidates: [olderFile]),
             log(path: "/newer.jsonl", candidates: [newerFile])
         ]))
@@ -103,7 +103,7 @@ final class RateLimitReducerTests: XCTestCase {
             sourcePath: "/malformed.jsonl"
         )
 
-        let snapshot = try snapshot(from: RateLimitReducer().reduce(logs: [
+        let snapshot = try snapshot(from: RateLimitReducer().reduce(summaries: [
             log(path: "/malformed.jsonl", candidates: [malformed])
         ]))
         XCTAssertEqual(snapshot.primary?.label, "--")
@@ -119,7 +119,7 @@ final class RateLimitReducerTests: XCTestCase {
 
     func testMissingRateLimitEventReturnsPlaceholderFailure() {
         XCTAssertEqual(
-            RateLimitReducer().reduce(logs: [log(path: "/empty.jsonl", candidates: [])]),
+            RateLimitReducer().reduce(summaries: [log(path: "/empty.jsonl", candidates: [])]),
             .failure(UsageReadError(
                 menuValue: "--",
                 message: "No rate limit event found yet. Open or use Codex once to generate usage data.",
@@ -192,7 +192,7 @@ final class RateLimitReducerTests: XCTestCase {
         )
     }
 
-    private func log(path: String, candidates: [RateLimitCandidate]) -> IndexedSessionLog {
+    private func log(path: String, candidates: [RateLimitCandidate]) -> SessionLogSummary {
         let updatedCandidates = candidates.map { candidate in
             RateLimitCandidate(
                 limitID: candidate.limitID,
@@ -206,15 +206,21 @@ final class RateLimitReducerTests: XCTestCase {
                 sourcePath: path
             )
         }
-        return IndexedSessionLog(
+        let latest = updatedCandidates.reduce(nil as RateLimitCandidate?) { current, candidate in
+            RateLimitCandidateOrdering.isNewer(candidate, than: current) ? candidate : current
+        }
+        return SessionLogSummary(
             path: path,
             modifiedAt: candidates.first?.fileModifiedAt ?? .distantPast,
             session: SessionIdentity(id: path, name: path, displayName: path, workingDirectory: nil, sourceKind: "Other"),
             metadataTimestamp: nil,
-            tokenEvents: [],
-            rateLimits: updatedCandidates,
+            dailyCounts: [:],
+            latestTokenCounts: .zero,
+            latestRateLimit: latest,
             lifecycle: .inactive,
-            warnings: []
+            warnings: [],
+            suppressedWarningCount: 0,
+            isTopLevelInteractiveTUI: false
         )
     }
 
@@ -238,7 +244,7 @@ final class RateLimitReducerTests: XCTestCase {
             sequence: 0,
             sourcePath: "/credits.jsonl"
         )
-        return try? snapshot(from: RateLimitReducer().reduce(logs: [log(path: "/credits.jsonl", candidates: [candidate])])).creditsDescription
+        return try? snapshot(from: RateLimitReducer().reduce(summaries: [log(path: "/credits.jsonl", candidates: [candidate])])).creditsDescription
     }
 
     private func utcCalendar() -> Calendar {

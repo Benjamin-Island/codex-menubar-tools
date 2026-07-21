@@ -41,7 +41,7 @@ struct OverviewView: View {
         case let .content(history):
             Panel {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionTitle("30-week Token history", subtitle: "Monday–Sunday · Select a day for details")
+                    SectionTitle("60-day Token history", subtitle: "Monday–Sunday · Select a day for details")
                     HeatmapGrid(history: history, compact: true) { date in
                         store.showHistory(date: date)
                     }

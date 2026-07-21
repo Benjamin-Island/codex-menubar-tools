@@ -1,122 +1,104 @@
+import Foundation
 import XCTest
 @testable import CodexMenuBarCore
 
 final class TokenHistoryAggregatorTests: XCTestCase {
-    func testCumulativeEventsBecomeNonDuplicatedDailyIncrements() throws {
-        let calendar = utcCalendar()
+    func testDailySummaryCountsRemainCategoryIndependent() throws {
         let day = try date("2026-07-21T00:00:00Z")
-        let log = makeLog(
-            id: "session-1",
-            name: "Parser work",
-            events: [
-                event("2026-07-21T01:00:00Z", total: 100, input: 70, cached: 20, output: 30, reasoning: 4, sequence: 1),
-                event("2026-07-21T02:00:00Z", total: 160, input: 110, cached: 35, output: 50, reasoning: 7, sequence: 2),
-                event("2026-07-21T03:00:00Z", total: 160, input: 110, cached: 35, output: 50, reasoning: 7, sequence: 3),
-                event("2026-07-21T04:00:00Z", total: 20, input: 15, cached: 5, output: 5, reasoning: 2, sequence: 4)
-            ]
-        )
+        let counts = TokenCounts(total: 180, input: 125, cachedInput: 40, output: 55, reasoning: 9)
 
         let history = TokenHistoryAggregator().makeHistory(
-            logs: [log],
-            calendar: calendar,
+            summaries: [summary(id: "session-1", name: "Parser work", dailyCounts: [day: counts])],
+            calendar: utcCalendar(),
             now: try date("2026-07-21T12:00:00Z")
         )
 
         let usage = try XCTUnwrap(history.days.first { $0.date == day })
-        XCTAssertEqual(
-            usage.counts,
-            TokenCounts(total: 180, input: 125, cachedInput: 40, output: 55, reasoning: 9)
-        )
+        XCTAssertEqual(usage.counts, counts)
         XCTAssertEqual(usage.sessions.map(\.counts.total), [180])
     }
 
-    func testHistoryContainsExactlyThirtyMondayFirstWeeksAndDisablesFutureDays() throws {
+    func testHistoryContainsExactlySixtyDaysAndMondayAlignedPadding() throws {
         let calendar = utcCalendar()
         let history = TokenHistoryAggregator().makeHistory(
-            logs: [
-                makeLog(
-                    id: "future",
-                    name: "Future log",
-                    events: [event("2026-07-24T10:00:00Z", total: 50, sequence: 1)]
-                )
-            ],
+            summaries: [],
             calendar: calendar,
             now: try date("2026-07-21T12:00:00Z")
         )
 
-        XCTAssertEqual(history.days.count, 210)
-        XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.days.first).date), 2)
-        XCTAssertEqual(history.days.filter(\.isFuture).count, 5)
-        let futureDate = try date("2026-07-24T00:00:00Z")
-        let future = try XCTUnwrap(history.days.first { $0.date == futureDate })
-        XCTAssertEqual(future.counts, .zero)
-        XCTAssertEqual(future.heatLevel, 0)
+        XCTAssertEqual(history.days.count, 60)
+        XCTAssertEqual(history.days.first?.date, try date("2026-05-23T00:00:00Z"))
+        XCTAssertEqual(history.days.last?.date, try date("2026-07-21T00:00:00Z"))
+        XCTAssertEqual(history.heatmapDays.count, 70)
+        XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.heatmapDays.first).date), 2)
+        XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.heatmapDays.last).date), 1)
+        XCTAssertEqual(history.heatmapDays.compactMap(\.usage).count, 60)
+        XCTAssertNil(history.heatmapDays.first?.usage)
+        XCTAssertNil(history.heatmapDays.last?.usage)
     }
 
-    func testLocalCalendarAssignsEventsAcrossMidnightAndDST() throws {
-        var calendar = utcCalendar()
-        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
-        let log = makeLog(
-            id: "session-1",
-            name: "DST work",
-            events: [
-                event("2026-03-08T07:30:00Z", total: 10, sequence: 1),
-                event("2026-03-08T08:30:00Z", total: 30, sequence: 2),
-                event("2026-03-09T06:30:00Z", total: 60, sequence: 3)
+    func testDaySixtyOneAndFutureBucketsAreExcluded() throws {
+        let summary = summary(
+            id: "edge",
+            name: "Edge",
+            dailyCounts: [
+                try date("2026-05-22T00:00:00Z"): counts(10),
+                try date("2026-05-23T00:00:00Z"): counts(20),
+                try date("2026-07-22T00:00:00Z"): counts(30)
             ]
         )
-
         let history = TokenHistoryAggregator().makeHistory(
-            logs: [log],
+            summaries: [summary],
+            calendar: utcCalendar(),
+            now: try date("2026-07-21T12:00:00Z")
+        )
+
+        XCTAssertEqual(history.days.first?.counts.total, 20)
+        XCTAssertEqual(history.days.reduce(0) { $0 + $1.counts.total }, 20)
+    }
+
+    func testLocalCalendarUsesLocalDayBucketsAcrossDST() throws {
+        var calendar = utcCalendar()
+        calendar.timeZone = try XCTUnwrap(TimeZone(identifier: "America/Los_Angeles"))
+        let march7 = calendar.startOfDay(for: try date("2026-03-08T07:30:00Z"))
+        let march8 = calendar.startOfDay(for: try date("2026-03-08T08:30:00Z"))
+        let history = TokenHistoryAggregator().makeHistory(
+            summaries: [summary(id: "dst", name: "DST work", dailyCounts: [march7: counts(10), march8: counts(50)])],
             calendar: calendar,
             now: try date("2026-03-09T18:00:00Z")
         )
 
-        let march7 = calendar.startOfDay(for: try date("2026-03-08T07:30:00Z"))
-        let march8 = calendar.startOfDay(for: try date("2026-03-08T08:30:00Z"))
         XCTAssertEqual(history.days.first { $0.date == march7 }?.counts.total, 10)
         XCTAssertEqual(history.days.first { $0.date == march8 }?.counts.total, 50)
-        XCTAssertEqual(history.days.count, 210)
+        XCTAssertEqual(history.days.count, 60)
     }
 
-    func testYearBoundaryAndSessionSpanningDaysPreserveDailyIncrements() throws {
-        let calendar = utcCalendar()
-        let log = makeLog(
-            id: "year-session",
-            name: "Year work",
-            events: [
-                event("2025-12-31T23:00:00Z", total: 100, sequence: 1),
-                event("2026-01-01T01:00:00Z", total: 140, sequence: 2)
-            ]
-        )
-
+    func testYearBoundaryPreservesDailySummaries() throws {
+        let december31 = try date("2025-12-31T00:00:00Z")
+        let january1 = try date("2026-01-01T00:00:00Z")
         let history = TokenHistoryAggregator().makeHistory(
-            logs: [log],
-            calendar: calendar,
+            summaries: [summary(id: "year", name: "Year work", dailyCounts: [december31: counts(100), january1: counts(40)])],
+            calendar: utcCalendar(),
             now: try date("2026-01-02T12:00:00Z")
         )
 
-        let december31 = try date("2025-12-31T00:00:00Z")
-        let january1 = try date("2026-01-01T00:00:00Z")
         XCTAssertEqual(history.days.first { $0.date == december31 }?.counts.total, 100)
         XCTAssertEqual(history.days.first { $0.date == january1 }?.counts.total, 40)
     }
 
     func testAllSourceKindsContributeAndSessionsSortByTotalThenName() throws {
-        let calendar = utcCalendar()
-        let logs = [
-            makeLog(id: "z", name: "Zulu", sourceKind: "cli", events: [event("2026-07-21T01:00:00Z", total: 50, sequence: 1)]),
-            makeLog(id: "a", name: "Alpha", sourceKind: "vscode", events: [event("2026-07-21T02:00:00Z", total: 50, sequence: 1)]),
-            makeLog(id: "b", name: "Beta", sourceKind: "exec", events: [event("2026-07-21T03:00:00Z", total: 80, sequence: 1)])
+        let day = try date("2026-07-21T00:00:00Z")
+        let summaries = [
+            summary(id: "z", name: "Zulu", sourceKind: "cli", dailyCounts: [day: counts(50)]),
+            summary(id: "a", name: "Alpha", sourceKind: "vscode", dailyCounts: [day: counts(50)]),
+            summary(id: "b", name: "Beta", sourceKind: "exec", dailyCounts: [day: counts(80)])
         ]
-
         let history = TokenHistoryAggregator().makeHistory(
-            logs: logs,
-            calendar: calendar,
+            summaries: summaries,
+            calendar: utcCalendar(),
             now: try date("2026-07-21T12:00:00Z")
         )
-        let todayDate = try date("2026-07-21T00:00:00Z")
-        let today = try XCTUnwrap(history.days.first { $0.date == todayDate })
+        let today = try XCTUnwrap(history.days.first { $0.date == day })
 
         XCTAssertEqual(today.counts.total, 180)
         XCTAssertEqual(today.sessions.map(\.session.name), ["Beta", "Alpha", "Zulu"])
@@ -124,18 +106,16 @@ final class TokenHistoryAggregatorTests: XCTestCase {
     }
 
     func testHeatLevelsUseNonzeroDailyQuartiles() throws {
-        let calendar = utcCalendar()
-        let logs = [10, 20, 30, 40].enumerated().map { index, total in
-            makeLog(
+        let summaries = try [10, 20, 30, 40].enumerated().map { index, total in
+            summary(
                 id: "session-\(index)",
                 name: "Session \(index)",
-                events: [event("2026-07-\(17 + index)T12:00:00Z", total: Int64(total), sequence: 1)]
+                dailyCounts: [try date("2026-07-\(17 + index)T00:00:00Z"): counts(Int64(total))]
             )
         }
-
         let history = TokenHistoryAggregator().makeHistory(
-            logs: logs,
-            calendar: calendar,
+            summaries: summaries,
+            calendar: utcCalendar(),
             now: try date("2026-07-21T12:00:00Z")
         )
         let levels = history.days
@@ -146,15 +126,15 @@ final class TokenHistoryAggregatorTests: XCTestCase {
         XCTAssertEqual(levels, [1, 2, 3, 4])
     }
 
-    private func makeLog(
+    private func summary(
         id: String,
         name: String,
         sourceKind: String = "cli",
-        events: [TokenEvent]
-    ) -> IndexedSessionLog {
-        IndexedSessionLog(
+        dailyCounts: [Date: TokenCounts]
+    ) -> SessionLogSummary {
+        SessionLogSummary(
             path: "/tmp/\(id).jsonl",
-            modifiedAt: events.last?.timestamp ?? .distantPast,
+            modifiedAt: dailyCounts.keys.max() ?? .distantPast,
             session: SessionIdentity(
                 id: id,
                 name: name,
@@ -162,34 +142,19 @@ final class TokenHistoryAggregatorTests: XCTestCase {
                 workingDirectory: "/tmp/\(id)",
                 sourceKind: sourceKind
             ),
-            metadataTimestamp: events.first?.timestamp,
-            tokenEvents: events,
-            rateLimits: [],
+            metadataTimestamp: dailyCounts.keys.min(),
+            dailyCounts: dailyCounts,
+            latestTokenCounts: dailyCounts.values.reduce(.zero) { $0 + $1 },
+            latestRateLimit: nil,
             lifecycle: .inactive,
-            warnings: []
+            warnings: [],
+            suppressedWarningCount: 0,
+            isTopLevelInteractiveTUI: false
         )
     }
 
-    private func event(
-        _ timestamp: String,
-        total: Int64,
-        input: Int64 = 0,
-        cached: Int64 = 0,
-        output: Int64 = 0,
-        reasoning: Int64 = 0,
-        sequence: Int
-    ) -> TokenEvent {
-        TokenEvent(
-            timestamp: try! date(timestamp),
-            cumulative: TokenCounts(
-                total: total,
-                input: input,
-                cachedInput: cached,
-                output: output,
-                reasoning: reasoning
-            ),
-            sequence: sequence
-        )
+    private func counts(_ total: Int64) -> TokenCounts {
+        TokenCounts(total: total, input: 0, cachedInput: 0, output: 0, reasoning: 0)
     }
 
     private func utcCalendar() -> Calendar {

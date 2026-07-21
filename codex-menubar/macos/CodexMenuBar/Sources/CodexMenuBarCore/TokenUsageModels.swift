@@ -77,18 +77,6 @@ public struct SessionIdentity: Hashable, Sendable {
     }
 }
 
-public struct TokenEvent: Equatable, Sendable {
-    public let timestamp: Date
-    public let cumulative: TokenCounts
-    public let sequence: Int
-
-    public init(timestamp: Date, cumulative: TokenCounts, sequence: Int) {
-        self.timestamp = timestamp
-        self.cumulative = cumulative
-        self.sequence = sequence
-    }
-}
-
 public struct SessionDayUsage: Identifiable, Equatable, Sendable {
     public let id: String
     public let session: SessionIdentity
@@ -125,14 +113,32 @@ public struct DailyUsage: Identifiable, Equatable, Sendable {
     }
 }
 
+public struct HeatmapDay: Identifiable, Equatable, Sendable {
+    public var id: Date { date }
+    public let date: Date
+    public let usage: DailyUsage?
+
+    public init(date: Date, usage: DailyUsage?) {
+        self.date = date
+        self.usage = usage
+    }
+}
+
 public struct TokenHistorySnapshot: Equatable, Sendable {
     public let interval: DateInterval
     public let days: [DailyUsage]
+    public let heatmapDays: [HeatmapDay]
     public let selectedDefaultDate: Date
 
-    public init(interval: DateInterval, days: [DailyUsage], selectedDefaultDate: Date) {
+    public init(
+        interval: DateInterval,
+        days: [DailyUsage],
+        heatmapDays: [HeatmapDay],
+        selectedDefaultDate: Date
+    ) {
         self.interval = interval
         self.days = days
+        self.heatmapDays = heatmapDays
         self.selectedDefaultDate = selectedDefaultDate
     }
 }

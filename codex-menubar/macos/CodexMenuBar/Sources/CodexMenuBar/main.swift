@@ -16,7 +16,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             ?? codexDirectory.appendingPathComponent("session_index.jsonl")
 
         let reader = DashboardReader(
-            logIndex: CodexLogIndex(),
+            logIndex: IncrementalCodexLogIndex(),
             historyAggregator: TokenHistoryAggregator(),
             rateLimitReducer: RateLimitReducer(),
             sessionInventory: SessionInventory(
