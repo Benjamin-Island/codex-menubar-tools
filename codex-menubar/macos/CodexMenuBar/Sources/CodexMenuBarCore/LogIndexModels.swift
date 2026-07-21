@@ -114,37 +114,3 @@ public struct SessionLogSummary: Equatable, Sendable {
         self.isTopLevelInteractiveTUI = isTopLevelInteractiveTUI
     }
 }
-
-public struct IndexedSessionLog: Equatable, Sendable {
-    public let path: String
-    public let modifiedAt: Date
-    public let session: SessionIdentity
-    public let metadataTimestamp: Date?
-    public let tokenEvents: [TokenEvent]
-    public let rateLimits: [RateLimitCandidate]
-    public let lifecycle: LifecycleSummary
-    public let warnings: [ParseWarning]
-    public let isTopLevelInteractiveTUI: Bool
-
-    public init(
-        path: String,
-        modifiedAt: Date,
-        session: SessionIdentity,
-        metadataTimestamp: Date?,
-        tokenEvents: [TokenEvent],
-        rateLimits: [RateLimitCandidate],
-        lifecycle: LifecycleSummary,
-        warnings: [ParseWarning],
-        isTopLevelInteractiveTUI: Bool = false
-    ) {
-        self.path = path
-        self.modifiedAt = modifiedAt
-        self.session = session
-        self.metadataTimestamp = metadataTimestamp
-        self.tokenEvents = tokenEvents
-        self.rateLimits = rateLimits
-        self.lifecycle = lifecycle
-        self.warnings = warnings
-        self.isTopLevelInteractiveTUI = isTopLevelInteractiveTUI
-    }
-}

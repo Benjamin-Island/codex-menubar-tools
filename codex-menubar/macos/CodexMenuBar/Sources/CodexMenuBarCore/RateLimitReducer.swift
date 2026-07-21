@@ -3,9 +3,13 @@ import Foundation
 public struct RateLimitReducer: Sendable {
     public init() {}
 
-    public func reduce(logs: [IndexedSessionLog]) -> UsageReadResult {
+    public func reduce(summaries: [SessionLogSummary]) -> UsageReadResult {
+        reduce(candidates: summaries.compactMap(\.latestRateLimit))
+    }
+
+    private func reduce(candidates: [RateLimitCandidate]) -> UsageReadResult {
         var newest: RateLimitCandidate?
-        for candidate in logs.flatMap(\.rateLimits) where candidate.primary != nil || candidate.secondary != nil {
+        for candidate in candidates where candidate.primary != nil || candidate.secondary != nil {
             if RateLimitCandidateOrdering.isNewer(candidate, than: newest) {
                 newest = candidate
             }

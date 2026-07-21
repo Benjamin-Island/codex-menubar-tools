@@ -77,18 +77,6 @@ public struct SessionIdentity: Hashable, Sendable {
     }
 }
 
-public struct TokenEvent: Equatable, Sendable {
-    public let timestamp: Date
-    public let cumulative: TokenCounts
-    public let sequence: Int
-
-    public init(timestamp: Date, cumulative: TokenCounts, sequence: Int) {
-        self.timestamp = timestamp
-        self.cumulative = cumulative
-        self.sequence = sequence
-    }
-}
-
 public struct SessionDayUsage: Identifiable, Equatable, Sendable {
     public let id: String
     public let session: SessionIdentity

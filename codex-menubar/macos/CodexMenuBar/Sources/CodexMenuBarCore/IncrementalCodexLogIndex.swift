@@ -16,7 +16,18 @@ public struct IncrementalLogIndexSnapshot: Equatable, Sendable {
     }
 }
 
-public final class IncrementalCodexLogIndex: @unchecked Sendable {
+public protocol IncrementalLogIndexing: Sendable {
+    func refresh(
+        sessionsDirectory: URL,
+        modifiedSince: Date,
+        requiredPaths: Set<String>,
+        calendar: Calendar,
+        now: Date,
+        sessionIndexURL: URL?
+    ) throws -> IncrementalLogIndexSnapshot
+}
+
+public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked Sendable {
     private struct LogCursor {
         var fingerprint: LogFileFingerprint
         var consumedOffset: UInt64

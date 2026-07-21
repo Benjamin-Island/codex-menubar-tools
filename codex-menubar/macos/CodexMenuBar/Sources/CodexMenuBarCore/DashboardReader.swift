@@ -5,7 +5,7 @@ public protocol DashboardReading: Sendable {
 }
 
 public final class DashboardReader: DashboardReading, @unchecked Sendable {
-    private let logIndex: CodexLogIndex
+    private let logIndex: any IncrementalLogIndexing
     private let historyAggregator: TokenHistoryAggregator
     private let rateLimitReducer: RateLimitReducer
     private let sessionInventory: SessionInventory
@@ -15,7 +15,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
     private let now: @Sendable () -> Date
 
     public init(
-        logIndex: CodexLogIndex,
+        logIndex: any IncrementalLogIndexing,
         historyAggregator: TokenHistoryAggregator,
         rateLimitReducer: RateLimitReducer,
         sessionInventory: SessionInventory,
@@ -47,13 +47,15 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
         let requiredPaths = sessionInventory.requiredLogPaths(for: candidates)
         let modifiedSince = historyStart(now: readAt)
 
-        let indexSnapshot: LogIndexSnapshot
+        let indexSnapshot: IncrementalLogIndexSnapshot
         do {
             indexSnapshot = try logIndex.refresh(
                 sessionsDirectory: sessionsDirectory,
-                sessionIndexURL: sessionIndexURL,
                 modifiedSince: modifiedSince,
-                requiredPaths: requiredPaths
+                requiredPaths: requiredPaths,
+                calendar: calendar,
+                now: readAt,
+                sessionIndexURL: sessionIndexURL
             )
         } catch {
             let indexError = DashboardError(
@@ -63,14 +65,14 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
             return DashboardSnapshot(
                 rateLimit: .failure(indexError),
                 history: .failure(indexError),
-                sessions: sessionState(processResult: processResult, logs: [], now: readAt),
+                sessions: sessionState(processResult: processResult, summaries: [], now: readAt),
                 warnings: [],
                 updatedAt: readAt
             )
         }
 
         let history = historyAggregator.makeHistory(
-            logs: indexSnapshot.logs,
+            summaries: indexSnapshot.summaries,
             calendar: calendar,
             now: readAt
         )
@@ -79,7 +81,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
         } ? .content(history) : .empty("No Token history found yet.")
 
         let rateLimitState: ContentState<UsageSnapshot>
-        switch rateLimitReducer.reduce(logs: indexSnapshot.logs) {
+        switch rateLimitReducer.reduce(summaries: indexSnapshot.summaries) {
         case let .snapshot(snapshot):
             rateLimitState = .content(snapshot)
         case let .failure(error):
@@ -93,7 +95,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
             history: historyState,
             sessions: sessionState(
                 processResult: processResult,
-                logs: indexSnapshot.logs,
+                summaries: indexSnapshot.summaries,
                 now: readAt
             ),
             warnings: indexSnapshot.warnings.map {
@@ -105,7 +107,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
 
     private func sessionState(
         processResult: Result<[ProcessSnapshot], Error>,
-        logs: [IndexedSessionLog],
+        summaries: [SessionLogSummary],
         now: Date
     ) -> ContentState<[SessionDisplaySnapshot]> {
         let candidates: [ProcessSnapshot]
@@ -117,7 +119,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
                 detail: error.localizedDescription
             ))
         }
-        switch sessionInventory.read(logs: logs, candidates: candidates, now: now) {
+        switch sessionInventory.read(summaries: summaries, candidates: candidates, now: now) {
         case let .snapshots(items):
             return items.isEmpty
                 ? .empty("No interactive Codex TUI sessions are running.")
@@ -128,14 +130,8 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
     }
 
     private func historyStart(now: Date) -> Date {
-        var localCalendar = calendar
-        localCalendar.firstWeekday = 2
-        let today = localCalendar.startOfDay(for: now)
-        guard let week = localCalendar.dateInterval(of: .weekOfYear, for: today),
-              let start = localCalendar.date(byAdding: .weekOfYear, value: -29, to: week.start)
-        else {
-            return now.addingTimeInterval(-30 * 7 * 24 * 60 * 60)
-        }
-        return start
+        let today = calendar.startOfDay(for: now)
+        return calendar.date(byAdding: .day, value: -59, to: today)
+            ?? now.addingTimeInterval(-59 * 86_400)
     }
 }

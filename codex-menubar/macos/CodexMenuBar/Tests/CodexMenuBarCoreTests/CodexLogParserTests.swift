@@ -1,185 +1,172 @@
+import Foundation
 import XCTest
 @testable import CodexMenuBarCore
 
 final class CodexLogParserTests: XCTestCase {
-    private var temporaryDirectory: URL!
+    private var root: URL!
 
     override func setUpWithError() throws {
-        temporaryDirectory = FileManager.default.temporaryDirectory
-            .appendingPathComponent("CodexLogParserTests-\(UUID().uuidString)")
-        try FileManager.default.createDirectory(at: temporaryDirectory, withIntermediateDirectories: true)
+        root = FileManager.default.temporaryDirectory
+            .appendingPathComponent("IncrementalParserTests-\(UUID().uuidString)", isDirectory: true)
+        try FileManager.default.createDirectory(at: root, withIntermediateDirectories: true)
     }
 
     override func tearDownWithError() throws {
-        if let temporaryDirectory {
-            try? FileManager.default.removeItem(at: temporaryDirectory)
-        }
+        if let root { try? FileManager.default.removeItem(at: root) }
     }
 
-    func testParsesIdentityTokensLifecycleAndWarningsInOnePass() throws {
-        let logURL = temporaryDirectory.appendingPathComponent("rollout.jsonl")
+    func testIndexesIdentityTokensLifecycleNamesAndWarningsInOnePass() throws {
         let records = [
-            #"{"timestamp":"2026-07-21T01:00:00Z","type":"session_meta","payload":{"id":"session-1","session_id":"session-1","timestamp":"2026-07-21T01:00:00Z","cwd":"/tmp/project","source":"cli","originator":"codex-tui","thread_source":"user"}}"#,
-            #"{"timestamp":"2026-07-21T01:01:00Z","type":"event_msg","payload":{"type":"user_message","message":"  fallback   message  "}}"#,
-            tokenRecord(timestamp: "2026-07-21T01:02:00Z", total: 100, input: 80, cached: 30, output: 20, reasoning: 4),
-            tokenRecord(timestamp: "2026-07-21T01:03:00Z", total: 160, input: 125, cached: 45, output: 35, reasoning: 7),
+            metadata(id: "session-1", cwd: "/tmp/project", source: "cli", originator: "codex-tui", threadSource: "user"),
+            #"{"timestamp":"2026-07-21T01:01:00Z","type":"event_msg","payload":{"type":"user_message","message":"fallback message"}}"#,
+            tokenRecord(timestamp: "2026-07-21T01:02:00Z", total: 100, input: 80),
+            tokenRecord(timestamp: "2026-07-21T01:03:00Z", total: 160, input: 125),
             #"{"timestamp":"2026-07-21T01:04:00Z","type":"event_msg","payload":{"type":"task_started"}}"#,
             "{malformed"
         ]
-        try records.joined(separator: "\n").write(to: logURL, atomically: true, encoding: .utf8)
 
-        let log = try CodexLogParser().parse(
-            logURL: logURL,
-            sessionNames: ["session-1": "Named thread"],
-            modifiedAt: Date(timeIntervalSince1970: 1_800_000_000)
-        )
+        let summary = try parse(records: records, indexedName: "Named thread")
 
-        XCTAssertEqual(log.session.id, "session-1")
-        XCTAssertEqual(log.session.name, "Named thread")
-        XCTAssertEqual(log.session.workingDirectory, "/tmp/project")
-        XCTAssertEqual(log.session.sourceKind, "cli")
-        XCTAssertEqual(log.tokenEvents.map(\.cumulative.total), [100, 160])
-        XCTAssertEqual(log.lifecycle, .active)
-        XCTAssertEqual(log.warnings.count, 1)
-        XCTAssertTrue(log.isTopLevelInteractiveTUI)
+        XCTAssertEqual(summary.session.id, "session-1")
+        XCTAssertEqual(summary.session.name, "Named thread")
+        XCTAssertEqual(summary.session.workingDirectory, "/tmp/project")
+        XCTAssertEqual(summary.session.sourceKind, "cli")
+        XCTAssertEqual(summary.latestTokenCounts.total, 160)
+        XCTAssertEqual(summary.dailyCounts.values.first?.total, 160)
+        XCTAssertEqual(summary.lifecycle, .active)
+        XCTAssertEqual(summary.warnings.count, 1)
+        XCTAssertTrue(summary.isTopLevelInteractiveTUI)
     }
 
-    func testFallsBackToNormalizedFirstUserMessage() throws {
-        let log = try parse(records: [
-            sessionMetadata(id: "session-2", cwd: "/tmp/project", source: "cli"),
+    func testFallsBackToMessageThenDirectoryThenUntitledSession() throws {
+        var summary = try parse(records: [
+            metadata(id: "message", cwd: "/tmp/project", source: "cli"),
             #"{"type":"event_msg","payload":{"type":"user_message","message":"  fix\n  the   parser  "}}"#
         ])
+        XCTAssertEqual(summary.session.name, "fix the parser")
 
-        XCTAssertEqual(log.session.name, "fix the parser")
-        XCTAssertEqual(log.session.displayName, "fix the parser")
+        summary = try parse(records: [metadata(id: "directory", cwd: "/tmp/customer-api", source: "cli")])
+        XCTAssertEqual(summary.session.name, "customer-api")
+
+        summary = try parse(records: [#"{"type":"event_msg","payload":{"type":"agent_message"}}"#])
+        XCTAssertEqual(summary.session.name, "Untitled session")
+        XCTAssertEqual(summary.session.id, summary.path)
     }
 
-    func testFallsBackToDirectoryThenUntitledSession() throws {
-        let directoryLog = try parse(records: [
-            sessionMetadata(id: "session-3", cwd: "/tmp/customer-api", source: "cli")
-        ])
-        let untitledLog = try parse(records: [#"{"type":"event_msg","payload":{"type":"agent_message"}}"#])
-
-        XCTAssertEqual(directoryLog.session.name, "customer-api")
-        XCTAssertEqual(untitledLog.session.name, "Untitled session")
-        XCTAssertEqual(untitledLog.session.id, untitledLog.path)
-    }
-
-    func testMissingTimestampExcludesTokenEventButRetainsRateLimit() throws {
-        let log = try parse(records: [
-            sessionMetadata(id: "session-4", cwd: "/tmp/project", source: "cli"),
-            """
-            {"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":100}},"rate_limits":{"limit_id":"codex","primary":{"used_percent":25,"window_minutes":300,"resets_at":1783070400}}}}
-            """
+    func testMissingTimestampExcludesTokenTotalsButRetainsRateLimit() throws {
+        let summary = try parse(records: [
+            metadata(id: "limits", cwd: "/tmp/project", source: "cli"),
+            #"{"type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":100}},"rate_limits":{"limit_id":"codex","primary":{"used_percent":25,"window_minutes":300}}}}"#
         ])
 
-        XCTAssertTrue(log.tokenEvents.isEmpty)
-        XCTAssertEqual(log.rateLimits.count, 1)
-        XCTAssertNil(log.rateLimits[0].reportedAt)
-        XCTAssertEqual(log.rateLimits[0].primary?.usedPercent, 25)
+        XCTAssertEqual(summary.latestTokenCounts, .zero)
+        XCTAssertTrue(summary.dailyCounts.isEmpty)
+        XCTAssertNil(summary.latestRateLimit?.reportedAt)
+        XCTAssertEqual(summary.latestRateLimit?.primary?.usedPercent, 25)
     }
 
     func testTaskCompleteAfterStartProducesInactiveLifecycle() throws {
-        let log = try parse(records: [
-            sessionMetadata(id: "session-5", cwd: "/tmp/project", source: "cli"),
+        let summary = try parse(records: [
+            metadata(id: "complete", cwd: "/tmp/project", source: "cli"),
             #"{"type":"event_msg","payload":{"type":"task_started"}}"#,
             #"{"type":"event_msg","payload":{"type":"task_complete"}}"#
         ])
-
-        XCTAssertEqual(log.lifecycle, .inactive)
+        XCTAssertEqual(summary.lifecycle, .inactive)
     }
 
-    func testUnknownSourceAndInvalidTokenFieldsRemainUsable() throws {
-        let log = try parse(records: [
-            sessionMetadata(id: "session-6", cwd: "/tmp/project", source: "mystery"),
-            """
-            {"timestamp":"2026-07-21T01:02:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":"120","input_tokens":-1,"cached_input_tokens":"40","output_tokens":9223372036854775808,"reasoning_output_tokens":7}}}}
-            """
+    func testSourceClassificationCoversCLIIDEExecAppAndOther() throws {
+        let cases = [
+            ("cli", "codex-tui", "user", "cli"),
+            ("unknown", "vscode", "user", "IDE"),
+            ("unknown", "exec", "user", "exec"),
+            ("unknown", "chatgpt-app", "user", "App"),
+            ("mystery", "unknown", "unknown", "Other")
+        ]
+        for (source, originator, threadSource, expected) in cases {
+            let summary = try parse(records: [
+                metadata(id: UUID().uuidString, cwd: "/tmp/project", source: source, originator: originator, threadSource: threadSource)
+            ])
+            XCTAssertEqual(summary.session.sourceKind, expected)
+        }
+    }
+
+    func testTokenRateAndCreditsDecodeTolerantlyAtIntegerBoundary() throws {
+        let summary = try parse(records: [
+            metadata(id: "tolerant", cwd: "/tmp/project", source: "mystery"),
+            #"{"timestamp":"2026-07-21T01:02:00Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":"120","input_tokens":-1,"cached_input_tokens":"40","output_tokens":9223372036854775808,"reasoning_output_tokens":7}},"rate_limits":{"primary":{"used_percent":25,"window_minutes":{"unexpected":true},"resets_at":["soon"]},"secondary":{"used_percent":"40","window_minutes":"10080","resets_at":"1783630800"},"credits":{"has_credits":"true","unlimited":"false","balance":9223372036854775808},"plan_type":"plus"}}}"#
         ])
 
-        XCTAssertEqual(log.session.sourceKind, "Other")
-        XCTAssertFalse(log.isTopLevelInteractiveTUI)
-        XCTAssertEqual(
-            log.tokenEvents[0].cumulative,
-            TokenCounts(total: 120, input: 0, cachedInput: 40, output: 0, reasoning: 7)
+        XCTAssertEqual(summary.latestTokenCounts, TokenCounts(total: 120, input: 0, cachedInput: 40, output: 0, reasoning: 7))
+        XCTAssertNil(summary.latestRateLimit?.primary?.windowMinutes)
+        XCTAssertEqual(summary.latestRateLimit?.secondary?.windowMinutes, 10_080)
+        XCTAssertEqual(summary.latestRateLimit?.credits?.hasCredits, true)
+        XCTAssertNil(summary.latestRateLimit?.credits?.balance)
+    }
+
+    func testIncompleteFinalLineWaitsWithoutDiscardingEarlierRecords() throws {
+        let summary = try parse(
+            records: [
+                metadata(id: "incomplete", cwd: "/tmp/project", source: "cli"),
+                tokenRecord(timestamp: "2026-07-21T01:02:00Z", total: 100, input: 80),
+                #"{"type":"event_msg","payload":{"type":"token_count""#
+            ],
+            terminatesWithNewline: false
         )
-    }
 
-    func testReadsNormalizedSessionNamesAndSkipsMalformedIndexLines() throws {
-        let indexURL = temporaryDirectory.appendingPathComponent("session_index.jsonl")
-        try [
-            #"{"id":"session-1","thread_name":"  Named   thread "}"#,
-            "{malformed",
-            #"{"id":"session-2","thread_name":""}"#
-        ].joined(separator: "\n").write(to: indexURL, atomically: true, encoding: .utf8)
-
-        XCTAssertEqual(try CodexLogParser().readSessionNames(at: indexURL), ["session-1": "Named thread"])
-    }
-
-    func testIncompleteFinalLineDoesNotDiscardEarlierValidEvents() throws {
-        let log = try parse(records: [
-            sessionMetadata(id: "session-incomplete", cwd: "/tmp/project", source: "cli"),
-            tokenRecord(timestamp: "2026-07-21T01:02:00Z", total: 100, input: 80, cached: 20, output: 20, reasoning: 4),
-            #"{"type":"event_msg","payload":{"type":"token_count""#
-        ])
-
-        XCTAssertEqual(log.tokenEvents.map(\.cumulative.total), [100])
-        XCTAssertEqual(log.warnings.count, 1)
-    }
-
-    func testRateLimitNumbersAndCreditsDecodeTolerantlyAtIntegerBoundary() throws {
-        let log = try parse(records: [
-            sessionMetadata(id: "session-limits", cwd: "/tmp/project", source: "cli"),
-            """
-            {"timestamp":"2026-07-21T01:02:00Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":25,"window_minutes":{"unexpected":true},"resets_at":["soon"]},"secondary":{"used_percent":"40","window_minutes":"10080","resets_at":"1783630800"},"credits":{"has_credits":"true","unlimited":"false","balance":9223372036854775808},"plan_type":"plus"}}}
-            """
-        ])
-
-        let limits = try XCTUnwrap(log.rateLimits.first)
-        XCTAssertEqual(limits.primary?.usedPercent, 25)
-        XCTAssertNil(limits.primary?.windowMinutes)
-        XCTAssertNil(limits.primary?.resetsAt)
-        XCTAssertEqual(limits.secondary?.usedPercent, 40)
-        XCTAssertEqual(limits.secondary?.windowMinutes, 10_080)
-        XCTAssertEqual(limits.credits?.hasCredits, true)
-        XCTAssertEqual(limits.credits?.unlimited, false)
-        XCTAssertNil(limits.credits?.balance)
+        XCTAssertEqual(summary.latestTokenCounts.total, 100)
+        XCTAssertTrue(summary.warnings.isEmpty)
     }
 
     func testDisplayDescriptionTruncatesUnicodeAtSixtyCharacters() {
         let value = String(repeating: "🙂", count: 61)
-        let output = SessionTextFormatting.displayDescription(value)
-
-        XCTAssertEqual(output.count, 60)
-        XCTAssertEqual(output, String(repeating: "🙂", count: 60))
+        XCTAssertEqual(SessionTextFormatting.displayDescription(value), String(repeating: "🙂", count: 60))
     }
 
-    private func parse(records: [String]) throws -> IndexedSessionLog {
-        let logURL = temporaryDirectory.appendingPathComponent("rollout-\(UUID().uuidString).jsonl")
-        try records.joined(separator: "\n").write(to: logURL, atomically: true, encoding: .utf8)
-        return try CodexLogParser().parse(
-            logURL: logURL,
-            sessionNames: [:],
-            modifiedAt: Date(timeIntervalSince1970: 1_800_000_000)
+    private func parse(
+        records: [String],
+        indexedName: String? = nil,
+        terminatesWithNewline: Bool = true
+    ) throws -> SessionLogSummary {
+        let sessions = root.appendingPathComponent(UUID().uuidString, isDirectory: true)
+        try FileManager.default.createDirectory(at: sessions, withIntermediateDirectories: true)
+        let logURL = sessions.appendingPathComponent("rollout.jsonl")
+        let text = records.joined(separator: "\n") + (terminatesWithNewline ? "\n" : "")
+        try Data(text.utf8).write(to: logURL)
+        let indexURL = sessions.appendingPathComponent("session_index.jsonl")
+        if let indexedName {
+            try Data("{\"id\":\"session-1\",\"thread_name\":\"\(indexedName)\"}\n".utf8).write(to: indexURL)
+        }
+
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        let snapshot = try IncrementalCodexLogIndex().refresh(
+            sessionsDirectory: sessions,
+            modifiedSince: .distantPast,
+            requiredPaths: [],
+            calendar: calendar,
+            now: try date("2026-07-21T12:00:00Z"),
+            sessionIndexURL: indexURL
         )
+        return try XCTUnwrap(snapshot.summaries.first)
     }
 
-    private func sessionMetadata(id: String, cwd: String, source: String) -> String {
-        """
-        {"timestamp":"2026-07-21T01:00:00Z","type":"session_meta","payload":{"id":"\(id)","session_id":"\(id)","timestamp":"2026-07-21T01:00:00Z","cwd":"\(cwd)","source":"\(source)","originator":"unknown","thread_source":"unknown"}}
-        """
-    }
-
-    private func tokenRecord(
-        timestamp: String,
-        total: Int,
-        input: Int,
-        cached: Int,
-        output: Int,
-        reasoning: Int
+    private func metadata(
+        id: String,
+        cwd: String,
+        source: String,
+        originator: String = "unknown",
+        threadSource: String = "unknown"
     ) -> String {
-        """
-        {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":\(total),"input_tokens":\(input),"cached_input_tokens":\(cached),"output_tokens":\(output),"reasoning_output_tokens":\(reasoning)}}}}
-        """
+        #"{"timestamp":"2026-07-21T01:00:00Z","type":"session_meta","payload":{"id":"\#(id)","cwd":"\#(cwd)","source":"\#(source)","originator":"\#(originator)","thread_source":"\#(threadSource)"}}"#
+    }
+
+    private func tokenRecord(timestamp: String, total: Int, input: Int) -> String {
+        #"{"timestamp":"\#(timestamp)","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"total_tokens":\#(total),"input_tokens":\#(input)}}}}"#
+    }
+
+    private func date(_ value: String) throws -> Date {
+        let formatter = ISO8601DateFormatter()
+        formatter.formatOptions = [.withInternetDateTime]
+        return try XCTUnwrap(formatter.date(from: value))
     }
 }

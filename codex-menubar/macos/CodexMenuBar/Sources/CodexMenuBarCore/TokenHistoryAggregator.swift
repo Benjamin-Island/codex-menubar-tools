@@ -4,33 +4,41 @@ public struct TokenHistoryAggregator: Sendable {
     public init() {}
 
     public func makeHistory(
-        logs: [IndexedSessionLog],
+        summaries: [SessionLogSummary],
         calendar inputCalendar: Calendar,
         now: Date
     ) -> TokenHistorySnapshot {
         var calendar = inputCalendar
         calendar.firstWeekday = 2
-        let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -59, to: today)!
-        let end = calendar.date(byAdding: .day, value: 1, to: today)!
-        let interval = DateInterval(start: start, end: end)
-
+        let interval = historyInterval(calendar: calendar, now: now)
         var sessionByID: [String: SessionIdentity] = [:]
         var countsByDayAndSession: [Date: [String: TokenCounts]] = [:]
 
-        for log in logs {
-            sessionByID[log.session.id] = log.session
-            var previous: TokenCounts?
-            for event in log.tokenEvents.sorted(by: eventOrder) {
-                let increment = event.cumulative.increment(since: previous)
-                previous = event.cumulative
-                let day = calendar.startOfDay(for: event.timestamp)
-                guard day >= interval.start, day < interval.end else { continue }
-                let old = countsByDayAndSession[day, default: [:]][log.session.id, default: .zero]
-                countsByDayAndSession[day, default: [:]][log.session.id] = old + increment
+        for summary in summaries {
+            sessionByID[summary.session.id] = summary.session
+            for (day, counts) in summary.dailyCounts where interval.contains(day) {
+                let old = countsByDayAndSession[day, default: [:]][summary.session.id, default: .zero]
+                countsByDayAndSession[day, default: [:]][summary.session.id] = old + counts
             }
         }
 
+        return makeSnapshot(
+            sessionByID: sessionByID,
+            countsByDayAndSession: countsByDayAndSession,
+            calendar: calendar,
+            now: now
+        )
+    }
+
+    private func makeSnapshot(
+        sessionByID: [String: SessionIdentity],
+        countsByDayAndSession: [Date: [String: TokenCounts]],
+        calendar: Calendar,
+        now: Date
+    ) -> TokenHistorySnapshot {
+        let today = calendar.startOfDay(for: now)
+        let interval = historyInterval(calendar: calendar, now: now)
+        let start = interval.start
         var rawDays: [(date: Date, counts: TokenCounts, sessions: [SessionDayUsage], isFuture: Bool)] = []
         for offset in 0..<60 {
             let date = calendar.date(byAdding: .day, value: offset, to: start)!
@@ -75,9 +83,11 @@ public struct TokenHistoryAggregator: Sendable {
         )
     }
 
-    private func eventOrder(_ lhs: TokenEvent, _ rhs: TokenEvent) -> Bool {
-        if lhs.timestamp != rhs.timestamp { return lhs.timestamp < rhs.timestamp }
-        return lhs.sequence < rhs.sequence
+    private func historyInterval(calendar: Calendar, now: Date) -> DateInterval {
+        let today = calendar.startOfDay(for: now)
+        let start = calendar.date(byAdding: .day, value: -59, to: today)!
+        let end = calendar.date(byAdding: .day, value: 1, to: today)!
+        return DateInterval(start: start, end: end)
     }
 
     private func sessionOrder(_ lhs: SessionDayUsage, _ rhs: SessionDayUsage) -> Bool {

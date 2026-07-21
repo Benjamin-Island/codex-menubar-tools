@@ -5,11 +5,9 @@ import XCTest
 final class DashboardReaderTests: XCTestCase {
     private let now = Date(timeIntervalSince1970: 1_800_000_000)
 
-    func testProcessFailureDoesNotHideUsageOrHistory() throws {
-        let log = makeLog(path: "/sessions/good.jsonl", hasRateLimit: true, totalTokens: 120)
+    func testProcessFailureDoesNotHideUsageOrHistory() {
         let reader = makeReader(
-            parsing: DashboardParsingFake(logs: [log.path: log]),
-            discovery: DashboardDiscoveryFake(results: [[fingerprint(log)]]),
+            indexResults: [.success(snapshot(summaries: [summary(hasRateLimit: true, totalTokens: 120)]))],
             processes: .failure(DashboardTestError.process)
         )
 
@@ -17,20 +15,16 @@ final class DashboardReaderTests: XCTestCase {
 
         guard case .content = snapshot.rateLimit else { return XCTFail("Expected rate limit content") }
         guard case .content = snapshot.history else { return XCTFail("Expected history content") }
-        guard case let .failure(error) = snapshot.sessions else {
-            return XCTFail("Expected process failure")
-        }
+        guard case let .failure(error) = snapshot.sessions else { return XCTFail("Expected process failure") }
         XCTAssertEqual(error.message, "Unable to scan Codex CLI processes")
         XCTAssertFalse(error.detail?.isEmpty ?? true)
         XCTAssertEqual(snapshot.updatedAt, now)
     }
 
     func testDirectoryFailureStillShowsDiscoveredTUIAsUnassociated() {
-        let process = makeProcess(pid: 42)
         let reader = makeReader(
-            parsing: DashboardParsingFake(logs: [:]),
-            discovery: DashboardDiscoveryFake(errors: [DashboardTestError.directory]),
-            processes: .success([process])
+            indexResults: [.failure(DashboardTestError.directory)],
+            processes: .success([makeProcess(pid: 42)])
         )
 
         let snapshot = reader.read()
@@ -44,8 +38,7 @@ final class DashboardReaderTests: XCTestCase {
 
     func testMissingEventsAndSessionsProduceIndependentEmptyStates() {
         let reader = makeReader(
-            parsing: DashboardParsingFake(logs: [:]),
-            discovery: DashboardDiscoveryFake(results: [[]]),
+            indexResults: [.success(snapshot(summaries: []))],
             processes: .success([])
         )
         let snapshot = reader.read()
@@ -55,13 +48,13 @@ final class DashboardReaderTests: XCTestCase {
         XCTAssertEqual(snapshot.sessions, .empty("No interactive Codex TUI sessions are running."))
     }
 
-    func testUnreadableFileAddsWarningWhileGoodContentRemainsUsable() {
-        let good = makeLog(path: "/sessions/good.jsonl", hasRateLimit: true, totalTokens: 50)
-        let bad = makeLog(path: "/sessions/bad.jsonl", hasRateLimit: false, totalTokens: 0)
-        let parsing = DashboardParsingFake(logs: [good.path: good], failingPaths: [bad.path])
+    func testIndexWarningLeavesGoodContentUsable() {
+        let warning = ParseWarning(path: "/sessions/bad.jsonl", line: 0, message: "Unable to read log")
         let reader = makeReader(
-            parsing: parsing,
-            discovery: DashboardDiscoveryFake(results: [[fingerprint(good), fingerprint(bad)]]),
+            indexResults: [.success(snapshot(
+                summaries: [summary(hasRateLimit: true, totalTokens: 50)],
+                warnings: [warning]
+            ))],
             processes: .success([])
         )
 
@@ -69,34 +62,36 @@ final class DashboardReaderTests: XCTestCase {
 
         guard case .content = snapshot.rateLimit else { return XCTFail("Expected content") }
         guard case .content = snapshot.history else { return XCTFail("Expected content") }
-        XCTAssertEqual(snapshot.warnings.map(\.path), [bad.path])
+        XCTAssertEqual(snapshot.warnings.map(\.path), [warning.path])
     }
 
     func testSuccessfulRefreshAfterDirectoryErrorUsesExactInjectedClock() {
-        let log = makeLog(path: "/sessions/recovered.jsonl", hasRateLimit: true, totalTokens: 10)
-        let discovery = DashboardDiscoveryFake(
-            results: [[fingerprint(log)]],
-            errors: [DashboardTestError.directory]
-        )
-        let reader = makeReader(
-            parsing: DashboardParsingFake(logs: [log.path: log]),
-            discovery: discovery,
-            processes: .success([])
-        )
+        let index = DashboardIndexFake(results: [
+            .failure(DashboardTestError.directory),
+            .success(snapshot(summaries: [summary(hasRateLimit: true, totalTokens: 10)]))
+        ])
+        let reader = makeReader(index: index, processes: .success([]))
 
         guard case .failure = reader.read().history else { return XCTFail("Expected first failure") }
         let recovered = reader.read()
         guard case .content = recovered.history else { return XCTFail("Expected recovery") }
         XCTAssertEqual(recovered.updatedAt, now)
+        XCTAssertEqual(index.modifiedSinceValues.last, utcCalendar().date(byAdding: .day, value: -59, to: utcCalendar().startOfDay(for: now)))
     }
 
     private func makeReader(
-        parsing: DashboardParsingFake,
-        discovery: DashboardDiscoveryFake,
+        indexResults: [Result<IncrementalLogIndexSnapshot, Error>],
+        processes: Result<[ProcessSnapshot], Error>
+    ) -> DashboardReader {
+        makeReader(index: DashboardIndexFake(results: indexResults), processes: processes)
+    }
+
+    private func makeReader(
+        index: DashboardIndexFake,
         processes: Result<[ProcessSnapshot], Error>
     ) -> DashboardReader {
         DashboardReader(
-            logIndex: CodexLogIndex(parser: parsing, discoverer: discovery),
+            logIndex: index,
             historyAggregator: TokenHistoryAggregator(),
             rateLimitReducer: RateLimitReducer(),
             sessionInventory: SessionInventory(
@@ -111,12 +106,17 @@ final class DashboardReaderTests: XCTestCase {
         )
     }
 
-    private func fingerprint(_ log: IndexedSessionLog) -> LogFileFingerprint {
-        LogFileFingerprint(path: log.path, modifiedAt: log.modifiedAt, byteSize: 100)
+    private func snapshot(
+        summaries: [SessionLogSummary],
+        warnings: [ParseWarning] = []
+    ) -> IncrementalLogIndexSnapshot {
+        IncrementalLogIndexSnapshot(summaries: summaries, warnings: warnings)
     }
 
-    private func makeLog(path: String, hasRateLimit: Bool, totalTokens: Int64) -> IndexedSessionLog {
-        let rateLimits = hasRateLimit ? [RateLimitCandidate(
+    private func summary(hasRateLimit: Bool, totalTokens: Int64) -> SessionLogSummary {
+        let path = "/sessions/good.jsonl"
+        let counts = TokenCounts(total: totalTokens, input: totalTokens, cachedInput: 0, output: 0, reasoning: 0)
+        let rate = hasRateLimit ? RateLimitCandidate(
             limitID: "codex",
             primary: RawRateLimitWindow(usedPercent: 25, windowMinutes: 300, resetsAt: nil),
             secondary: nil,
@@ -126,8 +126,8 @@ final class DashboardReaderTests: XCTestCase {
             fileModifiedAt: now,
             sequence: 1,
             sourcePath: path
-        )] : []
-        return IndexedSessionLog(
+        ) : nil
+        return SessionLogSummary(
             path: path,
             modifiedAt: now,
             session: SessionIdentity(
@@ -138,14 +138,12 @@ final class DashboardReaderTests: XCTestCase {
                 sourceKind: "cli"
             ),
             metadataTimestamp: now,
-            tokenEvents: totalTokens > 0 ? [TokenEvent(
-                timestamp: now,
-                cumulative: TokenCounts(total: totalTokens, input: totalTokens, cachedInput: 0, output: 0, reasoning: 0),
-                sequence: 1
-            )] : [],
-            rateLimits: rateLimits,
+            dailyCounts: totalTokens > 0 ? [utcCalendar().startOfDay(for: now): counts] : [:],
+            latestTokenCounts: counts,
+            latestRateLimit: rate,
             lifecycle: .active,
             warnings: [],
+            suppressedWarningCount: 0,
             isTopLevelInteractiveTUI: true
         )
     }
@@ -171,32 +169,26 @@ final class DashboardReaderTests: XCTestCase {
     }
 }
 
-private enum DashboardTestError: Error { case process, directory, file }
+private enum DashboardTestError: Error { case process, directory }
 
-private final class DashboardParsingFake: LogParsing, @unchecked Sendable {
-    let logs: [String: IndexedSessionLog]
-    let failingPaths: Set<String>
-    init(logs: [String: IndexedSessionLog], failingPaths: Set<String> = []) {
-        self.logs = logs
-        self.failingPaths = failingPaths
-    }
-    func parse(logURL: URL, sessionNames: [String: String], modifiedAt: Date) throws -> IndexedSessionLog {
-        if failingPaths.contains(logURL.path) { throw DashboardTestError.file }
-        return try XCTUnwrap(logs[logURL.path])
-    }
-    func readSessionNames(at indexURL: URL) throws -> [String: String] { [:] }
-}
+private final class DashboardIndexFake: IncrementalLogIndexing, @unchecked Sendable {
+    var results: [Result<IncrementalLogIndexSnapshot, Error>]
+    private(set) var modifiedSinceValues: [Date] = []
 
-private final class DashboardDiscoveryFake: LogFileDiscovering, @unchecked Sendable {
-    var results: [[LogFileFingerprint]]
-    var errors: [Error]
-    init(results: [[LogFileFingerprint]] = [], errors: [Error] = []) {
+    init(results: [Result<IncrementalLogIndexSnapshot, Error>]) {
         self.results = results
-        self.errors = errors
     }
-    func discovery(in sessionsDirectory: URL, modifiedSince: Date, requiredPaths: Set<String>) throws -> LogDiscoverySnapshot {
-        if !errors.isEmpty { throw errors.removeFirst() }
-        return LogDiscoverySnapshot(fingerprints: results.removeFirst(), omittedFileCount: 0)
+
+    func refresh(
+        sessionsDirectory: URL,
+        modifiedSince: Date,
+        requiredPaths: Set<String>,
+        calendar: Calendar,
+        now: Date,
+        sessionIndexURL: URL?
+    ) throws -> IncrementalLogIndexSnapshot {
+        modifiedSinceValues.append(modifiedSince)
+        return try results.removeFirst().get()
     }
 }
 

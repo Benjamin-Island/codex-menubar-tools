@@ -16,7 +16,7 @@ final class LiveDashboardSmokeTests: XCTestCase {
         }
 
         let reader = DashboardReader(
-            logIndex: CodexLogIndex(),
+            logIndex: IncrementalCodexLogIndex(),
             historyAggregator: TokenHistoryAggregator(),
             rateLimitReducer: RateLimitReducer(),
             sessionInventory: SessionInventory(

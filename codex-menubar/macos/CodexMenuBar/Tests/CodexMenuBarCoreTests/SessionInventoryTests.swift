@@ -33,7 +33,7 @@ final class SessionInventoryTests: XCTestCase {
             processProvider: provider,
             classifier: InteractiveTUIClassifier(),
             currentUID: 501
-        ).read(logs: [first, second], now: now))
+        ).read(summaries: [first, second], now: now))
 
         XCTAssertEqual(items.map(\.sessionID), ["old-a", "old-b"])
         XCTAssertEqual(items[0].sourcePath, first.path)
@@ -58,7 +58,7 @@ final class SessionInventoryTests: XCTestCase {
         ]))
         let inventory = SessionInventory(processProvider: provider, classifier: .init(), currentUID: 501)
 
-        let items = try snapshots(from: inventory.read(logs: logs, now: now))
+        let items = try snapshots(from: inventory.read(summaries: logs, now: now))
         XCTAssertEqual(items.first { $0.pid == 20 }?.sessionID, "closest")
         XCTAssertEqual(items.first { $0.pid == 21 }?.sessionID, "boundary")
         XCTAssertNil(items.first { $0.pid == 22 }?.sessionID)
@@ -75,7 +75,7 @@ final class SessionInventoryTests: XCTestCase {
         ]))
         let inventory = SessionInventory(processProvider: provider, classifier: .init(), currentUID: 501)
 
-        let items = try snapshots(from: inventory.read(logs: [only, nonTUI], now: now))
+        let items = try snapshots(from: inventory.read(summaries: [only, nonTUI], now: now))
         XCTAssertEqual(items.filter { $0.sessionID == "one" }.count, 1)
         XCTAssertNil(items.first { $0.pid == 32 }?.sessionID)
     }
@@ -86,15 +86,15 @@ final class SessionInventoryTests: XCTestCase {
             process(pid: 40, cwd: "/tmp/original", startedAt: 1_000, openLogs: [associated.path])
         ]))
         let inventory = SessionInventory(processProvider: provider, classifier: .init(), currentUID: 501)
-        XCTAssertEqual(try snapshots(from: inventory.read(logs: [associated], now: now)).first?.sessionID, "cached")
+        XCTAssertEqual(try snapshots(from: inventory.read(summaries: [associated], now: now)).first?.sessionID, "cached")
 
         provider.result = .success([process(pid: 40, cwd: "/tmp/changed", startedAt: 1_000)])
-        XCTAssertEqual(try snapshots(from: inventory.read(logs: [associated], now: now)).first?.sessionID, "cached")
+        XCTAssertEqual(try snapshots(from: inventory.read(summaries: [associated], now: now)).first?.sessionID, "cached")
 
         provider.result = .success([])
-        XCTAssertTrue(try snapshots(from: inventory.read(logs: [associated], now: now)).isEmpty)
+        XCTAssertTrue(try snapshots(from: inventory.read(summaries: [associated], now: now)).isEmpty)
         provider.result = .success([process(pid: 40, cwd: "/tmp/changed", startedAt: 1_500)])
-        XCTAssertNil(try snapshots(from: inventory.read(logs: [associated], now: now)).first?.sessionID)
+        XCTAssertNil(try snapshots(from: inventory.read(summaries: [associated], now: now)).first?.sessionID)
     }
 
     func testUnassociatedTUIStaysVisibleWithEnglishFallbacks() throws {
@@ -103,7 +103,7 @@ final class SessionInventoryTests: XCTestCase {
             process(pid: 51, cwd: nil, startedAt: 1_000)
         ]))
         let inventory = SessionInventory(processProvider: provider, classifier: .init(), currentUID: 501)
-        let items = try snapshots(from: inventory.read(logs: [], now: now))
+        let items = try snapshots(from: inventory.read(summaries: [], now: now))
 
         XCTAssertEqual(items.first { $0.pid == 50 }?.taskDescription, "customer-api")
         XCTAssertEqual(items.first { $0.pid == 50 }?.activity, .stalled)
@@ -124,10 +124,10 @@ final class SessionInventoryTests: XCTestCase {
             process(pid: 62, cwd: "/b", startedAt: 1_000, openLogs: [logs[2].path])
         ]))
         let inventory = SessionInventory(processProvider: provider, classifier: .init(), currentUID: 501)
-        XCTAssertEqual(try snapshots(from: inventory.read(logs: logs, now: now)).map(\.pid), [61, 60, 62])
+        XCTAssertEqual(try snapshots(from: inventory.read(summaries: logs, now: now)).map(\.pid), [61, 60, 62])
 
         provider.result = .failure(InventoryTestError.enumeration)
-        guard case let .failure(error) = inventory.read(logs: logs, now: now) else {
+        guard case let .failure(error) = inventory.read(summaries: logs, now: now) else {
             return XCTFail("Expected failure")
         }
         XCTAssertEqual(error.message, "Unable to scan Codex CLI processes")
@@ -154,7 +154,7 @@ final class SessionInventoryTests: XCTestCase {
         ]))
         let inventory = SessionInventory(processProvider: provider, classifier: .init(), currentUID: 501)
 
-        let items = try snapshots(from: inventory.read(logs: [exactBoundary, completed], now: now))
+        let items = try snapshots(from: inventory.read(summaries: [exactBoundary, completed], now: now))
         XCTAssertEqual(items.map(\.activity), [.stalled, .stalled])
     }
 
@@ -193,9 +193,9 @@ final class SessionInventoryTests: XCTestCase {
         running: Bool = false,
         totalTokens: Int64 = 0,
         isTUI: Bool = true
-    ) -> IndexedSessionLog {
+    ) -> SessionLogSummary {
         let path = "/sessions/\(id).jsonl"
-        return IndexedSessionLog(
+        return SessionLogSummary(
             path: path,
             modifiedAt: Date(timeIntervalSince1970: modifiedAt),
             session: SessionIdentity(
@@ -206,14 +206,12 @@ final class SessionInventoryTests: XCTestCase {
                 sourceKind: isTUI ? "cli" : "exec"
             ),
             metadataTimestamp: Date(timeIntervalSince1970: metadataAt),
-            tokenEvents: [TokenEvent(
-                timestamp: Date(timeIntervalSince1970: modifiedAt - 1),
-                cumulative: TokenCounts(total: totalTokens, input: 1, cachedInput: 2, output: 3, reasoning: 4),
-                sequence: 1
-            )],
-            rateLimits: [],
+            dailyCounts: [:],
+            latestTokenCounts: TokenCounts(total: totalTokens, input: 1, cachedInput: 2, output: 3, reasoning: 4),
+            latestRateLimit: nil,
             lifecycle: running ? .active : .inactive,
             warnings: [],
+            suppressedWarningCount: 0,
             isTopLevelInteractiveTUI: isTUI
         )
     }

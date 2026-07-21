@@ -32,25 +32,6 @@ public struct LogFileFingerprint: Hashable, Sendable {
     }
 }
 
-public struct LogIndexSnapshot: Equatable, Sendable {
-    public let logs: [IndexedSessionLog]
-    public let warnings: [ParseWarning]
-
-    public init(logs: [IndexedSessionLog], warnings: [ParseWarning]) {
-        self.logs = logs
-        self.warnings = warnings
-    }
-}
-
-public protocol LogParsing: Sendable {
-    func parse(
-        logURL: URL,
-        sessionNames: [String: String],
-        modifiedAt: Date
-    ) throws -> IndexedSessionLog
-    func readSessionNames(at indexURL: URL) throws -> [String: String]
-}
-
 public protocol LogFileDiscovering: Sendable {
     func discovery(
         in sessionsDirectory: URL,
@@ -91,8 +72,6 @@ enum LogFingerprintSelection {
         )
     }
 }
-
-extension CodexLogParser: LogParsing {}
 
 public enum LogDiscoveryError: Error, Equatable, Sendable {
     case missingDirectory(String)
@@ -179,78 +158,6 @@ public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
         return LogFileIdentity(
             device: UInt64(fileStat.st_dev),
             inode: UInt64(fileStat.st_ino)
-        )
-    }
-}
-
-public final class CodexLogIndex: @unchecked Sendable {
-    private struct Entry {
-        let fingerprint: LogFileFingerprint
-        let log: IndexedSessionLog
-    }
-
-    private let parser: any LogParsing
-    private let discoverer: any LogFileDiscovering
-    private let lock = NSLock()
-    private var entries: [String: Entry] = [:]
-
-    public init(
-        parser: any LogParsing = CodexLogParser(),
-        discoverer: any LogFileDiscovering = FileSystemLogDiscoverer()
-    ) {
-        self.parser = parser
-        self.discoverer = discoverer
-    }
-
-    public func refresh(
-        sessionsDirectory: URL,
-        sessionIndexURL: URL,
-        modifiedSince: Date,
-        requiredPaths: Set<String>
-    ) throws -> LogIndexSnapshot {
-        lock.lock()
-        defer { lock.unlock() }
-
-        let sessionNames = try parser.readSessionNames(at: sessionIndexURL)
-        let discovery = try discoverer.discovery(
-            in: sessionsDirectory,
-            modifiedSince: modifiedSince,
-            requiredPaths: requiredPaths
-        )
-        let fingerprints = discovery.fingerprints
-
-        var nextEntries: [String: Entry] = [:]
-        var refreshWarnings: [ParseWarning] = []
-        for fingerprint in fingerprints.sorted(by: { $0.path < $1.path }) {
-            if let existing = entries[fingerprint.path], existing.fingerprint == fingerprint {
-                nextEntries[fingerprint.path] = existing
-                continue
-            }
-
-            do {
-                let log = try parser.parse(
-                    logURL: URL(fileURLWithPath: fingerprint.path),
-                    sessionNames: sessionNames,
-                    modifiedAt: fingerprint.modifiedAt
-                )
-                nextEntries[fingerprint.path] = Entry(fingerprint: fingerprint, log: log)
-            } catch {
-                refreshWarnings.append(ParseWarning(
-                    path: fingerprint.path,
-                    line: 0,
-                    message: "Unable to read log: \(error.localizedDescription)"
-                ))
-                if let existing = entries[fingerprint.path] {
-                    nextEntries[fingerprint.path] = existing
-                }
-            }
-        }
-
-        entries = nextEntries
-        let logs = entries.values.map(\.log).sorted { $0.path < $1.path }
-        return LogIndexSnapshot(
-            logs: logs,
-            warnings: logs.flatMap(\.warnings) + refreshWarnings
         )
     }
 }
