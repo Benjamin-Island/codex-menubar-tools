@@ -50,9 +50,9 @@ xcode-select --install
 > [!WARNING]
 > This free preview is built for Apple Silicon Macs, uses an ad-hoc signature, and is not Apple-notarized. macOS may block the first launch.
 
-[Download Codex Menu Bar v0.2.1](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.2.1/CodexMenuBar-v0.2.1-apple-silicon.zip)
+[Download Codex Menu Bar v0.3.0](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.0/CodexMenuBar-v0.3.0-apple-silicon.zip)
 
-[SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.2.1/CodexMenuBar-v0.2.1-apple-silicon.zip.sha256)
+[SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.0/CodexMenuBar-v0.3.0-apple-silicon.zip.sha256)
 
 Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click the app and choose **Open** for the first launch. If macOS still refuses to open it, build from source below instead of disabling system-wide security controls.
 
