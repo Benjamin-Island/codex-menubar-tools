@@ -116,6 +116,44 @@ final class CodexLogParserTests: XCTestCase {
         XCTAssertEqual(try CodexLogParser().readSessionNames(at: indexURL), ["session-1": "Named thread"])
     }
 
+    func testIncompleteFinalLineDoesNotDiscardEarlierValidEvents() throws {
+        let log = try parse(records: [
+            sessionMetadata(id: "session-incomplete", cwd: "/tmp/project", source: "cli"),
+            tokenRecord(timestamp: "2026-07-21T01:02:00Z", total: 100, input: 80, cached: 20, output: 20, reasoning: 4),
+            #"{"type":"event_msg","payload":{"type":"token_count""#
+        ])
+
+        XCTAssertEqual(log.tokenEvents.map(\.cumulative.total), [100])
+        XCTAssertEqual(log.warnings.count, 1)
+    }
+
+    func testRateLimitNumbersAndCreditsDecodeTolerantlyAtIntegerBoundary() throws {
+        let log = try parse(records: [
+            sessionMetadata(id: "session-limits", cwd: "/tmp/project", source: "cli"),
+            """
+            {"timestamp":"2026-07-21T01:02:00Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"primary":{"used_percent":25,"window_minutes":{"unexpected":true},"resets_at":["soon"]},"secondary":{"used_percent":"40","window_minutes":"10080","resets_at":"1783630800"},"credits":{"has_credits":"true","unlimited":"false","balance":9223372036854775808},"plan_type":"plus"}}}
+            """
+        ])
+
+        let limits = try XCTUnwrap(log.rateLimits.first)
+        XCTAssertEqual(limits.primary?.usedPercent, 25)
+        XCTAssertNil(limits.primary?.windowMinutes)
+        XCTAssertNil(limits.primary?.resetsAt)
+        XCTAssertEqual(limits.secondary?.usedPercent, 40)
+        XCTAssertEqual(limits.secondary?.windowMinutes, 10_080)
+        XCTAssertEqual(limits.credits?.hasCredits, true)
+        XCTAssertEqual(limits.credits?.unlimited, false)
+        XCTAssertNil(limits.credits?.balance)
+    }
+
+    func testDisplayDescriptionTruncatesUnicodeAtSixtyCharacters() {
+        let value = String(repeating: "🙂", count: 61)
+        let output = SessionTextFormatting.displayDescription(value)
+
+        XCTAssertEqual(output.count, 60)
+        XCTAssertEqual(output, String(repeating: "🙂", count: 60))
+    }
+
     private func parse(records: [String]) throws -> IndexedSessionLog {
         let logURL = temporaryDirectory.appendingPathComponent("rollout-\(UUID().uuidString).jsonl")
         try records.joined(separator: "\n").write(to: logURL, atomically: true, encoding: .utf8)

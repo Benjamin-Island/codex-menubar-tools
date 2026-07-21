@@ -268,7 +268,7 @@ public final class CodexLogParser: @unchecked Sendable {
     private func tolerantInt(_ value: Any?) -> Int? {
         guard let parsed = finiteDouble(value),
               parsed >= Double(Int.min),
-              parsed <= Double(Int.max)
+              parsed < Double(Int.max)
         else {
             return nil
         }

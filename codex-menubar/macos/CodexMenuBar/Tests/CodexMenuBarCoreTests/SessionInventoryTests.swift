@@ -133,6 +133,31 @@ final class SessionInventoryTests: XCTestCase {
         XCTAssertEqual(error.message, "Unable to scan Codex CLI processes")
     }
 
+    func testActiveTaskAtExactlyFiveMinutesAndCompletedTaskAreStalled() throws {
+        let exactBoundary = log(
+            id: "boundary",
+            cwd: "/boundary",
+            metadataAt: 1_000,
+            modifiedAt: 1_700,
+            running: true
+        )
+        let completed = log(
+            id: "completed",
+            cwd: "/completed",
+            metadataAt: 1_000,
+            modifiedAt: 1_990,
+            running: false
+        )
+        let provider = MutableProcessProvider(.success([
+            process(pid: 70, cwd: "/boundary", startedAt: 1_000, openLogs: [exactBoundary.path]),
+            process(pid: 71, cwd: "/completed", startedAt: 1_000, openLogs: [completed.path])
+        ]))
+        let inventory = SessionInventory(processProvider: provider, classifier: .init(), currentUID: 501)
+
+        let items = try snapshots(from: inventory.read(logs: [exactBoundary, completed], now: now))
+        XCTAssertEqual(items.map(\.activity), [.stalled, .stalled])
+    }
+
     private func snapshots(from result: SessionInventoryResult) throws -> [SessionDisplaySnapshot] {
         switch result {
         case let .snapshots(items): return items
