@@ -1,14 +1,34 @@
 import Foundation
+import Darwin
+
+public struct LogFileIdentity: Hashable, Sendable {
+    public let device: UInt64
+    public let inode: UInt64
+
+    public init(device: UInt64, inode: UInt64) {
+        self.device = device
+        self.inode = inode
+    }
+
+    public static let unknown = LogFileIdentity(device: 0, inode: 0)
+}
 
 public struct LogFileFingerprint: Hashable, Sendable {
     public let path: String
     public let modifiedAt: Date
     public let byteSize: Int64
+    public let identity: LogFileIdentity
 
-    public init(path: String, modifiedAt: Date, byteSize: Int64) {
+    public init(
+        path: String,
+        modifiedAt: Date,
+        byteSize: Int64,
+        identity: LogFileIdentity = .unknown
+    ) {
         self.path = URL(fileURLWithPath: path).standardizedFileURL.path
         self.modifiedAt = modifiedAt
         self.byteSize = byteSize
+        self.identity = identity
     }
 }
 
@@ -105,9 +125,20 @@ public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
             return LogFileFingerprint(
                 path: url.path,
                 modifiedAt: modifiedAt,
-                byteSize: Int64(values.fileSize ?? 0)
+                byteSize: Int64(values.fileSize ?? 0),
+                identity: try fileIdentity(path: url.path)
             )
         }.sorted { $0.path < $1.path }
+    }
+
+    private func fileIdentity(path: String) throws -> LogFileIdentity {
+        var fileStat = stat()
+        let result = path.withCString { lstat($0, &fileStat) }
+        guard result == 0 else { throw LogDiscoveryError.cannotRead(path) }
+        return LogFileIdentity(
+            device: UInt64(fileStat.st_dev),
+            inode: UInt64(fileStat.st_ino)
+        )
     }
 }
 
