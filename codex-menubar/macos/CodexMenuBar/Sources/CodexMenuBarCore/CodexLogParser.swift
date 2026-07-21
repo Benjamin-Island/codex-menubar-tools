@@ -1,6 +1,16 @@
 import Foundation
 
 public final class CodexLogParser: @unchecked Sendable {
+    private static let typeMarker = Data("\"type\"".utf8)
+    private static let newline = Data([0x0A])
+    private static let relevantRecordMarkers = [
+        "\"session_meta\"",
+        "\"user_message\"",
+        "\"task_started\"",
+        "\"task_complete\"",
+        "\"token_count\""
+    ].map { Data($0.utf8) }
+
     public init() {}
 
     public func parse(
@@ -8,7 +18,7 @@ public final class CodexLogParser: @unchecked Sendable {
         sessionNames: [String: String],
         modifiedAt: Date
     ) throws -> IndexedSessionLog {
-        let contents = try String(contentsOf: logURL, encoding: .utf8)
+        let contents = try Data(contentsOf: logURL, options: .mappedIfSafe)
         var warnings: [ParseWarning] = []
         var sessionID: String?
         var workingDirectory: String?
@@ -21,18 +31,37 @@ public final class CodexLogParser: @unchecked Sendable {
         var rateLimits: [RateLimitCandidate] = []
         var lifecycle: LifecycleSummary = .inactive
 
-        for (offset, rawLine) in contents
-            .split(separator: "\n", omittingEmptySubsequences: false)
-            .enumerated()
-        {
-            let line = rawLine.trimmingCharacters(in: .whitespacesAndNewlines)
-            guard !line.isEmpty else { continue }
-            guard let data = line.data(using: .utf8),
-                  let object = try? JSONSerialization.jsonObject(with: data) as? [String: Any]
+        var lineStart = 0
+        var lineNumber = 1
+        while lineStart <= contents.count {
+            let newlineRange = lineStart < contents.count
+                ? contents.range(of: Self.newline, in: lineStart..<contents.count)
+                : nil
+            let lineEnd = newlineRange?.lowerBound ?? contents.count
+            let lineRange = lineStart..<lineEnd
+            defer {
+                if let newlineRange {
+                    lineStart = newlineRange.upperBound
+                    lineNumber += 1
+                } else {
+                    lineStart = contents.count + 1
+                }
+            }
+            guard !lineRange.isEmpty else { continue }
+            if contents.range(of: Self.typeMarker, in: lineRange) != nil,
+               !Self.relevantRecordMarkers.contains(where: {
+                   contents.range(of: $0, in: lineRange) != nil
+               })
+            {
+                continue
+            }
+            guard let object = try? JSONSerialization.jsonObject(
+                with: contents.subdata(in: lineRange)
+            ) as? [String: Any]
             else {
                 warnings.append(ParseWarning(
                     path: logURL.path,
-                    line: offset + 1,
+                    line: lineNumber,
                     message: "Malformed JSON record"
                 ))
                 continue
@@ -72,7 +101,7 @@ public final class CodexLogParser: @unchecked Sendable {
                     tokenEvents.append(TokenEvent(
                         timestamp: timestamp,
                         cumulative: tokenCounts(from: totalUsage),
-                        sequence: offset
+                        sequence: lineNumber - 1
                     ))
                 }
                 if let rawLimits = payload["rate_limits"] as? [String: Any] {
@@ -84,7 +113,7 @@ public final class CodexLogParser: @unchecked Sendable {
                         planType: string(rawLimits["plan_type"]),
                         reportedAt: recordTimestamp,
                         fileModifiedAt: modifiedAt,
-                        sequence: offset,
+                        sequence: lineNumber - 1,
                         sourcePath: logURL.path
                     ))
                 }
