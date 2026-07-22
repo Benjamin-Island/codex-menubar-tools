@@ -6,7 +6,7 @@ Add a polished public demo of Codex Menu Bar to the README while protecting pers
 
 ## Source
 
-- Input: `/Users/benjaminz/Desktop/Screen Recording 2026-07-22 at 07.42.14.mov`
+- Input: `~/Desktop/Screen Recording 2026-07-22 at 07.42.14.mov`
 - Duration: approximately 23 seconds
 - Source format: H.264, 1706 × 1186, 60 FPS, no audio
 
@@ -23,12 +23,12 @@ The published frame contains only the application window. The macOS desktop and 
 
 ## Privacy
 
-The following source content must not be readable in either output:
+The following source content must not be readable in either output wherever it appears in Overview, History, or Sessions:
 
-- the three Chinese session titles;
-- the local path `/Users/benjaminz/Downloads`.
+- session titles, including the three Chinese live-session titles and History breakdown titles;
+- local filesystem paths, including paths under `~/Downloads`.
 
-These regions are obscured while the Sessions page is visible. Token totals and non-personal interface labels remain visible.
+These regions are obscured whenever they are visible. Token totals and non-personal interface labels remain visible.
 
 ## Outputs
 
