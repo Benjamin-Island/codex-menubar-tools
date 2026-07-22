@@ -60,14 +60,22 @@ ffmpeg -hide_banner -y \
   -i "$HOME/Desktop/Screen Recording 2026-07-22 at 07.42.14.mov" \
   -filter_complex "\
 [0:v]split=2[src_a][src_b];\
-[src_a]trim=start=1.55:end=19.05,setpts=PTS-STARTPTS,crop=1252:1068:300:54,fps=30,\
-delogo=x=90:y=910:w=760:h=74:enable='between(t,0,5.05)',\
-delogo=x=90:y=685:w=1070:h=315:enable='between(t,6.45,8.95)',\
-delogo=x=90:y=270:w=430:h=360:enable='between(t,15.45,17.50)',\
-delogo=x=640:y=250:w=575:h=125:enable='between(t,15.45,17.50)',\
-delogo=x=640:y=615:w=465:h=70:enable='between(t,15.45,17.50)'[a];\
-[src_b]trim=start=19.67:end=22.70,setpts=PTS-STARTPTS,crop=1252:1068:300:54,fps=30,\
-delogo=x=90:y=675:w=1070:h=280[b];\
+[src_a]trim=start=1.55:end=19.05,setpts=PTS-STARTPTS,crop=1252:1068:300:54,fps=30[base_a];\
+[base_a]split=6[a0][a1][a2][a3][a4][a5];\
+[a1]crop=1100:85:90:900,gblur=sigma=20:steps=4[blur1];\
+[a0][blur1]overlay=90:900:enable='between(t,0,5.05)'[ao1];\
+[a2]crop=1125:330:90:680,gblur=sigma=20:steps=4[blur2];\
+[ao1][blur2]overlay=90:680:enable='between(t,6.45,9.10)'[ao2];\
+[a3]crop=500:390:90:260,gblur=sigma=20:steps=4[blur3];\
+[ao2][blur3]overlay=90:260:enable='between(t,15.45,17.50)'[ao3];\
+[a4]crop=575:135:640:245,gblur=sigma=20:steps=4[blur4];\
+[ao3][blur4]overlay=640:245:enable='between(t,15.45,17.50)'[ao4];\
+[a5]crop=500:85:640:610,gblur=sigma=20:steps=4[blur5];\
+[ao4][blur5]overlay=640:610:enable='between(t,15.45,17.50)'[a];\
+[src_b]trim=start=19.67:end=22.70,setpts=PTS-STARTPTS,crop=1252:1068:300:54,fps=30[base_b];\
+[base_b]split=2[b0][b1];\
+[b1]crop=1125:300:90:670,gblur=sigma=20:steps=4[blur6];\
+[b0][blur6]overlay=90:670[b];\
 [a][b]concat=n=2:v=1:a=0,format=yuv420p[out]" \
   -map "[out]" \
   -an \
@@ -91,10 +99,18 @@ ffprobe -v error \
   docs/assets/codex-menubar-demo.mp4
 
 ffmpeg -hide_banner -loglevel error \
+  -y \
   -i docs/assets/codex-menubar-demo.mp4 \
   -vf "fps=1,scale=360:-1,tile=5x5" \
   -frames:v 1 \
   /tmp/codex-menubar-demo-sanitized-contact-sheet.jpg
+
+ffmpeg -hide_banner -loglevel error \
+  -y \
+  -i docs/assets/codex-menubar-demo.mp4 \
+  -vf "select='eq(n,189)+eq(n,192)+eq(n,194)+eq(n,270)+eq(n,273)+eq(n,276)+eq(n,459)+eq(n,462)+eq(n,464)+eq(n,525)',scale=360:-1,tile=5x2" \
+  -frames:v 1 \
+  /tmp/codex-menubar-demo-boundaries.jpg
 ```
 
 Expected:
@@ -105,7 +121,7 @@ Expected:
 - pixel format `yuv420p`;
 - duration between 20.4 and 20.7 seconds;
 - file size below 8 MiB;
-- the contact sheet shows no readable session title or local filesystem path;
+- the contact sheet and boundary sheet show no readable session title or local filesystem path;
 - the crop includes the complete popover and excludes the desktop and macOS menu bar.
 
 - [ ] **Step 4: Commit the sanitized MP4**
@@ -316,6 +332,8 @@ rm -f /tmp/codex-menubar-demo-sessions.png
 rm -f /tmp/codex-menubar-demo-overview-start.png
 rm -f /tmp/codex-menubar-demo-overview-end.png
 rm -f /tmp/codex-menubar-demo-history.png
+rm -f /tmp/codex-menubar-demo-history-blur-test.png
+rm -f /tmp/codex-menubar-demo-boundaries.jpg
 rm -f /tmp/codex-menubar-demo-sanitized-contact-sheet.jpg
 rm -rf codex-menubar/macos/CodexMenuBar/.build
 ```
