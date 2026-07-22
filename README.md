@@ -89,7 +89,11 @@ The suite includes parser, aggregation, rate-limit, process-classification, rout
 
 ## Demo video
 
-A short MP4 or GIF can be added to this section without changing the app. For GitHub's inline video player, upload the clip to a GitHub issue or pull-request comment, copy the generated `user-attachments` URL, and place that URL here. A compact recording should show the combined menu bar indicator and the Overview, History, and Sessions tabs.
+See Codex Menu Bar move through usage limits, the 60-day Token history, daily details, and live interactive sessions.
+
+[![Codex Menu Bar demo](docs/assets/codex-menubar-demo.gif)](docs/assets/codex-menubar-demo.mp4)
+
+[Watch the high-quality MP4](docs/assets/codex-menubar-demo.mp4)
 
 ## Notes
 
