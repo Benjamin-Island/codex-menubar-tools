@@ -7,10 +7,16 @@ enum PetSurfaceMode: Equatable {
     case floating
 }
 
+enum PetDockEdge: Equatable {
+    case left
+    case right
+}
+
 struct PetIslandPlacement {
     static let notchWidth: CGFloat = 236
     static let floatingSize = NSSize(width: 324, height: 132)
     static let expandedSize = NSSize(width: 410, height: 380)
+    static let peekSize = NSSize(width: 46, height: 58)
 
     static func mode(on screen: NSScreen) -> PetSurfaceMode {
         let hasAuxiliaryAreas: Bool
@@ -30,8 +36,12 @@ struct PetIslandPlacement {
     static func size(
         mode: PetSurfaceMode,
         expanded: Bool,
-        menuBarHeight: CGFloat
+        menuBarHeight: CGFloat,
+        peeking: Bool = false
     ) -> NSSize {
+        if mode == .floating, peeking {
+            return peekSize
+        }
         if expanded {
             return expandedSize
         }
@@ -83,6 +93,12 @@ final class PetIslandController: NSObject {
     private let screenProvider: () -> NSScreen?
     private let openDashboard: () -> Void
     private var isExpanded = false
+    private var isPeeking = false
+    private var dockEdge: PetDockEdge?
+    private var movementDirection: PetDockEdge = .right
+    private var floatingOrigin: NSPoint?
+    private var dragStartFrame: NSRect?
+    private var isDragging = false
     private var cancellables: Set<AnyCancellable> = []
 
     init(
@@ -163,6 +179,11 @@ final class PetIslandController: NSObject {
     }
 
     private func toggleExpanded() {
+        if isPeeking {
+            isPeeking = false
+            updatePresentation()
+            return
+        }
         isExpanded.toggle()
         updatePresentation()
     }
@@ -173,20 +194,134 @@ final class PetIslandController: NSObject {
             return
         }
         let mode = resolvedMode(on: screen)
+        if mode == .notch {
+            isPeeking = false
+            dockEdge = nil
+            floatingOrigin = nil
+        }
         let menuBarHeight = PetIslandPlacement.menuBarHeight(on: screen)
         rebuildContent(screen: screen, mode: mode, menuBarHeight: menuBarHeight)
-        panel.setFrame(
-            PetIslandPlacement.frame(
+        if !isDragging {
+            panel.setFrame(
+                presentationFrame(
+                    mode: mode,
+                    screen: screen,
+                    menuBarHeight: menuBarHeight
+                ),
+                display: true,
+                animate: panel.isVisible
+            )
+        }
+        panel.orderFrontRegardless()
+    }
+
+    private func presentationFrame(
+        mode: PetSurfaceMode,
+        screen: NSScreen,
+        menuBarHeight: CGFloat
+    ) -> NSRect {
+        guard mode == .floating else {
+            return PetIslandPlacement.frame(
                 mode: mode,
                 expanded: isExpanded,
                 screenFrame: screen.frame,
                 visibleFrame: screen.visibleFrame,
                 menuBarHeight: menuBarHeight
-            ),
-            display: true,
-            animate: panel.isVisible
+            )
+        }
+
+        if isPeeking, let dockEdge {
+            let size = PetIslandPlacement.peekSize
+            let preferredY = floatingOrigin?.y
+                ?? screen.visibleFrame.maxY - size.height - 10
+            let y = min(
+                screen.visibleFrame.maxY - size.height,
+                max(screen.visibleFrame.minY, preferredY)
+            )
+            let x = dockEdge == .left
+                ? screen.visibleFrame.minX
+                : screen.visibleFrame.maxX - size.width
+            return NSRect(x: x, y: y, width: size.width, height: size.height)
+        }
+
+        let size = PetIslandPlacement.size(
+            mode: mode,
+            expanded: isExpanded,
+            menuBarHeight: menuBarHeight
         )
-        panel.orderFrontRegardless()
+        guard let origin = floatingOrigin else {
+            return PetIslandPlacement.frame(
+                mode: mode,
+                expanded: isExpanded,
+                screenFrame: screen.frame,
+                visibleFrame: screen.visibleFrame,
+                menuBarHeight: menuBarHeight
+            )
+        }
+        return clampedFrame(
+            NSRect(origin: origin, size: size),
+            to: screen.visibleFrame
+        )
+    }
+
+    private func clampedFrame(_ frame: NSRect, to visibleFrame: NSRect) -> NSRect {
+        var result = frame
+        result.origin.x = min(
+            visibleFrame.maxX - frame.width,
+            max(visibleFrame.minX, result.origin.x)
+        )
+        result.origin.y = min(
+            visibleFrame.maxY - frame.height,
+            max(visibleFrame.minY, result.origin.y)
+        )
+        return result
+    }
+
+    private func beginFloatingDrag() {
+        guard !isExpanded, !isPeeking else { return }
+        dragStartFrame = panel.frame
+        isDragging = true
+        dockEdge = nil
+    }
+
+    private func updateFloatingDrag(_ translation: CGSize) {
+        guard isDragging, let dragStartFrame else { return }
+        var frame = dragStartFrame
+        frame.origin.x += translation.width
+        frame.origin.y -= translation.height
+        panel.setFrameOrigin(frame.origin)
+    }
+
+    private func endFloatingDrag(_ translation: CGSize) {
+        guard isDragging else { return }
+        updateFloatingDrag(translation)
+        isDragging = false
+        dragStartFrame = nil
+
+        let screen = screenForPanel()
+        let visibleFrame = screen.visibleFrame
+        let frame = panel.frame
+        let snapDistance: CGFloat = 44
+        if frame.minX <= visibleFrame.minX + snapDistance {
+            dockEdge = .left
+            isPeeking = true
+        } else if frame.maxX >= visibleFrame.maxX - snapDistance {
+            dockEdge = .right
+            isPeeking = true
+        } else {
+            dockEdge = nil
+            isPeeking = false
+        }
+        floatingOrigin = clampedFrame(frame, to: visibleFrame).origin
+        updatePresentation()
+    }
+
+    private func screenForPanel() -> NSScreen {
+        panel.screen
+            ?? NSScreen.screens.first(where: { $0.frame.intersects(panel.frame) })
+            ?? screenProvider()
+            ?? NSScreen.main
+            ?? NSScreen.screens[0]
     }
 
     private func rebuildContent(
@@ -203,8 +338,21 @@ final class PetIslandController: NSObject {
             preferences: preferences,
             mode: mode,
             isExpanded: isExpanded,
+            isPeeking: isPeeking,
+            dockEdge: dockEdge,
+            initialDirection: movementDirection,
             menuBarHeight: menuBarHeight,
             toggleExpanded: { [weak self] in self?.toggleExpanded() },
+            beginDrag: { [weak self] in self?.beginFloatingDrag() },
+            changeDirection: { [weak self] direction in
+                self?.movementDirection = direction
+            },
+            updateDrag: { [weak self] translation in
+                self?.updateFloatingDrag(translation)
+            },
+            endDrag: { [weak self] translation in
+                self?.endFloatingDrag(translation)
+            },
             openDashboard: { [weak self] in
                 self?.isExpanded = false
                 self?.updatePresentation()
