@@ -58,6 +58,36 @@ final class DashboardViewSmokeTests: XCTestCase {
         }
     }
 
+    func testPetIslandHasFiniteLayoutWithAndWithoutPet() {
+        let store = DashboardStore(
+            snapshot: fullSnapshot(),
+            reader: { DashboardSnapshot.loading(at: .distantPast) }
+        )
+        let defaults = UserDefaults(suiteName: "PetIslandViewSmokeTests")!
+        defaults.removePersistentDomain(forName: "PetIslandViewSmokeTests")
+        let preferences = PetIslandPreferences(pets: [], defaults: defaults)
+
+        for isNotched in [false, true] {
+            let controller = NSHostingController(
+                rootView: PetIslandView(
+                    store: store,
+                    preferences: preferences,
+                    isNotchedDisplay: isNotched,
+                    openDashboard: {}
+                )
+            )
+            controller.view.frame = CGRect(
+                origin: .zero,
+                size: PetIslandPlacement.panelSize
+            )
+            controller.view.layoutSubtreeIfNeeded()
+            let size = controller.view.fittingSize
+            XCTAssertTrue(size.width.isFinite && size.height.isFinite)
+            XCTAssertGreaterThan(size.width, 0)
+            XCTAssertGreaterThan(size.height, 0)
+        }
+    }
+
     private func fullSnapshot() -> DashboardSnapshot {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let days = (0..<60).map { offset in

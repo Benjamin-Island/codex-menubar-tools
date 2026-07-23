@@ -11,9 +11,11 @@ final class StatusController: NSObject, NSPopoverDelegate {
     private let sessionsDirectory: URL
     private let renderer: StatusItemRenderer
     private let outsideClickEventSource: any OutsideClickEventSource
+    private let petIslandPreferences: PetIslandPreferences
     private var cancellables: Set<AnyCancellable> = []
     private var monitor: SessionDirectoryMonitor?
     private var refreshTimer: Timer?
+    private var petIslandController: PetIslandController?
     private lazy var dismissalCoordinator = PopoverDismissalCoordinator(
         eventSource: outsideClickEventSource,
         closePopover: { [weak self] in self?.popover.performClose(nil) }
@@ -23,12 +25,14 @@ final class StatusController: NSObject, NSPopoverDelegate {
         store: DashboardStore,
         sessionsDirectory: URL,
         renderer: StatusItemRenderer = StatusItemRenderer(),
-        outsideClickEventSource: any OutsideClickEventSource = GlobalMouseDownEventSource()
+        outsideClickEventSource: any OutsideClickEventSource = GlobalMouseDownEventSource(),
+        petIslandPreferences: PetIslandPreferences = PetIslandPreferences()
     ) {
         self.store = store
         self.sessionsDirectory = sessionsDirectory
         self.renderer = renderer
         self.outsideClickEventSource = outsideClickEventSource
+        self.petIslandPreferences = petIslandPreferences
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
     }
@@ -38,7 +42,12 @@ final class StatusController: NSObject, NSPopoverDelegate {
         popover.animates = true
         popover.delegate = self
         popover.contentSize = NSSize(width: 620, height: 520)
-        popover.contentViewController = NSHostingController(rootView: DashboardView(store: store))
+        popover.contentViewController = NSHostingController(
+            rootView: DashboardView(
+                store: store,
+                petIslandPreferences: petIslandPreferences
+            )
+        )
 
         if let button = statusItem.button {
             button.target = self
@@ -47,6 +56,16 @@ final class StatusController: NSObject, NSPopoverDelegate {
             button.imagePosition = .imageOnly
             button.setAccessibilityLabel("Codex Menu Bar")
         }
+        petIslandController = PetIslandController(
+            store: store,
+            preferences: petIslandPreferences,
+            screenProvider: { [weak self] in
+                self?.statusItem.button?.window?.screen
+                    ?? NSScreen.main
+                    ?? NSScreen.screens.first
+            },
+            openDashboard: { [weak self] in self?.showPopover() }
+        )
         store.$snapshot
             .sink { [weak self] snapshot in self?.apply(snapshot) }
             .store(in: &cancellables)
@@ -65,14 +84,18 @@ final class StatusController: NSObject, NSPopoverDelegate {
     }
 
     @objc private func togglePopover() {
-        guard let button = statusItem.button else { return }
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            dismissalCoordinator.start()
-            store.refresh()
+            showPopover()
         }
+    }
+
+    private func showPopover() {
+        guard !popover.isShown, let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        dismissalCoordinator.start()
+        store.refresh()
     }
 
     func popoverDidClose(_ notification: Notification) {

@@ -4,6 +4,15 @@ import CodexMenuBarCore
 
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
+    let petIslandPreferences: PetIslandPreferences?
+
+    init(
+        store: DashboardStore,
+        petIslandPreferences: PetIslandPreferences? = nil
+    ) {
+        self.store = store
+        self.petIslandPreferences = petIslandPreferences
+    }
 
     private var sessionCount: Int {
         guard case let .content(sessions) = store.snapshot.sessions else { return 0 }
@@ -63,6 +72,9 @@ struct DashboardView: View {
                 Label(store.isRefreshing ? "Refreshing" : "Refresh", systemImage: "arrow.clockwise")
             }
             .disabled(store.isRefreshing)
+            if let petIslandPreferences {
+                PetIslandSettingsControl(preferences: petIslandPreferences)
+            }
             Spacer()
             Label("Local logs · Read-only", systemImage: "lock.shield")
                 .font(.caption)
@@ -74,5 +86,35 @@ struct DashboardView: View {
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.bar)
+    }
+}
+
+private struct PetIslandSettingsControl: View {
+    @ObservedObject var preferences: PetIslandPreferences
+
+    var body: some View {
+        Menu {
+            Toggle("Show Pet Island", isOn: $preferences.isEnabled)
+            if !preferences.pets.isEmpty {
+                Divider()
+                ForEach(preferences.pets) { pet in
+                    Button {
+                        preferences.selectedPetID = pet.id
+                        preferences.isEnabled = true
+                    } label: {
+                        if pet.id == preferences.selectedPetID {
+                            Label(pet.displayName, systemImage: "checkmark")
+                        } else {
+                            Text(pet.displayName)
+                        }
+                    }
+                }
+            } else {
+                Text("No custom Codex pets found")
+            }
+        } label: {
+            Label("Pet Island", systemImage: "pawprint.fill")
+        }
+        .help("Choose a custom pet from ~/.codex/pets")
     }
 }
