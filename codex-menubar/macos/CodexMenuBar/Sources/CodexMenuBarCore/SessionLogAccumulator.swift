@@ -333,7 +333,7 @@ struct SessionLogAccumulator: Equatable, Sendable {
         if values.contains("review") { return "review" }
         if values.contains("codex desktop") { return "App" }
         if values.contains("vscode") || values.contains("ide") { return "IDE" }
-        if values.contains("chatgpt") || values.contains("app") { return "App" }
+        if values.contains("app") { return "App" }
         return "Other"
     }
 

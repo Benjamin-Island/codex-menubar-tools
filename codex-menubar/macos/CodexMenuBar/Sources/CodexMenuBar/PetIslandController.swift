@@ -9,8 +9,8 @@ enum PetSurfaceMode: Equatable {
 
 struct PetIslandPlacement {
     static let notchWidth: CGFloat = 236
-    static let floatingSize = NSSize(width: 68, height: 72)
-    static let expandedSize = NSSize(width: 390, height: 184)
+    static let floatingSize = NSSize(width: 324, height: 132)
+    static let expandedSize = NSSize(width: 410, height: 380)
 
     static func mode(on screen: NSScreen) -> PetSurfaceMode {
         let hasAuxiliaryAreas: Bool

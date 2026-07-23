@@ -52,7 +52,7 @@ struct PetIslandView: View {
     private var notchSurface: some View {
         ZStack(alignment: .top) {
             if isExpanded {
-                summaryCard
+                expandedTaskPanel
                     .padding(.top, menuBarHeight + 8)
                     .transition(.move(edge: .top).combined(with: .opacity))
             }
@@ -101,7 +101,7 @@ struct PetIslandView: View {
     private var floatingSurface: some View {
         ZStack {
             if isExpanded {
-                summaryCard
+                expandedTaskPanel
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .transition(.scale(scale: 0.96, anchor: .topTrailing).combined(with: .opacity))
 
@@ -115,14 +115,56 @@ struct PetIslandView: View {
                 .help("Hide Codex summary")
             } else {
                 Button(action: toggleExpanded) {
-                    floatingPet
+                    ZStack(alignment: .bottomTrailing) {
+                        collapsedFloatingSummary
+                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        floatingPet
+                    }
                 }
                 .buttonStyle(.plain)
                 .help("Show Codex summary")
-                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var collapsedFloatingSummary: some View {
+        HStack(spacing: 10) {
+            VStack(alignment: .leading, spacing: 5) {
+                Text(primaryTaskTitle)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(1)
+
+                HStack(spacing: 7) {
+                    compactPercent(
+                        label: usage?.primary?.label ?? "5h",
+                        remaining: usage?.primary?.remainingPercent
+                    )
+                    compactPercent(
+                        label: secondaryUsageLabel,
+                        remaining: usage?.secondary?.remainingPercent
+                    )
+                    Label(
+                        "\(runningSessions.count) running",
+                        systemImage: runningSessions.isEmpty ? "pause.fill" : "bolt.fill"
+                    )
+                    .foregroundStyle(runningSessions.isEmpty ? Color.secondary : Color.green)
+                }
+                .font(.system(size: 10, weight: .medium, design: .rounded))
+            }
+
+            Spacer(minLength: 4)
+            usageRing(remaining: usage?.primary?.remainingPercent)
+        }
+        .padding(.leading, 14)
+        .padding(.trailing, 11)
+        .frame(width: 306, height: 66)
+        .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .overlay {
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .strokeBorder(.white.opacity(0.42), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.16), radius: 13, y: 5)
     }
 
     private var floatingPet: some View {
@@ -145,8 +187,8 @@ struct PetIslandView: View {
         .contentShape(Circle())
     }
 
-    private var summaryCard: some View {
-        VStack(spacing: 11) {
+    private var expandedTaskPanel: some View {
+        VStack(spacing: 10) {
             HStack(spacing: 8) {
                 ZStack {
                     Circle()
@@ -158,9 +200,8 @@ struct PetIslandView: View {
                 .frame(width: 34, height: 34)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text(runningSessions.first?.displayTaskDescription ?? "Codex is ready")
-                        .font(.system(size: 13, weight: .semibold))
-                        .lineLimit(1)
+                    Text("Codex tasks")
+                        .font(.system(size: 14, weight: .semibold))
                     Text(sessionSummary)
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
@@ -181,19 +222,25 @@ struct PetIslandView: View {
 
             Divider()
 
+            taskList
+
+            Divider()
+
             HStack(spacing: 8) {
                 summaryMetric(
                     label: usage?.primary?.label ?? "5h",
                     value: percentText(usage?.primary?.remainingPercent)
                 )
                 summaryMetric(
-                    label: usage?.secondary?.label ?? "7d",
+                    label: secondaryUsageLabel,
                     value: percentText(usage?.secondary?.remainingPercent)
                 )
                 summaryMetric(
-                    label: "Active",
+                    label: "Running",
                     value: "\(runningSessions.count)"
                 )
+
+                Spacer(minLength: 2)
 
                 Button(action: openDashboard) {
                     Image(systemName: "arrow.up.right")
@@ -206,13 +253,85 @@ struct PetIslandView: View {
             }
         }
         .padding(14)
-        .frame(width: PetIslandPlacement.expandedSize.width, height: 132)
+        .frame(width: PetIslandPlacement.expandedSize.width, height: 326)
         .background(.regularMaterial, in: RoundedRectangle(cornerRadius: 22, style: .continuous))
         .overlay {
             RoundedRectangle(cornerRadius: 22, style: .continuous)
                 .strokeBorder(.white.opacity(0.42), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
+    }
+
+    @ViewBuilder
+    private var taskList: some View {
+        if sessions.isEmpty {
+            VStack(spacing: 7) {
+                Image(systemName: "checkmark.circle")
+                    .font(.system(size: 24))
+                    .foregroundStyle(.secondary)
+                Text("No active Codex tasks")
+                    .font(.system(size: 12, weight: .medium))
+                    .foregroundStyle(.secondary)
+            }
+            .frame(maxWidth: .infinity, minHeight: 172)
+        } else {
+            ScrollView {
+                LazyVStack(spacing: 8) {
+                    ForEach(sessions) { session in
+                        taskRow(session)
+                    }
+                }
+                .padding(.vertical, 2)
+                .padding(.trailing, 3)
+            }
+            .scrollIndicators(.visible)
+            .frame(height: 172)
+        }
+    }
+
+    private func taskRow(_ session: SessionDisplaySnapshot) -> some View {
+        HStack(spacing: 10) {
+            ZStack {
+                Circle()
+                    .fill(
+                        session.activity == .running
+                            ? Color.green.opacity(0.16)
+                            : Color.orange.opacity(0.16)
+                    )
+                Image(systemName: session.activity == .running ? "bolt.fill" : "pause.fill")
+                    .font(.system(size: 10, weight: .bold))
+                    .foregroundStyle(session.activity == .running ? Color.green : Color.orange)
+            }
+            .frame(width: 28, height: 28)
+
+            VStack(alignment: .leading, spacing: 3) {
+                Text(session.displayTaskDescription)
+                    .font(.system(size: 12, weight: .semibold))
+                    .lineLimit(2)
+                    .multilineTextAlignment(.leading)
+
+                HStack(spacing: 5) {
+                    Text(projectName(for: session))
+                    Text("·")
+                    Text(tokenText(session.tokenCounts.total))
+                    Text("·")
+                    Text(session.activity == .running ? "Running" : "Recent")
+                }
+                .font(.system(size: 10))
+                .foregroundStyle(.secondary)
+                .lineLimit(1)
+            }
+
+            Spacer(minLength: 5)
+
+            Image(systemName: session.activity == .running ? "arrow.triangle.2.circlepath" : "checkmark")
+                .font(.system(size: 11, weight: .semibold))
+                .foregroundStyle(session.activity == .running ? Color.green : Color.secondary)
+        }
+        .padding(.horizontal, 10)
+        .padding(.vertical, 8)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(.quaternary.opacity(0.56), in: RoundedRectangle(cornerRadius: 14))
     }
 
     private func usageMetric(label: String, remaining: Int?) -> some View {
@@ -235,8 +354,35 @@ struct PetIslandView: View {
                 .font(.system(size: 14, weight: .semibold, design: .rounded))
         }
         .padding(.horizontal, 10)
-        .frame(width: 82, height: 42, alignment: .leading)
+        .frame(width: 84, height: 42, alignment: .leading)
         .background(.quaternary.opacity(0.65), in: RoundedRectangle(cornerRadius: 11))
+    }
+
+    private func compactPercent(label: String, remaining: Int?) -> some View {
+        HStack(spacing: 3) {
+            Text(label)
+                .foregroundStyle(.secondary)
+            Text(percentText(remaining))
+                .foregroundStyle(summaryUsageColor(remaining))
+        }
+    }
+
+    private func usageRing(remaining: Int?) -> some View {
+        let clamped = min(100, max(0, remaining ?? 0))
+        return ZStack {
+            Circle()
+                .stroke(Color.secondary.opacity(0.16), lineWidth: 4)
+            Circle()
+                .trim(from: 0, to: CGFloat(clamped) / 100)
+                .stroke(
+                    summaryUsageColor(remaining),
+                    style: StrokeStyle(lineWidth: 4, lineCap: .round)
+                )
+                .rotationEffect(.degrees(-90))
+            Text(remaining.map(String.init) ?? "--")
+                .font(.system(size: 10, weight: .bold, design: .rounded))
+        }
+        .frame(width: 38, height: 38)
     }
 
     private var activityDot: some View {
@@ -253,11 +399,11 @@ struct PetIslandView: View {
         ZStack {
             Circle()
                 .fill(runningSessions.isEmpty ? Color.gray : Color.green)
-            Image(systemName: runningSessions.isEmpty ? "checkmark" : "bolt.fill")
-                .font(.system(size: 8, weight: .bold))
+            Text("\(runningSessions.count)")
+                .font(.system(size: 9, weight: .bold, design: .rounded))
                 .foregroundStyle(.white)
         }
-        .frame(width: 18, height: 18)
+        .frame(width: 20, height: 20)
         .overlay {
             Circle().strokeBorder(.white.opacity(0.8), lineWidth: 1.5)
         }
@@ -281,10 +427,41 @@ struct PetIslandView: View {
 
     private var sessionSummary: String {
         if runningSessions.isEmpty {
-            return sessions.isEmpty ? "No active sessions" : "\(sessions.count) sessions waiting"
+            return sessions.isEmpty ? "No active sessions" : "\(sessions.count) recent tasks"
         }
         let noun = runningSessions.count == 1 ? "task" : "tasks"
         return "\(runningSessions.count) active \(noun) · \(sessions.count) total sessions"
+    }
+
+    private var primaryTaskTitle: String {
+        runningSessions.first?.displayTaskDescription
+            ?? sessions.first?.displayTaskDescription
+            ?? "No active Codex tasks"
+    }
+
+    private var secondaryUsageLabel: String {
+        if let label = usage?.secondary?.label {
+            return label
+        }
+        guard let primaryLabel = usage?.primary?.label else {
+            return "7d"
+        }
+        return primaryLabel == "5h" ? "7d" : "5h"
+    }
+
+    private func projectName(for session: SessionDisplaySnapshot) -> String {
+        let name = URL(fileURLWithPath: session.workingDirectory).lastPathComponent
+        return name.isEmpty ? "Codex" : name
+    }
+
+    private func tokenText(_ total: Int64) -> String {
+        if total >= 1_000_000 {
+            return String(format: "%.1fM tokens", Double(total) / 1_000_000)
+        }
+        if total >= 1_000 {
+            return String(format: "%.1fK tokens", Double(total) / 1_000)
+        }
+        return "\(total) tokens"
     }
 
     private func percentText(_ remaining: Int?) -> String {
@@ -293,6 +470,13 @@ struct PetIslandView: View {
 
     private func usageColor(_ remaining: Int?) -> Color {
         guard let remaining else { return .white.opacity(0.6) }
+        if remaining <= 10 { return .red }
+        if remaining <= 30 { return .orange }
+        return .green
+    }
+
+    private func summaryUsageColor(_ remaining: Int?) -> Color {
+        guard let remaining else { return .secondary }
         if remaining <= 10 { return .red }
         if remaining <= 30 { return .orange }
         return .green
