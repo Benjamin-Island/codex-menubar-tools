@@ -115,11 +115,20 @@ struct PetIslandView: View {
     private var floatingSurface: some View {
         ZStack {
             if isPeeking {
-                Button(action: toggleExpanded) {
-                    peekingPet
+                ZStack {
+                    if isDraggingPet {
+                        floatingPet
+                    } else {
+                        peekingPet
+                    }
                 }
-                .buttonStyle(.plain)
-                .help("Reveal Codex pet and usage summary")
+                .frame(
+                    width: PetIslandPlacement.peekSize.width,
+                    height: PetIslandPlacement.peekSize.height
+                )
+                .overlay {
+                    petDragCapture
+                }
             } else if isExpanded {
                 expandedTaskPanel
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -127,11 +136,11 @@ struct PetIslandView: View {
 
                 Button(action: toggleExpanded) {
                     floatingPet
-                        .frame(width: 58, height: 58)
+                        .frame(width: 78, height: 78)
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
-                .padding(.trailing, 15)
+                .padding(.trailing, 10)
                 .help("Hide Codex summary")
             } else {
                 Button(action: toggleExpanded) {
@@ -155,25 +164,7 @@ struct PetIslandView: View {
                 .buttonStyle(.plain)
                 .help("Show Codex summary")
                 .overlay(alignment: .bottomTrailing) {
-                    PetDragCaptureView(
-                        onClick: toggleExpanded,
-                        onDragBegan: {
-                            isDraggingPet = true
-                            beginDrag()
-                        },
-                        onDirectionChanged: { direction in
-                            dragDirection = direction
-                            changeDirection(direction)
-                        },
-                        onDragChanged: updateDrag,
-                        onDragEnded: { translation in
-                            endDrag(translation)
-                            isDraggingPet = false
-                        }
-                    )
-                    .frame(width: 68, height: 68)
-                    .accessibilityLabel("Drag Codex pet")
-                    .help("Drag Codex pet; move to a screen edge to tuck it away")
+                    petDragCapture
                 }
             }
         }
@@ -181,12 +172,10 @@ struct PetIslandView: View {
     }
 
     private var peekingPet: some View {
-        ZStack(alignment: .bottom) {
+        VStack(spacing: -6) {
             ZStack {
                 Circle()
-                    .fill(.ultraThinMaterial)
-                Circle()
-                    .stroke(Color.secondary.opacity(0.18), lineWidth: 5)
+                    .stroke(Color.secondary.opacity(0.14), lineWidth: 5)
                 Circle()
                     .trim(from: 0, to: dockedUsageProgress)
                     .stroke(
@@ -196,10 +185,9 @@ struct PetIslandView: View {
                     .rotationEffect(.degrees(-90))
 
                 pet
-                    .frame(width: 54, height: 60)
+                    .frame(width: 50, height: 56)
             }
-            .frame(width: 80, height: 80)
-            .offset(y: -8)
+            .frame(width: 82, height: 82)
 
             Text(dockedUsageText)
                 .font(.system(size: 11, weight: .bold, design: .rounded))
@@ -213,11 +201,12 @@ struct PetIslandView: View {
                         .strokeBorder(.white.opacity(0.55), lineWidth: 1)
                 }
         }
+        .padding(.top, 6)
+        .padding(.horizontal, 8)
         .frame(
             width: PetIslandPlacement.peekSize.width,
             height: PetIslandPlacement.peekSize.height
         )
-        .shadow(color: .black.opacity(0.18), radius: 9, y: 3)
         .contentShape(Circle())
         .accessibilityLabel("Codex pet usage")
         .accessibilityValue(dockedUsageAccessibilityText)
@@ -264,22 +253,38 @@ struct PetIslandView: View {
 
     private var floatingPet: some View {
         ZStack(alignment: .bottomTrailing) {
-            Circle()
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    Circle().strokeBorder(.white.opacity(0.32), lineWidth: 1)
-                }
-                .shadow(color: .black.opacity(0.18), radius: 8, y: 3)
-
             pet
-                .frame(width: 58, height: 63)
-                .offset(x: -5, y: -4)
+                .frame(width: 60, height: 66)
+                .padding(.trailing, 8)
+                .padding(.bottom, 5)
 
             activityBadge
-                .offset(x: -1, y: -1)
+                .offset(x: -2, y: -2)
         }
-        .frame(width: 68, height: 68)
+        .frame(width: 78, height: 78)
         .contentShape(Circle())
+    }
+
+    private var petDragCapture: some View {
+        PetDragCaptureView(
+            onClick: toggleExpanded,
+            onDragBegan: {
+                isDraggingPet = true
+                beginDrag()
+            },
+            onDirectionChanged: { direction in
+                dragDirection = direction
+                changeDirection(direction)
+            },
+            onDragChanged: updateDrag,
+            onDragEnded: { translation in
+                endDrag(translation)
+                isDraggingPet = false
+            }
+        )
+        .frame(width: 78, height: 78)
+        .accessibilityLabel("Drag Codex pet")
+        .help("Drag Codex pet; move to a screen edge to dock it")
     }
 
     private var expandedTaskPanel: some View {

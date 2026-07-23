@@ -16,7 +16,7 @@ struct PetIslandPlacement {
     static let notchWidth: CGFloat = 236
     static let floatingSize = NSSize(width: 324, height: 132)
     static let expandedSize = NSSize(width: 410, height: 380)
-    static let peekSize = NSSize(width: 92, height: 96)
+    static let peekSize = NSSize(width: 104, height: 112)
 
     static func mode(on screen: NSScreen) -> PetSurfaceMode {
         let hasAuxiliaryAreas: Bool
@@ -284,10 +284,12 @@ final class PetIslandController: NSObject {
     }
 
     private func beginFloatingDrag() {
-        guard !isExpanded, !isPeeking else { return }
+        guard !isExpanded else { return }
         dragStartFrame = panel.frame
         isDragging = true
-        dockEdge = nil
+        if !isPeeking {
+            dockEdge = nil
+        }
     }
 
     private func updateFloatingDrag(_ translation: CGSize) {
@@ -300,6 +302,7 @@ final class PetIslandController: NSObject {
 
     private func endFloatingDrag(_ translation: CGSize) {
         guard isDragging else { return }
+        let wasPeeking = isPeeking
         updateFloatingDrag(translation)
         isDragging = false
         dragStartFrame = nil
@@ -319,7 +322,19 @@ final class PetIslandController: NSObject {
             dockEdge = nil
             isPeeking = false
         }
-        floatingOrigin = clampedFrame(frame, to: visibleFrame).origin
+        if wasPeeking, !isPeeking {
+            let size = PetIslandPlacement.floatingSize
+            let mouse = NSEvent.mouseLocation
+            let undockedFrame = NSRect(
+                x: mouse.x - size.width + 39,
+                y: mouse.y - 39,
+                width: size.width,
+                height: size.height
+            )
+            floatingOrigin = clampedFrame(undockedFrame, to: visibleFrame).origin
+        } else {
+            floatingOrigin = clampedFrame(frame, to: visibleFrame).origin
+        }
         updatePresentation(animateFrame: false)
     }
 

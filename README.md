@@ -32,8 +32,9 @@ task uses its directional running frames. Drag the pet left or right to move the
 panel and change its running direction, including across connected displays.
 Dropping it near either screen edge snaps the manifest's front-facing idle pet
 into a circular quota dock. Its ring and badge keep the remaining percentage
-and reset countdown visible without cropping or modifying the pet artwork.
-Click the dock to reveal the full summary again.
+and reset countdown visible without cropping or modifying the pet artwork. The
+dock has no opaque circular backing or outer shadow. Click it to reveal the
+summary, or drag it directly away from the edge to restore the movable pet.
 By default it follows the newest canonical local pet
 package (the folder name matches the manifest `id`) and ignores backup package
 folders. A pet id is stored in macOS user defaults only after the user explicitly
