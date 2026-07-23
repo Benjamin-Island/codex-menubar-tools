@@ -78,7 +78,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
         ensureMonitor()
         store.refresh()
 
-        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.ensureMonitor()
                 self?.store.refresh()
@@ -121,7 +121,8 @@ final class StatusController: NSObject, NSPopoverDelegate {
         let hasUsageError: Bool
         switch snapshot.rateLimit {
         case let .content(usage):
-            remainingPercent = usage.primary?.remainingPercent
+            remainingPercent = usage.secondary?.remainingPercent
+                ?? usage.primary?.remainingPercent
             hasUsageError = false
         case .failure:
             remainingPercent = nil

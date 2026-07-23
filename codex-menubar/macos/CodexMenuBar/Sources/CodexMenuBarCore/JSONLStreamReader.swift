@@ -57,14 +57,16 @@ struct JSONLFramingState: Equatable, Sendable {
 
     private var pending = Data()
     private var isSkippingOversizedLine = false
+    private var isDiscardingPartialLine: Bool
     private var nextLineNumber = 1
     private let maximumLineBytes: Int
 
     var pendingByteCount: Int { pending.count }
 
-    init(maximumLineBytes: Int) {
+    init(maximumLineBytes: Int, discardingPartialLine: Bool = false) {
         precondition(maximumLineBytes > 0)
         self.maximumLineBytes = maximumLineBytes
+        self.isDiscardingPartialLine = discardingPartialLine
     }
 
     mutating func consume(_ data: Data, path: String) -> JSONLFrameOutput {
@@ -72,6 +74,14 @@ struct JSONLFramingState: Equatable, Sendable {
         var warnings: [ParseWarning] = []
 
         for byte in data {
+            if isDiscardingPartialLine {
+                if byte == 0x0A {
+                    isDiscardingPartialLine = false
+                    nextLineNumber += 1
+                }
+                continue
+            }
+
             if isSkippingOversizedLine {
                 if byte == 0x0A {
                     isSkippingOversizedLine = false

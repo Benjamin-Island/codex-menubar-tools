@@ -23,10 +23,10 @@ discovers read-only pet packages from:
 - `~/Library/Application Support/Codex/pets/*/pet.json`
 - `~/Library/Application Support/ChatGPT/pets/*/pet.json`
 
-Use **Pet Island** in the dashboard footer to show or hide the island and choose
-an installed custom pet. Its display mode can be **Auto**, **Notch Bar**, or
-**Floating Pet**. Auto keeps a compact status surface inside the menu-bar plane
-on a notched display and uses a small expandable pet on a non-notched display.
+Use **Pet Island** in the dashboard footer to show or hide the island, follow
+the current local Codex pet, or explicitly choose an installed custom pet.
+Placement is automatic: it keeps a compact status surface inside the menu-bar
+plane on a notched display and uses a small expandable pet on a non-notched display.
 In floating mode, an idle pet uses the manifest's idle animation while a live
 task uses its directional running frames. Drag the pet left or right to move the
 panel and change its running direction, including across connected displays.
@@ -35,12 +35,13 @@ into a circular quota dock. Its ring and badge keep the remaining percentage
 and reset countdown visible without cropping or modifying the pet artwork. The
 dock has no opaque circular backing or outer shadow. Click it to reveal the
 summary, or drag it directly away from the edge to restore the movable pet.
-By default it follows the newest canonical local pet
-package (the folder name matches the manifest `id`) and ignores backup package
-folders. A pet id is stored in macOS user defaults only after the user explicitly
-chooses one from this app. Pet packages are never modified. If the Codex app's
-own pet overlay is enabled, turn one of the two overlays off to avoid showing
-the same pet twice.
+By default it follows Codex's `selected-avatar-id` from `~/.codex/config.toml`.
+If that value is missing or its package is unavailable, it falls back to the
+newest canonical local pet package (the folder name matches the manifest `id`)
+and ignores backup package folders. A pet id is stored in macOS user defaults
+only after the user explicitly chooses one from this app. Pet packages are
+never modified. If the Codex app's own pet overlay is enabled, turn one of the
+two overlays off to avoid showing the same pet twice.
 
 No pet artwork is bundled, copied, or redistributed by Codex Menu Bar. Every
 rendered frame is loaded at runtime from the local manifest's
@@ -48,32 +49,32 @@ rendered frame is loaded at runtime from the local manifest's
 
 ## Language
 
-Open the menu bar dashboard and use the gear button in its top-right corner to
-choose **Follow System**, **中文**, or **English**. The preference is persisted
-in macOS user defaults and updates both the dashboard and Pet Island.
+Open the menu bar dashboard and use the compact **中 / EN** control beside
+**Pet Island**. The preference is persisted in macOS user defaults and updates
+both the dashboard and Pet Island.
 
 ## How usage detection works
 
 Codex Menu Bar does not call a private usage API. It reads Codex's local,
 append-only JSONL session logs under `~/.codex/sessions`:
 
-- macOS FSEvents watches the directory with a 0.2-second latency and a
-  0.35-second debounce before refreshing.
-- A five-second timer is the fallback when filesystem events are coalesced or
+- macOS FSEvents watches the directory with a 0.2-second delivery latency.
+- A 60-second timer is the fallback when filesystem events are coalesced or
   unavailable.
+- Filesystem bursts are coalesced and delivered at most once every two seconds,
+  preventing rapid log writes from triggering repeated dashboard scans.
 - The incremental index reads only bytes appended since the last cursor. It
   parses `token_count` events for cumulative input, cached-input, output,
   reasoning, total-token, and rate-limit fields.
 - Daily totals are calculated from differences between consecutive cumulative
   counters. Remaining quota is `100 - used_percent`, and reset time comes from
   the event's `resets_at` value.
-- The dashboard keeps 60 local-calendar days of history. Files opened by a live
-  Codex process are retained even when they fall outside the normal history
-  filter.
-
-At launch, the menu-bar surface first indexes the 8 newest local session logs
-so current tasks and quota appear quickly. The complete 60-day history index
-continues in the background and replaces that fast snapshot when ready.
+- The always-on index keeps the 8 newest ordinary logs plus every log opened
+  by a live Codex process. For a large log, first launch reads only its first
+  256 KB (identity and metadata) and latest 8 MB (current task and quota);
+  later refreshes read only appended bytes.
+- The 60-day heatmap is intentionally best-effort over this lightweight index.
+  The app does not start a second full-history background scan.
 
 ## Why
 
@@ -90,9 +91,14 @@ The app:
 - does **not** write a cache, database, analytics, or log file;
 - does **not** start, stop, or otherwise control Codex sessions.
 
-Session JSONL files are streamed in bounded chunks. While the app is running, appended bytes update pure-memory daily summaries; raw historical Token events are not retained. The index is never written to disk, so restarting the app performs a fresh streaming scan.
+Session JSONL files are streamed in bounded chunks and large files use the
+bounded head-and-tail startup scan described above. While the app is running,
+appended bytes update pure-memory daily summaries; raw historical Token events
+are not retained. The index is never written to disk.
 
-History includes every indexed local rollout source from the latest 60 local calendar days, while the live Sessions page intentionally includes only top-level interactive terminal TUIs. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
+History includes the indexed rollout sources from the latest 60 local calendar
+days, while the live Sessions page intentionally includes only top-level
+interactive terminal TUIs.
 
 ## Token semantics
 

@@ -24,8 +24,12 @@ struct OverviewView: View {
             LoadingPanel(title: text("Loading usage limits", "正在读取额度"))
         case let .content(usage):
             HStack(alignment: .top, spacing: 12) {
-                UsageCard(title: text("Primary", "短周期额度"), window: usage.primary)
-                UsageCard(title: text("Secondary", "长周期额度"), window: usage.secondary)
+                ForEach(Array(usageWindows(usage).enumerated()), id: \.offset) { index, window in
+                    UsageCard(
+                        title: quotaTitle(index: index, count: usageWindows(usage).count),
+                        window: window
+                    )
+                }
             }
         case let .empty(message):
             EmptyPanel(message: message)
@@ -94,6 +98,17 @@ struct OverviewView: View {
 
     private func activityText(_ activity: SessionActivity) -> String {
         activity == .running ? text("Running", "运行中") : text("Stalled", "已暂停")
+    }
+
+    private func usageWindows(_ usage: UsageSnapshot) -> [WindowUsage] {
+        [usage.primary, usage.secondary].compactMap { $0 }
+    }
+
+    private func quotaTitle(index: Int, count: Int) -> String {
+        guard count > 1 else { return text("Usage limit", "额度") }
+        return index == 0
+            ? text("Primary", "短周期额度")
+            : text("Secondary", "长周期额度")
     }
 
     private func text(_ english: String, _ chinese: String) -> String {
