@@ -156,15 +156,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
         var newestBySessionID: [String: SessionLogSummary] = [:]
         for summary in recent {
             let existing = newestBySessionID[summary.session.id]
-            let summaryIsRunning = summary.lifecycle == .active
-                && now.timeIntervalSince(summary.modifiedAt) <= runningWindow
-            let existingIsRunning = existing.map {
-                $0.lifecycle == .active
-                    && now.timeIntervalSince($0.modifiedAt) <= runningWindow
-            } ?? false
-            if existing == nil
-                || (summaryIsRunning && !existingIsRunning)
-                || (summaryIsRunning == existingIsRunning && summary.modifiedAt > existing!.modifiedAt) {
+            if existing == nil || summary.modifiedAt > existing!.modifiedAt {
                 newestBySessionID[summary.session.id] = summary
             }
         }

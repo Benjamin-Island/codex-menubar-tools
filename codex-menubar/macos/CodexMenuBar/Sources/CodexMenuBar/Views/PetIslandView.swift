@@ -119,7 +119,7 @@ struct PetIslandView: View {
                     peekingPet
                 }
                 .buttonStyle(.plain)
-                .help("Reveal Codex pet")
+                .help("Reveal Codex pet and usage summary")
             } else if isExpanded {
                 expandedTaskPanel
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
@@ -181,33 +181,46 @@ struct PetIslandView: View {
     }
 
     private var peekingPet: some View {
-        ZStack {
-            peekShape
-                .fill(.ultraThinMaterial)
-                .overlay {
-                    peekShape
-                        .strokeBorder(.white.opacity(0.38), lineWidth: 1)
-                }
+        ZStack(alignment: .bottom) {
+            ZStack {
+                Circle()
+                    .fill(.ultraThinMaterial)
+                Circle()
+                    .stroke(Color.secondary.opacity(0.18), lineWidth: 5)
+                Circle()
+                    .trim(from: 0, to: dockedUsageProgress)
+                    .stroke(
+                        summaryUsageColor(dockedUsage?.remainingPercent),
+                        style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                    )
+                    .rotationEffect(.degrees(-90))
 
-            pet
-                .frame(width: 40, height: 46)
-                .padding(dockEdge == .left ? .trailing : .leading, 2)
+                pet
+                    .frame(width: 54, height: 60)
+            }
+            .frame(width: 80, height: 80)
+            .offset(y: -8)
+
+            Text(dockedUsageText)
+                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .monospacedDigit()
+                .foregroundStyle(.primary)
+                .padding(.horizontal, 9)
+                .frame(height: 24)
+                .background(.regularMaterial, in: Capsule())
+                .overlay {
+                    Capsule()
+                        .strokeBorder(.white.opacity(0.55), lineWidth: 1)
+                }
         }
         .frame(
             width: PetIslandPlacement.peekSize.width,
             height: PetIslandPlacement.peekSize.height
         )
-        .shadow(color: .black.opacity(0.16), radius: 7, y: 2)
-        .contentShape(Rectangle())
-    }
-
-    private var peekShape: UnevenRoundedRectangle {
-        UnevenRoundedRectangle(
-            topLeadingRadius: dockEdge == .left ? 0 : 16,
-            bottomLeadingRadius: dockEdge == .left ? 0 : 16,
-            bottomTrailingRadius: dockEdge == .right ? 0 : 16,
-            topTrailingRadius: dockEdge == .right ? 0 : 16
-        )
+        .shadow(color: .black.opacity(0.18), radius: 9, y: 3)
+        .contentShape(Circle())
+        .accessibilityLabel("Codex pet usage")
+        .accessibilityValue(dockedUsageAccessibilityText)
     }
 
     private var collapsedFloatingSummary: some View {
@@ -515,6 +528,35 @@ struct PetIslandView: View {
             return .idle
         }
         return dragDirection == .left ? .runningLeft : .runningRight
+    }
+
+    private var dockedUsage: WindowUsage? {
+        usage?.secondary ?? usage?.primary
+    }
+
+    private var dockedUsageProgress: CGFloat {
+        CGFloat(min(100, max(0, dockedUsage?.remainingPercent ?? 0))) / 100
+    }
+
+    private var dockedUsageText: String {
+        "\(percentText(dockedUsage?.remainingPercent)) · \(resetCountdown(dockedUsage?.resetsAt))"
+    }
+
+    private var dockedUsageAccessibilityText: String {
+        "\(percentText(dockedUsage?.remainingPercent)) remaining, resets in \(resetCountdown(dockedUsage?.resetsAt))"
+    }
+
+    private func resetCountdown(_ date: Date?) -> String {
+        guard let date else { return "--" }
+        let remaining = date.timeIntervalSinceNow
+        guard remaining > 0 else { return "now" }
+        if remaining >= 86_400 {
+            return "\(max(1, Int(ceil(remaining / 86_400))))d"
+        }
+        if remaining >= 3_600 {
+            return "\(max(1, Int(ceil(remaining / 3_600))))h"
+        }
+        return "\(max(1, Int(ceil(remaining / 60))))m"
     }
 
     private var sessionSummary: String {

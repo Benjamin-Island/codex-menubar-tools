@@ -16,7 +16,7 @@ struct PetIslandPlacement {
     static let notchWidth: CGFloat = 236
     static let floatingSize = NSSize(width: 324, height: 132)
     static let expandedSize = NSSize(width: 410, height: 380)
-    static let peekSize = NSSize(width: 46, height: 58)
+    static let peekSize = NSSize(width: 92, height: 96)
 
     static func mode(on screen: NSScreen) -> PetSurfaceMode {
         let hasAuxiliaryAreas: Bool
@@ -97,6 +97,7 @@ final class PetIslandController: NSObject {
     private var dockEdge: PetDockEdge?
     private var movementDirection: PetDockEdge = .right
     private var floatingOrigin: NSPoint?
+    private var floatingScreenNumber: NSNumber?
     private var dragStartFrame: NSRect?
     private var isDragging = false
     private var cancellables: Set<AnyCancellable> = []
@@ -185,7 +186,7 @@ final class PetIslandController: NSObject {
     }
 
     private func updatePresentation(animateFrame: Bool = true) {
-        guard preferences.isEnabled, let screen = screenProvider() else {
+        guard preferences.isEnabled, let screen = preferredScreen() else {
             panel.orderOut(nil)
             return
         }
@@ -194,6 +195,7 @@ final class PetIslandController: NSObject {
             isPeeking = false
             dockEdge = nil
             floatingOrigin = nil
+            floatingScreenNumber = nil
         }
         let menuBarHeight = PetIslandPlacement.menuBarHeight(on: screen)
         let targetFrame: NSRect?
@@ -303,6 +305,7 @@ final class PetIslandController: NSObject {
         dragStartFrame = nil
 
         let screen = screenForPanel()
+        floatingScreenNumber = screenNumber(for: screen)
         let visibleFrame = screen.visibleFrame
         let frame = panel.frame
         let snapDistance: CGFloat = 44
@@ -321,11 +324,39 @@ final class PetIslandController: NSObject {
     }
 
     private func screenForPanel() -> NSScreen {
-        panel.screen
-            ?? NSScreen.screens.first(where: { $0.frame.intersects(panel.frame) })
+        NSScreen.screens.first(where: {
+            NSMouseInRect(NSEvent.mouseLocation, $0.frame, false)
+        })
+            ?? NSScreen.screens.max(by: {
+                intersectionArea($0.frame, panel.frame)
+                    < intersectionArea($1.frame, panel.frame)
+            })
+            ?? panel.screen
             ?? screenProvider()
             ?? NSScreen.main
             ?? NSScreen.screens[0]
+    }
+
+    private func intersectionArea(_ first: NSRect, _ second: NSRect) -> CGFloat {
+        let intersection = first.intersection(second)
+        return intersection.width * intersection.height
+    }
+
+    private func preferredScreen() -> NSScreen? {
+        if let floatingScreenNumber,
+           let screen = NSScreen.screens.first(where: {
+               screenNumber(for: $0) == floatingScreenNumber
+           }) {
+            return screen
+        }
+        floatingScreenNumber = nil
+        return screenProvider() ?? NSScreen.main ?? NSScreen.screens.first
+    }
+
+    private func screenNumber(for screen: NSScreen) -> NSNumber? {
+        screen.deviceDescription[
+            NSDeviceDescriptionKey("NSScreenNumber")
+        ] as? NSNumber
     }
 
     private func rebuildContent(
@@ -333,7 +364,7 @@ final class PetIslandController: NSObject {
         mode requestedMode: PetSurfaceMode? = nil,
         menuBarHeight requestedMenuBarHeight: CGFloat? = nil
     ) {
-        guard let display = screen ?? screenProvider() else { return }
+        guard let display = screen ?? preferredScreen() else { return }
         let mode = requestedMode ?? resolvedMode(on: display)
         let menuBarHeight = requestedMenuBarHeight
             ?? PetIslandPlacement.menuBarHeight(on: display)

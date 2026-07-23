@@ -59,11 +59,11 @@ struct PetSpriteView: View {
 
     private var spriteRow: Int {
         switch state {
-        case .idle:
+        case .idle, .peekingLeft, .peekingRight:
             return 0
-        case .runningRight, .peekingLeft:
+        case .runningRight:
             return 1
-        case .runningLeft, .peekingRight:
+        case .runningLeft:
             return 2
         }
     }

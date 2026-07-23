@@ -114,7 +114,7 @@ final class DashboardReaderTests: XCTestCase {
         )
     }
 
-    func testDesktopParentAndChildLogsCollapseToNewestSessionEntry() {
+    func testDesktopLogsKeepNewestLifecycleForSharedSession() {
         let sharedID = "desktop-thread"
         let reader = makeReader(
             indexResults: [.success(snapshot(summaries: [
@@ -146,9 +146,9 @@ final class DashboardReaderTests: XCTestCase {
         }
         XCTAssertEqual(sessions.count, 1)
         XCTAssertEqual(sessions[0].sessionID, sharedID)
-        XCTAssertEqual(sessions[0].activity, .running)
-        XCTAssertEqual(sessions[0].tokenCounts.total, 10)
-        XCTAssertEqual(sessions[0].sourcePath, "/sessions/parent.jsonl")
+        XCTAssertEqual(sessions[0].activity, .stalled)
+        XCTAssertEqual(sessions[0].tokenCounts.total, 20)
+        XCTAssertEqual(sessions[0].sourcePath, "/sessions/child.jsonl")
     }
 
     func testIndexWarningLeavesGoodContentUsable() {
