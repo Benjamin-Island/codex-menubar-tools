@@ -55,7 +55,6 @@ struct DashboardView: View {
                 Text("\(text("Updated", "更新于")) \(store.snapshot.updatedAt.formatted(date: .omitted, time: .shortened))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
-                languageMenu
             }
             Picker(text("Dashboard section", "面板栏目"), selection: $store.selectedTab) {
                 Text(text("Overview", "概览")).tag(DashboardTab.overview)
@@ -86,6 +85,7 @@ struct DashboardView: View {
             if let petIslandPreferences {
                 PetIslandSettingsControl(preferences: petIslandPreferences)
             }
+            languageControl
             Spacer()
             Label(text("Local logs · Read-only", "本地日志 · 只读"), systemImage: "lock.shield")
                 .font(.caption)
@@ -99,20 +99,25 @@ struct DashboardView: View {
         .background(.bar)
     }
 
-    private var languageMenu: some View {
-        Menu {
-            Picker(text("Language", "语言"), selection: $languagePreferences.selection) {
-                ForEach(AppLanguagePreference.allCases) { option in
-                    Text(option.displayName).tag(option)
+    private var languageControl: some View {
+        Picker(
+            text("Language", "语言"),
+            selection: Binding(
+                get: { languagePreferences.resolvedLanguage },
+                set: { language in
+                    languagePreferences.selection = language == .simplifiedChinese
+                        ? .simplifiedChinese
+                        : .english
                 }
-            }
-        } label: {
-            Image(systemName: "gearshape")
-                .accessibilityLabel(text("Settings", "设置"))
+            )
+        ) {
+            Text("中").tag(AppDisplayLanguage.simplifiedChinese)
+            Text("EN").tag(AppDisplayLanguage.english)
         }
-        .menuStyle(.borderlessButton)
-        .fixedSize()
-        .help(text("Language settings", "语言设置"))
+        .pickerStyle(.segmented)
+        .labelsHidden()
+        .frame(width: 74)
+        .help(text("Switch language", "切换语言"))
     }
 
     private func text(_ english: String, _ chinese: String) -> String {
@@ -127,19 +132,15 @@ private struct PetIslandSettingsControl: View {
     var body: some View {
         Menu {
             Toggle(text("Show Pet Island", "显示宠物岛"), isOn: $preferences.isEnabled)
-            Picker(text("Display Mode", "显示模式"), selection: $preferences.presentationMode) {
-                ForEach(PetPresentationPreference.allCases) { mode in
-                    Text(modeName(mode)).tag(mode)
-                }
-            }
             if !preferences.pets.isEmpty {
                 Divider()
-                Button {
-                    preferences.followLocalConfiguration()
-                    preferences.isEnabled = true
-                } label: {
-                    Label(text("Follow Local Pet", "跟随本地宠物"), systemImage: "arrow.triangle.2.circlepath")
-                }
+                Toggle(
+                    text("Follow Local Pet", "跟随本地宠物形象"),
+                    isOn: Binding(
+                        get: { preferences.followsLocalPet },
+                        set: { preferences.setFollowsLocalPet($0) }
+                    )
+                )
                 Divider()
                 ForEach(preferences.pets) { pet in
                     Button {
@@ -160,14 +161,6 @@ private struct PetIslandSettingsControl: View {
             Label(text("Pet Island", "宠物岛"), systemImage: "pawprint.fill")
         }
         .help(text("Choose a custom pet from ~/.codex/pets", "从 ~/.codex/pets 选择自定义宠物"))
-    }
-
-    private func modeName(_ mode: PetPresentationPreference) -> String {
-        switch mode {
-        case .automatic: text("Auto", "自动")
-        case .notch: text("Notch Bar", "刘海栏")
-        case .floating: text("Floating Pet", "悬浮宠物")
-        }
     }
 
     private func text(_ english: String, _ chinese: String) -> String {

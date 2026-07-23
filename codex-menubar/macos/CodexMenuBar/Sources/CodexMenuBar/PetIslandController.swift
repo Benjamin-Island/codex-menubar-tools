@@ -151,14 +151,6 @@ final class PetIslandController: NSObject {
             .sink { [weak self] _ in self?.updatePresentation() }
             .store(in: &cancellables)
 
-        preferences.$presentationMode
-            .removeDuplicates()
-            .sink { [weak self] _ in
-                self?.isExpanded = false
-                self?.updatePresentation()
-            }
-            .store(in: &cancellables)
-
         languagePreferences.$selection
             .removeDuplicates()
             .sink { [weak self] _ in self?.updatePresentation(animateFrame: false) }
@@ -426,13 +418,6 @@ final class PetIslandController: NSObject {
     }
 
     private func resolvedMode(on screen: NSScreen) -> PetSurfaceMode {
-        switch preferences.presentationMode {
-        case .automatic:
-            PetIslandPlacement.mode(on: screen)
-        case .notch:
-            .notch
-        case .floating:
-            .floating
-        }
+        PetIslandPlacement.mode(on: screen)
     }
 }

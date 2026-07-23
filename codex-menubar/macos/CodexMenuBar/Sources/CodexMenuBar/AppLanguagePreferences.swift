@@ -2,7 +2,7 @@ import Combine
 import Foundation
 import SwiftUI
 
-enum AppDisplayLanguage: Equatable {
+enum AppDisplayLanguage: Hashable {
     case english
     case simplifiedChinese
 }

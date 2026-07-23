@@ -24,7 +24,7 @@ struct PetSpriteView: View {
     }
 
     var body: some View {
-        TimelineView(.animation(minimumInterval: frameInterval)) { context in
+        TimelineView(.periodic(from: .now, by: frameInterval)) { context in
             if let image {
                 let tick = Int(context.date.timeIntervalSinceReferenceDate / frameInterval)
                 spriteSheet(image: image, frame: tick % animationFrameCount)

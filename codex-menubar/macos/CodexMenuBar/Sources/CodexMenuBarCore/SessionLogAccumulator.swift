@@ -72,6 +72,7 @@ struct SessionLogAccumulator: Equatable, Sendable {
     private var metadataTimestamp: Date?
     private var firstUserMessage: String?
     private var previousCumulative: TokenCounts?
+    private var shouldEstablishCumulativeBaseline = false
     private var dailyCounts: [Date: TokenCounts] = [:]
     private var latestTokenCounts: TokenCounts = .zero
     private var latestRateLimit: RateLimitCandidate?
@@ -90,6 +91,11 @@ struct SessionLogAccumulator: Equatable, Sendable {
         self.path = URL(fileURLWithPath: path).standardizedFileURL.path
         self.maximumWarnings = maximumWarnings
         self.maximumNameCharacters = maximumNameCharacters
+    }
+
+    mutating func prepareForTailJump() {
+        previousCumulative = nil
+        shouldEstablishCumulativeBaseline = true
     }
 
     mutating func consume(
@@ -140,7 +146,10 @@ struct SessionLogAccumulator: Equatable, Sendable {
                let info = payload["info"] as? [String: Any],
                let totalUsage = info["total_token_usage"] as? [String: Any] {
                 let current = tokenCounts(from: totalUsage)
-                let increment = current.increment(since: previousCumulative)
+                let increment = shouldEstablishCumulativeBaseline
+                    ? .zero
+                    : current.increment(since: previousCumulative)
+                shouldEstablishCumulativeBaseline = false
                 previousCumulative = current
                 latestTokenCounts = current
                 let day = calendar.startOfDay(for: timestamp)

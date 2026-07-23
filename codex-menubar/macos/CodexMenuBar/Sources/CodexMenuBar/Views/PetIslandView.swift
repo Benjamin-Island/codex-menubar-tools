@@ -34,6 +34,15 @@ struct PetIslandView: View {
         sessions.filter { $0.activity == .running }
     }
 
+    private var usageWindows: [WindowUsage] {
+        guard let usage else { return [] }
+        return [usage.primary, usage.secondary].compactMap { $0 }
+    }
+
+    private var preferredUsage: WindowUsage? {
+        usage?.secondary ?? usage?.primary
+    }
+
     var body: some View {
         Group {
             switch mode {
@@ -87,19 +96,19 @@ struct PetIslandView: View {
 
     private var compactNotch: some View {
         HStack(spacing: 0) {
-            usageMetric(
-                label: usage?.primary?.label ?? "5h",
-                remaining: usage?.primary?.remainingPercent
-            )
+            Group {
+                if let first = usageWindows.first {
+                    usageMetric(label: first.label, remaining: first.remainingPercent)
+                }
+            }
             .frame(width: 67, alignment: .leading)
 
             Spacer(minLength: 72)
 
             HStack(spacing: 8) {
-                usageMetric(
-                    label: usage?.secondary?.label ?? "7d",
-                    remaining: usage?.secondary?.remainingPercent
-                )
+                if usageWindows.count > 1, let last = usageWindows.last {
+                    usageMetric(label: last.label, remaining: last.remainingPercent)
+                }
                 activityDot
             }
             .frame(width: 72, alignment: .trailing)
@@ -225,14 +234,12 @@ struct PetIslandView: View {
                     .lineLimit(1)
 
                 HStack(spacing: 7) {
-                    compactPercent(
-                        label: usage?.primary?.label ?? "5h",
-                        remaining: usage?.primary?.remainingPercent
-                    )
-                    compactPercent(
-                        label: secondaryUsageLabel,
-                        remaining: usage?.secondary?.remainingPercent
-                    )
+                    ForEach(Array(usageWindows.enumerated()), id: \.offset) { _, window in
+                        compactPercent(
+                            label: window.label,
+                            remaining: window.remainingPercent
+                        )
+                    }
                     Label(
                         runningCountText,
                         systemImage: runningSessions.isEmpty ? "pause.fill" : "bolt.fill"
@@ -243,7 +250,7 @@ struct PetIslandView: View {
             }
 
             Spacer(minLength: 4)
-            usageRing(remaining: usage?.primary?.remainingPercent)
+            usageRing(remaining: preferredUsage?.remainingPercent)
         }
         .padding(.leading, 14)
         .padding(.trailing, 11)
@@ -335,14 +342,12 @@ struct PetIslandView: View {
             Divider()
 
             HStack(spacing: 8) {
-                summaryMetric(
-                    label: usage?.primary?.label ?? "5h",
-                    value: percentText(usage?.primary?.remainingPercent)
-                )
-                summaryMetric(
-                    label: secondaryUsageLabel,
-                    value: percentText(usage?.secondary?.remainingPercent)
-                )
+                ForEach(Array(usageWindows.enumerated()), id: \.offset) { _, window in
+                    summaryMetric(
+                        label: window.label,
+                        value: percentText(window.remainingPercent)
+                    )
+                }
                 summaryMetric(
                     label: text("Running", "运行中"),
                     value: "\(runningSessions.count)"
@@ -548,7 +553,7 @@ struct PetIslandView: View {
     }
 
     private var dockedUsage: WindowUsage? {
-        usage?.secondary ?? usage?.primary
+        preferredUsage
     }
 
     private var dockedUsageProgress: CGFloat {
@@ -601,16 +606,6 @@ struct PetIslandView: View {
         runningSessions.first?.displayTaskDescription
             ?? sessions.first?.displayTaskDescription
             ?? text("No active Codex tasks", "当前没有 Codex 任务")
-    }
-
-    private var secondaryUsageLabel: String {
-        if let label = usage?.secondary?.label {
-            return label
-        }
-        guard let primaryLabel = usage?.primary?.label else {
-            return "7d"
-        }
-        return primaryLabel == "5h" ? "7d" : "5h"
     }
 
     private func projectName(for session: SessionDisplaySnapshot) -> String {

@@ -1,21 +1,4 @@
-import Combine
 import Foundation
-
-enum PetPresentationPreference: String, CaseIterable, Identifiable {
-    case automatic
-    case notch
-    case floating
-
-    var id: String { rawValue }
-
-    var displayName: String {
-        switch self {
-        case .automatic: "Auto"
-        case .notch: "Notch Bar"
-        case .floating: "Floating Pet"
-        }
-    }
-}
 
 @MainActor
 final class PetIslandPreferences: ObservableObject {
@@ -32,33 +15,35 @@ final class PetIslandPreferences: ObservableObject {
         didSet { defaults.set(selectedPetID, forKey: Self.selectedPetKey) }
     }
 
-    @Published var presentationMode: PetPresentationPreference {
-        didSet { defaults.set(presentationMode.rawValue, forKey: Self.presentationKey) }
-    }
-
+    @Published private(set) var followsLocalPet: Bool
     let pets: [CodexPet]
 
     private let defaults: UserDefaults
+    private let localSelectedPetID: String?
 
     init(
         pets: [CodexPet] = CodexPetCatalog().load(),
-        defaults: UserDefaults = .standard
+        defaults: UserDefaults = .standard,
+        localSelectedPetID: String? = CodexPetSelectionReader().selectedPetID()
     ) {
         self.pets = pets
         self.defaults = defaults
+        self.localSelectedPetID = localSelectedPetID
         isEnabled = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
-        presentationMode = PetPresentationPreference(
-            rawValue: defaults.string(forKey: Self.presentationKey) ?? ""
-        ) ?? .automatic
+        defaults.removeObject(forKey: Self.presentationKey)
 
         let savedID = defaults.string(forKey: Self.selectedPetKey)
         let hasExplicitSelection = defaults.bool(forKey: Self.explicitSelectionKey)
+        followsLocalPet = !hasExplicitSelection
         if hasExplicitSelection,
            let savedID,
            pets.contains(where: { $0.id == savedID }) {
             selectedPetID = savedID
         } else {
-            selectedPetID = Self.recommendedPet(in: pets)?.id ?? ""
+            selectedPetID = Self.recommendedPet(
+                in: pets,
+                localSelectedPetID: localSelectedPetID
+            )?.id ?? ""
         }
     }
 
@@ -69,15 +54,39 @@ final class PetIslandPreferences: ObservableObject {
     func selectPet(id: String) {
         guard pets.contains(where: { $0.id == id }) else { return }
         defaults.set(true, forKey: Self.explicitSelectionKey)
+        followsLocalPet = false
         selectedPetID = id
     }
 
     func followLocalConfiguration() {
         defaults.set(false, forKey: Self.explicitSelectionKey)
-        selectedPetID = Self.recommendedPet(in: pets)?.id ?? ""
+        followsLocalPet = true
+        selectedPetID = Self.recommendedPet(
+            in: pets,
+            localSelectedPetID: localSelectedPetID
+        )?.id ?? ""
     }
 
-    static func recommendedPet(in pets: [CodexPet]) -> CodexPet? {
+    func setFollowsLocalPet(_ follows: Bool) {
+        if follows {
+            followLocalConfiguration()
+        } else {
+            defaults.set(true, forKey: Self.explicitSelectionKey)
+            followsLocalPet = false
+        }
+    }
+
+    static func recommendedPet(
+        in pets: [CodexPet],
+        localSelectedPetID: String? = nil
+    ) -> CodexPet? {
+        if let localSelectedPetID,
+           let selected = pets.first(where: { $0.id == localSelectedPetID })
+                ?? pets.first(where: {
+                    $0.manifestID == localSelectedPetID && $0.isCanonicalPackage
+                }) {
+            return selected
+        }
         let canonical = pets.filter(\.isCanonicalPackage)
         let candidates = canonical.isEmpty ? pets : canonical
         return candidates.max {
@@ -86,5 +95,39 @@ final class PetIslandPreferences: ObservableObject {
             }
             return $0.manifestModifiedAt < $1.manifestModifiedAt
         }
+    }
+}
+
+struct CodexPetSelectionReader {
+    let configURL: URL
+
+    init(
+        configURL: URL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex/config.toml")
+    ) {
+        self.configURL = configURL
+    }
+
+    func selectedPetID() -> String? {
+        guard let contents = try? String(contentsOf: configURL, encoding: .utf8) else {
+            return nil
+        }
+        for rawLine in contents.split(whereSeparator: \.isNewline) {
+            let line = rawLine.trimmingCharacters(in: .whitespaces)
+            guard line.hasPrefix("selected-avatar-id"),
+                  let separator = line.firstIndex(of: "=")
+            else {
+                continue
+            }
+            var value = line[line.index(after: separator)...]
+                .trimmingCharacters(in: .whitespaces)
+            if let comment = value.firstIndex(of: "#") {
+                value = String(value[..<comment]).trimmingCharacters(in: .whitespaces)
+            }
+            value = value.trimmingCharacters(in: CharacterSet(charactersIn: "\"'"))
+            guard !value.isEmpty else { return nil }
+            return value.split(separator: ":", maxSplits: 1).last.map(String.init)
+        }
+        return nil
     }
 }

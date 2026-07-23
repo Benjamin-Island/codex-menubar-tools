@@ -23,27 +23,23 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
             )
         }
 
-        let fullReader = DashboardReader(
-            logIndex: IncrementalCodexLogIndex(),
+        let reader = DashboardReader(
+            logIndex: IncrementalCodexLogIndex(
+                ordinaryLimit: 8,
+                initialHeadBytes: 256 * 1_024,
+                initialTailBytes: 8 * 1_024 * 1_024
+            ),
             historyAggregator: TokenHistoryAggregator(),
             rateLimitReducer: RateLimitReducer(),
             sessionInventory: sessionInventory(),
             sessionsDirectory: sessionsDirectory,
             sessionIndexURL: sessionIndexURL
         )
-        let liveReader = DashboardReader(
-            logIndex: IncrementalCodexLogIndex(ordinaryLimit: 8),
-            historyAggregator: TokenHistoryAggregator(),
-            rateLimitReducer: RateLimitReducer(),
-            sessionInventory: sessionInventory(),
-            sessionsDirectory: sessionsDirectory,
-            sessionIndexURL: sessionIndexURL
-        )
-        let initialSnapshot = liveReader.read()
+        let initialSnapshot = reader.read()
         let store = DashboardStore(
             snapshot: initialSnapshot,
             reader: {
-                await Task.detached(priority: .utility) { fullReader.read() }.value
+                await Task.detached(priority: .utility) { reader.read() }.value
             }
         )
         let controller = StatusController(store: store, sessionsDirectory: sessionsDirectory)

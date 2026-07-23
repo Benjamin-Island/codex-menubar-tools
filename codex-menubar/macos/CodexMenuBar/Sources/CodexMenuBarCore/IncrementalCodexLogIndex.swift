@@ -48,6 +48,8 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
     private let chunkSize: Int
     private let maximumLineBytes: Int
     private let boundaryByteCount: Int
+    private let initialHeadBytes: Int?
+    private let initialTailBytes: Int?
     private let lock = NSLock()
     private var cursors: [String: LogCursor] = [:]
 
@@ -62,23 +64,43 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
         )
     }
 
+    public convenience init(
+        ordinaryLimit: Int,
+        initialHeadBytes: Int,
+        initialTailBytes: Int
+    ) {
+        self.init(
+            rangeReader: FileHandleRangeReader(),
+            discoverer: FileSystemLogDiscoverer(ordinaryLimit: ordinaryLimit),
+            initialHeadBytes: initialHeadBytes,
+            initialTailBytes: initialTailBytes
+        )
+    }
+
     init(
         rangeReader: any FileRangeReading,
         discoverer: any LogFileDiscovering = FileSystemLogDiscoverer(),
         nameIndex: SessionNameIndex = SessionNameIndex(),
         chunkSize: Int = 64 * 1_024,
         maximumLineBytes: Int = 8 * 1_024 * 1_024,
-        boundaryByteCount: Int = 64
+        boundaryByteCount: Int = 64,
+        initialHeadBytes: Int? = nil,
+        initialTailBytes: Int? = nil
     ) {
         precondition(chunkSize > 0)
         precondition(maximumLineBytes > 0)
         precondition(boundaryByteCount > 0)
+        precondition(initialHeadBytes.map { $0 > 0 } ?? true)
+        precondition(initialTailBytes.map { $0 > 0 } ?? true)
+        precondition((initialHeadBytes == nil) == (initialTailBytes == nil))
         self.rangeReader = rangeReader
         self.discoverer = discoverer
         self.nameIndex = nameIndex
         self.chunkSize = chunkSize
         self.maximumLineBytes = maximumLineBytes
         self.boundaryByteCount = boundaryByteCount
+        self.initialHeadBytes = initialHeadBytes
+        self.initialTailBytes = initialTailBytes
     }
 
     var cursorCount: Int {
@@ -155,11 +177,10 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
                         framing: JSONLFramingState(maximumLineBytes: maximumLineBytes),
                         accumulator: SessionLogAccumulator(path: fingerprint.path)
                     )
-                    next = try consume(
+                    next = try initialConsume(
                         cursor: empty,
                         fingerprint: fingerprint,
                         calendarSignature: signature,
-                        range: 0..<UInt64(max(0, fingerprint.byteSize)),
                         cutoff: cutoff,
                         today: today,
                         calendar: calendar
@@ -219,6 +240,84 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
         cursor.fingerprint.identity == fingerprint.identity
             && fingerprint.byteSize >= 0
             && UInt64(fingerprint.byteSize) > cursor.consumedOffset
+    }
+
+    private func initialConsume(
+        cursor: LogCursor,
+        fingerprint: LogFileFingerprint,
+        calendarSignature: CalendarSignature,
+        cutoff: Date,
+        today: Date,
+        calendar: Calendar
+    ) throws -> LogCursor {
+        let byteSize = UInt64(max(0, fingerprint.byteSize))
+        guard let initialHeadBytes, let initialTailBytes else {
+            return try consume(
+                cursor: cursor,
+                fingerprint: fingerprint,
+                calendarSignature: calendarSignature,
+                range: 0..<byteSize,
+                cutoff: cutoff,
+                today: today,
+                calendar: calendar
+            )
+        }
+
+        let headEnd = min(byteSize, UInt64(initialHeadBytes))
+        let tailStart = byteSize > UInt64(initialTailBytes)
+            ? byteSize - UInt64(initialTailBytes)
+            : 0
+        guard tailStart > headEnd else {
+            return try consume(
+                cursor: cursor,
+                fingerprint: fingerprint,
+                calendarSignature: calendarSignature,
+                range: 0..<byteSize,
+                cutoff: cutoff,
+                today: today,
+                calendar: calendar
+            )
+        }
+
+        var next = try consume(
+            cursor: cursor,
+            fingerprint: fingerprint,
+            calendarSignature: calendarSignature,
+            range: 0..<headEnd,
+            cutoff: cutoff,
+            today: today,
+            calendar: calendar
+        )
+        next.framing = JSONLFramingState(
+            maximumLineBytes: maximumLineBytes,
+            discardingPartialLine: try tailStartsInsideLine(
+                url: URL(fileURLWithPath: fingerprint.path),
+                offset: tailStart
+            )
+        )
+        next.accumulator.prepareForTailJump()
+        next.consumedOffset = tailStart
+        next.boundaryBytes = Data()
+        return try consume(
+            cursor: next,
+            fingerprint: fingerprint,
+            calendarSignature: calendarSignature,
+            range: tailStart..<byteSize,
+            cutoff: cutoff,
+            today: today,
+            calendar: calendar
+        )
+    }
+
+    private func tailStartsInsideLine(url: URL, offset: UInt64) throws -> Bool {
+        guard offset > 0 else { return false }
+        var previousByte = Data()
+        try rangeReader.read(
+            url: url,
+            range: (offset - 1)..<offset,
+            chunkSize: 1
+        ) { previousByte.append($0) }
+        return previousByte.first != 0x0A
     }
 
     private func boundaryBytesMatch(cursor: LogCursor, url: URL) throws -> Bool {
