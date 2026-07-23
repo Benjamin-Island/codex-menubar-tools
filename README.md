@@ -1,18 +1,43 @@
-# Codex Menu Bar
+<p align="right">
+  <strong>English</strong> |
+  <a href="README.zh-CN.md">简体中文</a>
+</p>
 
-A native, local-only macOS menu bar dashboard for Codex usage, Token history, and live interactive CLI sessions.
+<div align="center">
+  <h1>Codex Menu Bar</h1>
+  <p>A native, local-only macOS menu bar dashboard for Codex usage, Token history, and live interactive CLI sessions.</p>
+  <p>
+    <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple">
+    <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&amp;logoColor=white">
+    <img alt="Local-only data" src="https://img.shields.io/badge/data-local--only-2ea44f">
+    <img alt="Read-only access" src="https://img.shields.io/badge/access-read--only-0969da">
+  </p>
+</div>
 
-One menu bar item shows the primary usage remaining and the number of live interactive sessions. Click it to open a SwiftUI dashboard with three pages:
+<p align="center">
+  <a href="docs/assets/codex-menubar-demo.mp4">
+    <img alt="Codex Menu Bar demo" src="docs/assets/codex-menubar-demo.gif">
+  </a>
+</p>
 
-- **Overview** — primary and secondary rate-limit windows, a compact Token heatmap, and live-session shortcuts.
-- **History** — the latest 60 local days, daily Total/Input/Cached/Output/Reasoning details, and per-session breakdowns.
-- **Sessions** — strictly detected top-level Codex terminal TUIs, with activity, working directory, last update, and cumulative Tokens.
+<p align="center">
+  <a href="docs/assets/codex-menubar-demo.mp4">Watch the high-quality MP4</a>
+</p>
 
-## Why
+## Features
 
-Codex already records useful local session data, but checking usage and understanding activity across days normally requires leaving the current workflow. Codex Menu Bar turns that local data into a small read-only dashboard without Electron, accounts, or a background service.
+- **Overview** — see primary and secondary rate-limit windows, a compact Token heatmap, and shortcuts to live sessions.
+- **History** — explore the latest 60 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
+- **Sessions** — find strictly detected top-level Codex terminal TUIs, including activity, working directory, last update, and cumulative Tokens.
+- **Private by design** — inspect local Codex data without accounts, network requests, analytics, or a background service.
 
-## Privacy and read-only behavior
+## Why Codex Menu Bar
+
+Codex already records useful local session data, but checking usage and understanding activity across days usually means leaving your current workflow. Codex Menu Bar turns that data into a small, read-only SwiftUI dashboard available directly from the macOS menu bar.
+
+The menu bar item shows the primary usage remaining and the number of live interactive sessions. Click it to open the Overview, History, and Sessions pages.
+
+## Privacy and read-only design
 
 The app:
 
@@ -23,15 +48,9 @@ The app:
 - does **not** write a cache, database, analytics, or log file;
 - does **not** start, stop, or otherwise control Codex sessions.
 
-Session JSONL files are streamed in bounded chunks. While the app is running, appended bytes update pure-memory daily summaries; raw historical Token events are not retained. The index is never written to disk, so restarting the app performs a fresh streaming scan.
+Session JSONL files are streamed in bounded chunks. While the app is running, appended bytes update in-memory daily summaries; raw historical Token events are not retained. The index is never written to disk, so restarting the app performs a fresh streaming scan.
 
-History includes every indexed local rollout source from the latest 60 local calendar days, while the live Sessions page intentionally includes only top-level interactive terminal TUIs. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
-
-## Token semantics
-
-Codex records cumulative Token counters. The app converts consecutive cumulative values into increments, handles counter resets independently, and groups increments by system-local calendar day.
-
-`Total` is used as reported. Cached input and Reasoning are shown as detail fields and are never added to Total again.
+History includes every indexed local rollout source from the latest 60 local calendar days. The live Sessions page intentionally includes only top-level interactive terminal TUIs. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
 
 ## Requirements
 
@@ -45,18 +64,19 @@ Install Apple's command-line developer tools if needed:
 xcode-select --install
 ```
 
-## Download — Apple Silicon preview
+## Quick start
+
+### Download the Apple Silicon preview
 
 > [!WARNING]
 > This free preview is built for Apple Silicon Macs, uses an ad-hoc signature, and is not Apple-notarized. macOS may block the first launch.
 
-[Download Codex Menu Bar v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip)
+- [Download Codex Menu Bar v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip)
+- [SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip.sha256)
 
-[SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip.sha256)
+Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click the app and choose **Open** for the first launch. If macOS still refuses to open it, build from source instead of disabling system-wide security controls.
 
-Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click the app and choose **Open** for the first launch. If macOS still refuses to open it, build from source below instead of disabling system-wide security controls.
-
-## Build from source
+### Build from source
 
 Clone the repository, build the app locally, and open it:
 
@@ -67,7 +87,7 @@ codex-menubar/macos/CodexMenuBar/scripts/build-app.sh
 open codex-menubar/macos/CodexMenuBar/dist/CodexMenuBar.app
 ```
 
-The app runs only in the menu bar and has no Dock icon. The first scan may take a little longer for large Codex histories; later refreshes validate the saved file boundary and read only appended bytes whenever possible.
+The app runs only in the menu bar and has no Dock icon. The first scan may take a little longer for large Codex histories; later refreshes validate the recorded file boundary and read only appended bytes whenever possible.
 
 Optional path overrides are available for development:
 
@@ -77,6 +97,12 @@ CODEX_SESSION_INDEX=/path/to/session_index.jsonl \
 codex-menubar/macos/CodexMenuBar/dist/CodexMenuBar.app/Contents/MacOS/CodexMenuBar
 ```
 
+## Data and Token semantics
+
+Codex records cumulative Token counters. The app converts consecutive cumulative values into increments, handles counter resets independently, and groups increments by the system's local calendar day.
+
+`Total` is used as reported. Cached input and Reasoning are detail fields and are never added to Total again.
+
 ## Test
 
 From the repository root:
@@ -85,18 +111,10 @@ From the repository root:
 swift test --package-path codex-menubar/macos/CodexMenuBar
 ```
 
-The suite includes parser, aggregation, rate-limit, process-classification, routing, SwiftUI layout, and read-only live smoke coverage.
-
-## Demo video
-
-See Codex Menu Bar move through usage limits, the 60-day Token history, daily details, and live interactive sessions.
-
-[![Codex Menu Bar demo](docs/assets/codex-menubar-demo.gif)](docs/assets/codex-menubar-demo.mp4)
-
-[Watch the high-quality MP4](docs/assets/codex-menubar-demo.mp4)
+The suite covers parser, aggregation, rate-limit, process-classification, routing, SwiftUI layout, and read-only live smoke behavior.
 
 ## Notes
 
 - This is an independent project, not an official OpenAI application.
 - Usage data comes from local Codex session events, not an official Usage API.
-- The locally built app is ad-hoc signed and not notarized. If macOS blocks the first launch, right-click the app and choose **Open**.
+- Locally built copies are ad-hoc signed and not notarized. If macOS blocks the first launch, right-click the app and choose **Open**.
