@@ -52,10 +52,11 @@ an installed custom pet. Its display mode can be **Auto**, **Notch Bar**, or
 on a notched display and uses a small expandable pet on a non-notched display.
 In floating mode, an idle pet uses the manifest's idle animation while a live
 task uses its directional running frames. Drag the pet left or right to move the
-panel and change its running direction. Dropping it near either screen edge
-snaps the complete side-facing pet into a compact edge pocket using frames from
-the same local spritesheet; it does not crop the pet artwork. Click the pocket
-to reveal the full summary again.
+panel and change its running direction, including across connected displays.
+Dropping it near either screen edge snaps the manifest's front-facing idle pet
+into a circular quota dock. Its ring and badge keep the remaining percentage
+and reset countdown visible without cropping or modifying the pet artwork.
+Click the dock to reveal the full summary again.
 By default it follows the newest canonical local pet
 package (the folder name matches the manifest `id`) and ignores backup package
 folders. A pet id is stored in macOS user defaults only after the user explicitly

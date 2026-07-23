@@ -46,4 +46,21 @@ final class PetIslandPlacementTests: XCTestCase {
 
         XCTAssertEqual(size, PetIslandPlacement.peekSize)
     }
+
+    func testFloatingPlacementSupportsSecondaryScreenCoordinates() {
+        let secondaryScreen = NSRect(x: 1_470, y: 254, width: 1_280, height: 800)
+        let secondaryVisible = NSRect(x: 1_470, y: 254, width: 1_280, height: 776)
+        let frame = PetIslandPlacement.frame(
+            mode: .floating,
+            expanded: false,
+            screenFrame: secondaryScreen,
+            visibleFrame: secondaryVisible,
+            menuBarHeight: 24
+        )
+
+        XCTAssertGreaterThanOrEqual(frame.minX, secondaryVisible.minX)
+        XCTAssertLessThanOrEqual(frame.maxX, secondaryVisible.maxX)
+        XCTAssertGreaterThanOrEqual(frame.minY, secondaryVisible.minY)
+        XCTAssertLessThanOrEqual(frame.maxY, secondaryVisible.maxY)
+    }
 }
