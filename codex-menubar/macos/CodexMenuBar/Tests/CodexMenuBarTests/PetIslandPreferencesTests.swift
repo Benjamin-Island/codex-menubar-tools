@@ -40,6 +40,19 @@ final class PetIslandPreferencesTests: XCTestCase {
         XCTAssertEqual(restored.selectedPetID, "newer")
     }
 
+    func testPresentationModeDefaultsToAutoAndPersistsFloatingChoice() {
+        let suiteName = "PetIslandPreferencesTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let preferences = PetIslandPreferences(pets: [], defaults: defaults)
+        XCTAssertEqual(preferences.presentationMode, .automatic)
+
+        preferences.presentationMode = .floating
+        let restored = PetIslandPreferences(pets: [], defaults: defaults)
+        XCTAssertEqual(restored.presentationMode, .floating)
+    }
+
     private func pet(
         id: String,
         manifestID: String?,
