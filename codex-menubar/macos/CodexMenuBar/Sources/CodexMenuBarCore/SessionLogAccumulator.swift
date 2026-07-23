@@ -328,6 +328,7 @@ struct SessionLogAccumulator: Equatable, Sendable {
         let values = [source, originator, threadSource]
             .compactMap { $0?.lowercased() }
             .joined(separator: " ")
+        if values.contains("subagent") { return "Subagent" }
         if values.contains("codex-tui") || source?.lowercased() == "cli" { return "cli" }
         if values.contains("exec") { return "exec" }
         if values.contains("review") { return "review" }

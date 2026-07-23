@@ -59,30 +59,34 @@ struct PetSpriteView: View {
 
     private var spriteRow: Int {
         switch state {
-        case .idle, .peekingLeft, .peekingRight:
+        case .idle:
             return 0
-        case .runningRight:
+        case .runningRight, .peekingLeft:
             return 1
-        case .runningLeft:
+        case .runningLeft, .peekingRight:
             return 2
         }
     }
 
     private var animationFrameCount: Int {
         switch state {
-        case .idle, .peekingLeft, .peekingRight:
+        case .idle:
             return 7
         case .runningLeft, .runningRight:
             return 8
+        case .peekingLeft, .peekingRight:
+            return 1
         }
     }
 
     private var frameInterval: TimeInterval {
         switch state {
-        case .idle, .peekingLeft, .peekingRight:
+        case .idle:
             return 0.55
         case .runningLeft, .runningRight:
             return 0.15
+        case .peekingLeft, .peekingRight:
+            return 1
         }
     }
 

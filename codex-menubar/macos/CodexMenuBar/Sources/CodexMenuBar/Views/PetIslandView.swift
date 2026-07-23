@@ -136,10 +136,21 @@ struct PetIslandView: View {
             } else {
                 Button(action: toggleExpanded) {
                     ZStack(alignment: .bottomTrailing) {
-                        collapsedFloatingSummary
-                            .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+                        if !isDraggingPet {
+                            collapsedFloatingSummary
+                                .frame(
+                                    maxWidth: .infinity,
+                                    maxHeight: .infinity,
+                                    alignment: .topLeading
+                                )
+                        }
                         floatingPet
                     }
+                    .frame(
+                        width: PetIslandPlacement.floatingSize.width,
+                        height: PetIslandPlacement.floatingSize.height,
+                        alignment: .bottomTrailing
+                    )
                 }
                 .buttonStyle(.plain)
                 .help("Show Codex summary")
@@ -171,33 +182,31 @@ struct PetIslandView: View {
 
     private var peekingPet: some View {
         ZStack {
+            peekShape
+                .fill(.ultraThinMaterial)
+                .overlay {
+                    peekShape
+                        .strokeBorder(.white.opacity(0.38), lineWidth: 1)
+                }
+
             pet
-                .frame(width: 82, height: 90)
-                .offset(
-                    x: dockEdge == .left ? 13 : -13,
-                    y: 25
-                )
+                .frame(width: 40, height: 46)
+                .padding(dockEdge == .left ? .trailing : .leading, 2)
         }
         .frame(
             width: PetIslandPlacement.peekSize.width,
             height: PetIslandPlacement.peekSize.height
         )
-        .background(.ultraThinMaterial)
-        .clipShape(peekShape)
-        .overlay {
-            peekShape
-                .strokeBorder(.white.opacity(0.4), lineWidth: 1)
-        }
         .shadow(color: .black.opacity(0.16), radius: 7, y: 2)
         .contentShape(Rectangle())
     }
 
     private var peekShape: UnevenRoundedRectangle {
         UnevenRoundedRectangle(
-            topLeadingRadius: dockEdge == .left ? 0 : 18,
-            bottomLeadingRadius: dockEdge == .left ? 0 : 18,
-            bottomTrailingRadius: dockEdge == .right ? 0 : 18,
-            topTrailingRadius: dockEdge == .right ? 0 : 18
+            topLeadingRadius: dockEdge == .left ? 0 : 16,
+            bottomLeadingRadius: dockEdge == .left ? 0 : 16,
+            bottomTrailingRadius: dockEdge == .right ? 0 : 16,
+            topTrailingRadius: dockEdge == .right ? 0 : 16
         )
     }
 
