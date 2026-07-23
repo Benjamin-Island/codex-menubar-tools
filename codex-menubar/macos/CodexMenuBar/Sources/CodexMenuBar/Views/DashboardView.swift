@@ -97,9 +97,16 @@ private struct PetIslandSettingsControl: View {
             Toggle("Show Pet Island", isOn: $preferences.isEnabled)
             if !preferences.pets.isEmpty {
                 Divider()
+                Button {
+                    preferences.followLocalConfiguration()
+                    preferences.isEnabled = true
+                } label: {
+                    Label("Follow Local Pet", systemImage: "arrow.triangle.2.circlepath")
+                }
+                Divider()
                 ForEach(preferences.pets) { pet in
                     Button {
-                        preferences.selectedPetID = pet.id
+                        preferences.selectPet(id: pet.id)
                         preferences.isEnabled = true
                     } label: {
                         if pet.id == preferences.selectedPetID {
