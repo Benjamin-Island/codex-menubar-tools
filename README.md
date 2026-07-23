@@ -8,6 +8,27 @@ One menu bar item shows the primary usage remaining and the number of live inter
 - **History** — the latest 60 local days, daily Total/Input/Cached/Output/Reasoning details, and per-session breakdowns.
 - **Sessions** — strictly detected top-level Codex terminal TUIs, with activity, working directory, last update, and cumulative Tokens.
 
+## Pet Island
+
+Pet Island keeps the same usage and live-session signal attached to the top
+center of the active display. On a notched MacBook it visually joins the camera
+notch; on a display without a notch it remains docked to the top edge instead of
+floating over the desktop.
+
+The island renders the user's local Codex custom pet in the same window as the
+usage metrics, so the pet and status never need to be manually aligned. It
+discovers read-only pet packages from:
+
+- `~/.codex/pets/*/pet.json`
+- `~/Library/Application Support/Codex/pets/*/pet.json`
+- `~/Library/Application Support/ChatGPT/pets/*/pet.json`
+
+Use **Pet Island** in the dashboard footer to show or hide the island and choose
+an installed custom pet. The currently selected pet id and visibility setting
+are stored in macOS user defaults; pet packages are never modified. If the Codex
+app's own pet overlay is enabled, turn one of the two overlays off to avoid
+showing the same pet twice.
+
 ## Why
 
 Codex already records useful local session data, but checking usage and understanding activity across days normally requires leaving the current workflow. Codex Menu Bar turns that local data into a small read-only dashboard without Electron, accounts, or a background service.
