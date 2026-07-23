@@ -93,6 +93,27 @@ final class DashboardReaderTests: XCTestCase {
         XCTAssertEqual(sessions.first?.activity, .stalled)
     }
 
+    func testDesktopSubagentDoesNotBecomeRunningUserTask() {
+        let reader = makeReader(
+            indexResults: [.success(snapshot(summaries: [
+                summary(
+                    hasRateLimit: false,
+                    totalTokens: 8,
+                    sourceKind: "Subagent",
+                    lifecycle: .active
+                )
+            ]))],
+            processes: .success([])
+        )
+
+        let snapshot = reader.read()
+
+        XCTAssertEqual(
+            snapshot.sessions,
+            .empty("No active Codex sessions are running.")
+        )
+    }
+
     func testDesktopParentAndChildLogsCollapseToNewestSessionEntry() {
         let sharedID = "desktop-thread"
         let reader = makeReader(

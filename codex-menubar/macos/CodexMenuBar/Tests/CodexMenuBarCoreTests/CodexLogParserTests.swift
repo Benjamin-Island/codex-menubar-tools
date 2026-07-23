@@ -79,6 +79,7 @@ final class CodexLogParserTests: XCTestCase {
             ("cli", "codex-tui", "user", "cli"),
             ("unknown", "vscode", "user", "IDE"),
             ("vscode", "Codex Desktop", "user", "App"),
+            ("vscode", "Codex Desktop", "subagent", "Subagent"),
             ("unknown", "exec", "user", "exec"),
             ("unknown", "chatgpt-app", "user", "App"),
             ("mystery", "unknown", "unknown", "Other")

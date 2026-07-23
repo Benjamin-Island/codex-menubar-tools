@@ -155,10 +155,6 @@ final class PetIslandController: NSObject {
             }
             .store(in: &cancellables)
 
-        store.$snapshot
-            .sink { [weak self] _ in self?.updatePresentation() }
-            .store(in: &cancellables)
-
         NotificationCenter.default.addObserver(
             self,
             selector: #selector(screenEnvironmentDidChange),
@@ -181,14 +177,14 @@ final class PetIslandController: NSObject {
     private func toggleExpanded() {
         if isPeeking {
             isPeeking = false
-            updatePresentation()
+            updatePresentation(animateFrame: false)
             return
         }
         isExpanded.toggle()
         updatePresentation()
     }
 
-    private func updatePresentation() {
+    private func updatePresentation(animateFrame: Bool = true) {
         guard preferences.isEnabled, let screen = screenProvider() else {
             panel.orderOut(nil)
             return
@@ -200,17 +196,25 @@ final class PetIslandController: NSObject {
             floatingOrigin = nil
         }
         let menuBarHeight = PetIslandPlacement.menuBarHeight(on: screen)
-        rebuildContent(screen: screen, mode: mode, menuBarHeight: menuBarHeight)
+        let targetFrame: NSRect?
         if !isDragging {
-            panel.setFrame(
-                presentationFrame(
-                    mode: mode,
-                    screen: screen,
-                    menuBarHeight: menuBarHeight
-                ),
-                display: true,
-                animate: panel.isVisible
+            let frame = presentationFrame(
+                mode: mode,
+                screen: screen,
+                menuBarHeight: menuBarHeight
             )
+            targetFrame = frame
+            panel.setFrame(
+                frame,
+                display: true,
+                animate: animateFrame && panel.isVisible
+            )
+        } else {
+            targetFrame = nil
+        }
+        rebuildContent(screen: screen, mode: mode, menuBarHeight: menuBarHeight)
+        if let targetFrame {
+            panel.setFrame(targetFrame, display: true, animate: false)
         }
         panel.orderFrontRegardless()
     }
@@ -313,7 +317,7 @@ final class PetIslandController: NSObject {
             isPeeking = false
         }
         floatingOrigin = clampedFrame(frame, to: visibleFrame).origin
-        updatePresentation()
+        updatePresentation(animateFrame: false)
     }
 
     private func screenForPanel() -> NSScreen {
