@@ -29,8 +29,6 @@ final class PetIslandPreferences: ObservableObject {
         let savedID = defaults.string(forKey: Self.selectedPetKey)
         if let savedID, pets.contains(where: { $0.id == savedID }) {
             selectedPetID = savedID
-        } else if let scout = pets.first(where: { $0.id == "scout" }) {
-            selectedPetID = scout.id
         } else {
             selectedPetID = pets.first?.id ?? ""
         }

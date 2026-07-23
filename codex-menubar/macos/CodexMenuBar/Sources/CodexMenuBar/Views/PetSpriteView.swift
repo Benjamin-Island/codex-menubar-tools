@@ -7,8 +7,8 @@ struct PetSpriteView: View {
     private let image: NSImage?
 
     private let columns = 8
-    private let rows = 9
     private let animationFrameCount = 6
+    private var rows: Int { pet.spriteVersionNumber == 2 ? 11 : 9 }
 
     init(pet: CodexPet, isActive: Bool) {
         self.pet = pet

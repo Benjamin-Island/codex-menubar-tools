@@ -10,28 +10,28 @@ final class CodexPetCatalogTests: XCTestCase {
         let secondRoot = temporary.appendingPathComponent("second", isDirectory: true)
 
         try writePet(
-            id: "scout",
-            manifest: #"{"displayName":"Scout","description":"Newsroom fox"}"#,
+            id: "alpha",
+            manifest: #"{"displayName":"Alpha","description":"First local pet"}"#,
             root: firstRoot
         )
         try writePet(
-            id: "scout",
-            manifest: #"{"displayName":"Duplicate Scout"}"#,
+            id: "alpha",
+            manifest: #"{"displayName":"Duplicate Alpha"}"#,
             root: secondRoot
         )
         try writePet(
-            id: "penguin",
-            manifest: #"{"displayName":"Penguin","spriteVersionNumber":2,"spritesheetPath":"pet.webp"}"#,
+            id: "beta",
+            manifest: #"{"displayName":"Beta","spriteVersionNumber":2,"spritesheetPath":"pet.webp"}"#,
             root: secondRoot,
             spriteName: "pet.webp"
         )
 
         let pets = CodexPetCatalog(roots: [firstRoot, secondRoot]).load()
 
-        XCTAssertEqual(pets.map(\.id), ["penguin", "scout"])
-        XCTAssertEqual(pets.first(where: { $0.id == "scout" })?.displayName, "Scout")
-        XCTAssertEqual(pets.first(where: { $0.id == "scout" })?.spriteVersionNumber, 1)
-        XCTAssertEqual(pets.first(where: { $0.id == "penguin" })?.spriteVersionNumber, 2)
+        XCTAssertEqual(pets.map(\.id), ["alpha", "beta"])
+        XCTAssertEqual(pets.first(where: { $0.id == "alpha" })?.displayName, "Alpha")
+        XCTAssertEqual(pets.first(where: { $0.id == "alpha" })?.spriteVersionNumber, 1)
+        XCTAssertEqual(pets.first(where: { $0.id == "beta" })?.spriteVersionNumber, 2)
     }
 
     func testRejectsSpritesheetPathOutsidePetDirectory() throws {
