@@ -2,20 +2,76 @@ import AppKit
 import Combine
 import SwiftUI
 
-struct PetIslandPlacement {
-    static let panelSize = NSSize(width: 300, height: 98)
+enum PetSurfaceMode: Equatable {
+    case notch
+    case floating
+}
 
-    static func frame(on screen: NSScreen) -> NSRect {
-        frame(in: screen.frame, size: panelSize)
+struct PetIslandPlacement {
+    static let notchWidth: CGFloat = 236
+    static let floatingSize = NSSize(width: 68, height: 72)
+    static let expandedSize = NSSize(width: 390, height: 184)
+
+    static func mode(on screen: NSScreen) -> PetSurfaceMode {
+        let hasAuxiliaryAreas: Bool
+        if let left = screen.auxiliaryTopLeftArea,
+           let right = screen.auxiliaryTopRightArea {
+            hasAuxiliaryAreas = !left.isEmpty && !right.isEmpty
+        } else {
+            hasAuxiliaryAreas = false
+        }
+        return screen.safeAreaInsets.top > 0 && hasAuxiliaryAreas ? .notch : .floating
     }
 
-    static func frame(in screenFrame: NSRect, size: NSSize) -> NSRect {
-        NSRect(
-            x: screenFrame.midX - size.width / 2,
-            y: screenFrame.maxY - size.height,
-            width: size.width,
-            height: size.height
+    static func menuBarHeight(on screen: NSScreen) -> CGFloat {
+        max(28, screen.frame.maxY - screen.visibleFrame.maxY)
+    }
+
+    static func size(
+        mode: PetSurfaceMode,
+        expanded: Bool,
+        menuBarHeight: CGFloat
+    ) -> NSSize {
+        if expanded {
+            return expandedSize
+        }
+        switch mode {
+        case .notch:
+            return NSSize(width: notchWidth, height: menuBarHeight)
+        case .floating:
+            return floatingSize
+        }
+    }
+
+    static func frame(
+        mode: PetSurfaceMode,
+        expanded: Bool,
+        screenFrame: NSRect,
+        visibleFrame: NSRect,
+        menuBarHeight: CGFloat
+    ) -> NSRect {
+        let size = size(
+            mode: mode,
+            expanded: expanded,
+            menuBarHeight: menuBarHeight
         )
+        switch mode {
+        case .notch:
+            return NSRect(
+                x: screenFrame.midX - size.width / 2,
+                y: screenFrame.maxY - size.height,
+                width: size.width,
+                height: size.height
+            )
+        case .floating:
+            let inset: CGFloat = 14
+            return NSRect(
+                x: visibleFrame.maxX - size.width - inset,
+                y: visibleFrame.maxY - size.height - 10,
+                width: size.width,
+                height: size.height
+            )
+        }
     }
 }
 
@@ -26,6 +82,7 @@ final class PetIslandController: NSObject {
     private let preferences: PetIslandPreferences
     private let screenProvider: () -> NSScreen?
     private let openDashboard: () -> Void
+    private var isExpanded = false
     private var cancellables: Set<AnyCancellable> = []
 
     init(
@@ -40,7 +97,7 @@ final class PetIslandController: NSObject {
         self.openDashboard = openDashboard
 
         panel = NSPanel(
-            contentRect: NSRect(origin: .zero, size: PetIslandPlacement.panelSize),
+            contentRect: NSRect(origin: .zero, size: PetIslandPlacement.floatingSize),
             styleMask: [.borderless, .nonactivatingPanel],
             backing: .buffered,
             defer: true
@@ -60,7 +117,7 @@ final class PetIslandController: NSObject {
         panel.hidesOnDeactivate = false
         panel.isMovable = false
         panel.animationBehavior = .utilityWindow
-        panel.setAccessibilityTitle("Codex Pet Island")
+        panel.setAccessibilityTitle("Codex Pet Status")
     }
 
     private func observeChanges() {
@@ -71,6 +128,18 @@ final class PetIslandController: NSObject {
 
         preferences.$selectedPetID
             .removeDuplicates()
+            .sink { [weak self] _ in self?.updatePresentation() }
+            .store(in: &cancellables)
+
+        preferences.$presentationMode
+            .removeDuplicates()
+            .sink { [weak self] _ in
+                self?.isExpanded = false
+                self?.updatePresentation()
+            }
+            .store(in: &cancellables)
+
+        store.$snapshot
             .sink { [weak self] _ in self?.updatePresentation() }
             .store(in: &cancellables)
 
@@ -89,6 +158,12 @@ final class PetIslandController: NSObject {
     }
 
     @objc private func screenEnvironmentDidChange() {
+        isExpanded = false
+        updatePresentation()
+    }
+
+    private func toggleExpanded() {
+        isExpanded.toggle()
         updatePresentation()
     }
 
@@ -97,22 +172,56 @@ final class PetIslandController: NSObject {
             panel.orderOut(nil)
             return
         }
-        rebuildContent(screen: screen)
-        // Installing an NSHostingController can update a borderless panel's
-        // content size. Apply the final screen-space frame afterwards so the
-        // panel remains attached to the display's top edge.
-        panel.setFrame(PetIslandPlacement.frame(on: screen), display: true)
+        let mode = resolvedMode(on: screen)
+        let menuBarHeight = PetIslandPlacement.menuBarHeight(on: screen)
+        rebuildContent(screen: screen, mode: mode, menuBarHeight: menuBarHeight)
+        panel.setFrame(
+            PetIslandPlacement.frame(
+                mode: mode,
+                expanded: isExpanded,
+                screenFrame: screen.frame,
+                visibleFrame: screen.visibleFrame,
+                menuBarHeight: menuBarHeight
+            ),
+            display: true,
+            animate: panel.isVisible
+        )
         panel.orderFrontRegardless()
     }
 
-    private func rebuildContent(screen: NSScreen? = nil) {
-        let display = screen ?? screenProvider()
+    private func rebuildContent(
+        screen: NSScreen? = nil,
+        mode requestedMode: PetSurfaceMode? = nil,
+        menuBarHeight requestedMenuBarHeight: CGFloat? = nil
+    ) {
+        guard let display = screen ?? screenProvider() else { return }
+        let mode = requestedMode ?? resolvedMode(on: display)
+        let menuBarHeight = requestedMenuBarHeight
+            ?? PetIslandPlacement.menuBarHeight(on: display)
         let rootView = PetIslandView(
             store: store,
             preferences: preferences,
-            isNotchedDisplay: (display?.safeAreaInsets.top ?? 0) > 0,
-            openDashboard: openDashboard
+            mode: mode,
+            isExpanded: isExpanded,
+            menuBarHeight: menuBarHeight,
+            toggleExpanded: { [weak self] in self?.toggleExpanded() },
+            openDashboard: { [weak self] in
+                self?.isExpanded = false
+                self?.updatePresentation()
+                self?.openDashboard()
+            }
         )
         panel.contentViewController = NSHostingController(rootView: rootView)
+    }
+
+    private func resolvedMode(on screen: NSScreen) -> PetSurfaceMode {
+        switch preferences.presentationMode {
+        case .automatic:
+            PetIslandPlacement.mode(on: screen)
+        case .notch:
+            .notch
+        case .floating:
+            .floating
+        }
     }
 }

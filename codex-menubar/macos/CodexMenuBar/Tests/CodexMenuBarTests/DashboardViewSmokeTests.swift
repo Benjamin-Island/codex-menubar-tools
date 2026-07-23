@@ -50,18 +50,25 @@ final class DashboardViewSmokeTests: XCTestCase {
         defaults.removePersistentDomain(forName: "PetIslandViewSmokeTests")
         let preferences = PetIslandPreferences(pets: [], defaults: defaults)
 
-        for isNotched in [false, true] {
+        for mode in [PetSurfaceMode.notch, .floating] {
             let controller = NSHostingController(
                 rootView: PetIslandView(
                     store: store,
                     preferences: preferences,
-                    isNotchedDisplay: isNotched,
+                    mode: mode,
+                    isExpanded: false,
+                    menuBarHeight: 34,
+                    toggleExpanded: {},
                     openDashboard: {}
                 )
             )
             controller.view.frame = CGRect(
                 origin: .zero,
-                size: PetIslandPlacement.panelSize
+                size: PetIslandPlacement.size(
+                    mode: mode,
+                    expanded: false,
+                    menuBarHeight: 34
+                )
             )
             controller.view.layoutSubtreeIfNeeded()
             let size = controller.view.fittingSize
@@ -69,6 +76,22 @@ final class DashboardViewSmokeTests: XCTestCase {
             XCTAssertGreaterThan(size.width, 0)
             XCTAssertGreaterThan(size.height, 0)
         }
+
+        let expanded = NSHostingController(
+            rootView: PetIslandView(
+                store: store,
+                preferences: preferences,
+                mode: .floating,
+                isExpanded: true,
+                menuBarHeight: 34,
+                toggleExpanded: {},
+                openDashboard: {}
+            )
+        )
+        expanded.view.frame = CGRect(origin: .zero, size: PetIslandPlacement.expandedSize)
+        expanded.view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(expanded.view.fittingSize.width.isFinite)
+        XCTAssertTrue(expanded.view.fittingSize.height.isFinite)
     }
 
     private func fullSnapshot() -> DashboardSnapshot {

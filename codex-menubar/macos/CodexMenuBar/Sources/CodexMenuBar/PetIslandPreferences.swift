@@ -1,11 +1,28 @@
 import Combine
 import Foundation
 
+enum PetPresentationPreference: String, CaseIterable, Identifiable {
+    case automatic
+    case notch
+    case floating
+
+    var id: String { rawValue }
+
+    var displayName: String {
+        switch self {
+        case .automatic: "Auto"
+        case .notch: "Notch Bar"
+        case .floating: "Floating Pet"
+        }
+    }
+}
+
 @MainActor
 final class PetIslandPreferences: ObservableObject {
     static let enabledKey = "petIsland.enabled"
     static let selectedPetKey = "petIsland.selectedPetID"
     static let explicitSelectionKey = "petIsland.hasExplicitSelection"
+    static let presentationKey = "petIsland.presentationMode"
 
     @Published var isEnabled: Bool {
         didSet { defaults.set(isEnabled, forKey: Self.enabledKey) }
@@ -13,6 +30,10 @@ final class PetIslandPreferences: ObservableObject {
 
     @Published var selectedPetID: String {
         didSet { defaults.set(selectedPetID, forKey: Self.selectedPetKey) }
+    }
+
+    @Published var presentationMode: PetPresentationPreference {
+        didSet { defaults.set(presentationMode.rawValue, forKey: Self.presentationKey) }
     }
 
     let pets: [CodexPet]
@@ -26,6 +47,9 @@ final class PetIslandPreferences: ObservableObject {
         self.pets = pets
         self.defaults = defaults
         isEnabled = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
+        presentationMode = PetPresentationPreference(
+            rawValue: defaults.string(forKey: Self.presentationKey) ?? ""
+        ) ?? .automatic
 
         let savedID = defaults.string(forKey: Self.selectedPetKey)
         let hasExplicitSelection = defaults.bool(forKey: Self.explicitSelectionKey)

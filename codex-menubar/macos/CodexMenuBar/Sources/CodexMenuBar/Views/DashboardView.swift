@@ -95,6 +95,11 @@ private struct PetIslandSettingsControl: View {
     var body: some View {
         Menu {
             Toggle("Show Pet Island", isOn: $preferences.isEnabled)
+            Picker("Display Mode", selection: $preferences.presentationMode) {
+                ForEach(PetPresentationPreference.allCases) { mode in
+                    Text(mode.displayName).tag(mode)
+                }
+            }
             if !preferences.pets.isEmpty {
                 Divider()
                 Button {
