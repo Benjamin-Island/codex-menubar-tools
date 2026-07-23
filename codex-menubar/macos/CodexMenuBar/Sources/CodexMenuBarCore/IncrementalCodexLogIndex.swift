@@ -55,6 +55,13 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
         self.init(rangeReader: FileHandleRangeReader())
     }
 
+    public convenience init(ordinaryLimit: Int) {
+        self.init(
+            rangeReader: FileHandleRangeReader(),
+            discoverer: FileSystemLogDiscoverer(ordinaryLimit: ordinaryLimit)
+        )
+    }
+
     init(
         rangeReader: any FileRangeReading,
         discoverer: any LogFileDiscovering = FileSystemLogDiscoverer(),

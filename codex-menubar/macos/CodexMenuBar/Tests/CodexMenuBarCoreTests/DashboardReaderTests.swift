@@ -45,7 +45,89 @@ final class DashboardReaderTests: XCTestCase {
 
         XCTAssertEqual(snapshot.rateLimit, .empty("No rate limit event found yet. Open or use Codex once to generate usage data."))
         XCTAssertEqual(snapshot.history, .empty("No Token history found yet."))
-        XCTAssertEqual(snapshot.sessions, .empty("No interactive Codex TUI sessions are running."))
+        XCTAssertEqual(snapshot.sessions, .empty("No active Codex sessions are running."))
+    }
+
+    func testRecentCodexDesktopSessionAppearsWithoutTUIProcess() {
+        let desktop = summary(
+            hasRateLimit: true,
+            totalTokens: 420,
+            sourceKind: "App",
+            lifecycle: .active
+        )
+        let reader = makeReader(
+            indexResults: [.success(snapshot(summaries: [desktop]))],
+            processes: .success([])
+        )
+
+        let snapshot = reader.read()
+
+        guard case let .content(sessions) = snapshot.sessions else {
+            return XCTFail("Expected desktop session content")
+        }
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions[0].sessionID, desktop.session.id)
+        XCTAssertEqual(sessions[0].activity, .running)
+        XCTAssertLessThan(sessions[0].pid, 0)
+        XCTAssertEqual(sessions[0].tokenCounts.total, 420)
+    }
+
+    func testRecentDesktopSessionSurvivesCLIProcessScanFailure() {
+        let reader = makeReader(
+            indexResults: [.success(snapshot(summaries: [
+                summary(
+                    hasRateLimit: false,
+                    totalTokens: 8,
+                    sourceKind: "App",
+                    lifecycle: .inactive
+                )
+            ]))],
+            processes: .failure(DashboardTestError.process)
+        )
+
+        let snapshot = reader.read()
+
+        guard case let .content(sessions) = snapshot.sessions else {
+            return XCTFail("Expected desktop fallback content")
+        }
+        XCTAssertEqual(sessions.first?.activity, .stalled)
+    }
+
+    func testDesktopParentAndChildLogsCollapseToNewestSessionEntry() {
+        let sharedID = "desktop-thread"
+        let reader = makeReader(
+            indexResults: [.success(snapshot(summaries: [
+                summary(
+                    hasRateLimit: false,
+                    totalTokens: 10,
+                    sourceKind: "App",
+                    sessionID: sharedID,
+                    modifiedAt: now.addingTimeInterval(-60),
+                    path: "/sessions/parent.jsonl"
+                ),
+                summary(
+                    hasRateLimit: false,
+                    totalTokens: 20,
+                    sourceKind: "App",
+                    lifecycle: .inactive,
+                    sessionID: sharedID,
+                    modifiedAt: now,
+                    path: "/sessions/child.jsonl"
+                )
+            ]))],
+            processes: .success([])
+        )
+
+        let snapshot = reader.read()
+
+        guard case let .content(sessions) = snapshot.sessions else {
+            return XCTFail("Expected deduplicated desktop session")
+        }
+        XCTAssertEqual(sessions.count, 1)
+        XCTAssertEqual(sessions[0].sessionID, sharedID)
+        XCTAssertEqual(sessions[0].activity, .running)
+        XCTAssertEqual(sessions[0].tokenCounts.total, 10)
+        XCTAssertEqual(sessions[0].sourcePath, "/sessions/parent.jsonl")
     }
 
     func testIndexWarningLeavesGoodContentUsable() {
@@ -113,8 +195,16 @@ final class DashboardReaderTests: XCTestCase {
         IncrementalLogIndexSnapshot(summaries: summaries, warnings: warnings)
     }
 
-    private func summary(hasRateLimit: Bool, totalTokens: Int64) -> SessionLogSummary {
-        let path = "/sessions/good.jsonl"
+    private func summary(
+        hasRateLimit: Bool,
+        totalTokens: Int64,
+        sourceKind: String = "cli",
+        lifecycle: LifecycleSummary = .active,
+        sessionID: String? = nil,
+        modifiedAt: Date? = nil,
+        path: String = "/sessions/good.jsonl"
+    ) -> SessionLogSummary {
+        let fileModifiedAt = modifiedAt ?? now
         let counts = TokenCounts(total: totalTokens, input: totalTokens, cachedInput: 0, output: 0, reasoning: 0)
         let rate = hasRateLimit ? RateLimitCandidate(
             limitID: "codex",
@@ -123,25 +213,25 @@ final class DashboardReaderTests: XCTestCase {
             credits: nil,
             planType: "plus",
             reportedAt: now,
-            fileModifiedAt: now,
+            fileModifiedAt: fileModifiedAt,
             sequence: 1,
             sourcePath: path
         ) : nil
         return SessionLogSummary(
             path: path,
-            modifiedAt: now,
+            modifiedAt: fileModifiedAt,
             session: SessionIdentity(
-                id: path,
+                id: sessionID ?? path,
                 name: "Test session",
                 displayName: "Test session",
                 workingDirectory: "/tmp/project",
-                sourceKind: "cli"
+                sourceKind: sourceKind
             ),
-            metadataTimestamp: now,
+            metadataTimestamp: fileModifiedAt,
             dailyCounts: totalTokens > 0 ? [utcCalendar().startOfDay(for: now): counts] : [:],
             latestTokenCounts: counts,
             latestRateLimit: rate,
-            lifecycle: .active,
+            lifecycle: lifecycle,
             warnings: [],
             suppressedWarningCount: 0,
             isTopLevelInteractiveTUI: true

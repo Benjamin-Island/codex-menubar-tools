@@ -38,6 +38,10 @@ No pet artwork is bundled, copied, or redistributed by Codex Menu Bar. Every
 rendered frame is loaded at runtime from the local manifest's
 `spritesheetPath`, and the sprite layout follows its `spriteVersionNumber`.
 
+At launch, the menu-bar surface first indexes the 8 newest local session logs
+so current tasks and quota appear quickly. The complete 60-day history index
+continues in the background and replaces that fast snapshot when ready.
+
 ## Why
 
 Codex already records useful local session data, but checking usage and understanding activity across days normally requires leaving the current workflow. Codex Menu Bar turns that local data into a small read-only dashboard without Electron, accounts, or a background service.

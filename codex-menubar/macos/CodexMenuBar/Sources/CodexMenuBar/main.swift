@@ -15,22 +15,35 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
         let sessionIndexURL = environment["CODEX_SESSION_INDEX"].map(URL.init(fileURLWithPath:))
             ?? codexDirectory.appendingPathComponent("session_index.jsonl")
 
-        let reader = DashboardReader(
-            logIndex: IncrementalCodexLogIndex(),
-            historyAggregator: TokenHistoryAggregator(),
-            rateLimitReducer: RateLimitReducer(),
-            sessionInventory: SessionInventory(
+        func sessionInventory() -> SessionInventory {
+            SessionInventory(
                 processProvider: DarwinProcessProvider(sessionsDirectory: sessionsDirectory),
                 classifier: InteractiveTUIClassifier(),
                 currentUID: getuid()
-            ),
+            )
+        }
+
+        let fullReader = DashboardReader(
+            logIndex: IncrementalCodexLogIndex(),
+            historyAggregator: TokenHistoryAggregator(),
+            rateLimitReducer: RateLimitReducer(),
+            sessionInventory: sessionInventory(),
             sessionsDirectory: sessionsDirectory,
             sessionIndexURL: sessionIndexURL
         )
+        let liveReader = DashboardReader(
+            logIndex: IncrementalCodexLogIndex(ordinaryLimit: 8),
+            historyAggregator: TokenHistoryAggregator(),
+            rateLimitReducer: RateLimitReducer(),
+            sessionInventory: sessionInventory(),
+            sessionsDirectory: sessionsDirectory,
+            sessionIndexURL: sessionIndexURL
+        )
+        let initialSnapshot = liveReader.read()
         let store = DashboardStore(
-            snapshot: .loading(at: Date()),
+            snapshot: initialSnapshot,
             reader: {
-                await Task.detached(priority: .utility) { reader.read() }.value
+                await Task.detached(priority: .utility) { fullReader.read() }.value
             }
         )
         let controller = StatusController(store: store, sessionsDirectory: sessionsDirectory)
