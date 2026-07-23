@@ -12,6 +12,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
     private let renderer: StatusItemRenderer
     private let outsideClickEventSource: any OutsideClickEventSource
     private let petIslandPreferences: PetIslandPreferences
+    private let languagePreferences: AppLanguagePreferences
     private var cancellables: Set<AnyCancellable> = []
     private var monitor: SessionDirectoryMonitor?
     private var refreshTimer: Timer?
@@ -26,13 +27,15 @@ final class StatusController: NSObject, NSPopoverDelegate {
         sessionsDirectory: URL,
         renderer: StatusItemRenderer = StatusItemRenderer(),
         outsideClickEventSource: any OutsideClickEventSource = GlobalMouseDownEventSource(),
-        petIslandPreferences: PetIslandPreferences = PetIslandPreferences()
+        petIslandPreferences: PetIslandPreferences = PetIslandPreferences(),
+        languagePreferences: AppLanguagePreferences = AppLanguagePreferences()
     ) {
         self.store = store
         self.sessionsDirectory = sessionsDirectory
         self.renderer = renderer
         self.outsideClickEventSource = outsideClickEventSource
         self.petIslandPreferences = petIslandPreferences
+        self.languagePreferences = languagePreferences
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
     }
@@ -45,7 +48,8 @@ final class StatusController: NSObject, NSPopoverDelegate {
         popover.contentViewController = NSHostingController(
             rootView: DashboardView(
                 store: store,
-                petIslandPreferences: petIslandPreferences
+                petIslandPreferences: petIslandPreferences,
+                languagePreferences: languagePreferences
             )
         )
 
@@ -59,6 +63,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
         petIslandController = PetIslandController(
             store: store,
             preferences: petIslandPreferences,
+            languagePreferences: languagePreferences,
             screenProvider: { [weak self] in
                 self?.statusItem.button?.window?.screen
                     ?? NSScreen.main

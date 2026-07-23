@@ -69,6 +69,31 @@ No pet artwork is bundled, copied, or redistributed by Codex Menu Bar. Every
 rendered frame is loaded at runtime from the local manifest's
 `spritesheetPath`, and the sprite layout follows its `spriteVersionNumber`.
 
+## Language
+
+Open the menu bar dashboard and use the gear button in its top-right corner to
+choose **Follow System**, **中文**, or **English**. The preference is persisted
+in macOS user defaults and updates both the dashboard and Pet Island.
+
+## How usage detection works
+
+Codex Menu Bar does not call a private usage API. It reads Codex's local,
+append-only JSONL session logs under `~/.codex/sessions`:
+
+- macOS FSEvents watches the directory with a 0.2-second latency and a
+  0.35-second debounce before refreshing.
+- A five-second timer is the fallback when filesystem events are coalesced or
+  unavailable.
+- The incremental index reads only bytes appended since the last cursor. It
+  parses `token_count` events for cumulative input, cached-input, output,
+  reasoning, total-token, and rate-limit fields.
+- Daily totals are calculated from differences between consecutive cumulative
+  counters. Remaining quota is `100 - used_percent`, and reset time comes from
+  the event's `resets_at` value.
+- The dashboard keeps 60 local-calendar days of history. Files opened by a live
+  Codex process are retained even when they fall outside the normal history
+  filter.
+
 ## Why Codex Menu Bar
 
 Codex already records useful local session data, but checking usage and understanding activity across days usually means leaving your current workflow. Codex Menu Bar turns that data into a small, read-only SwiftUI dashboard available directly from the macOS menu bar.
