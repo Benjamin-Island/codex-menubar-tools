@@ -35,4 +35,15 @@ final class PetIslandPlacementTests: XCTestCase {
         XCTAssertEqual(frame.maxY, visible.maxY - 10)
         XCTAssertEqual(frame.size, PetIslandPlacement.floatingSize)
     }
+
+    func testPeekingPetUsesCompactEdgeSize() {
+        let size = PetIslandPlacement.size(
+            mode: .floating,
+            expanded: false,
+            menuBarHeight: 30,
+            peeking: true
+        )
+
+        XCTAssertEqual(size, PetIslandPlacement.peekSize)
+    }
 }

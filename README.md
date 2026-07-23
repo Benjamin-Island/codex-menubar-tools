@@ -35,8 +35,8 @@
 
 Pet Island keeps the same usage and live-session signal attached to the top
 center of the active display. On a notched MacBook it visually joins the camera
-notch; on a display without a notch it remains docked to the top edge instead of
-floating over the desktop.
+notch; on a display without a notch it becomes a movable floating pet with an
+expandable task summary.
 
 The island renders the user's local Codex custom pet in the same window as the
 usage metrics, so the pet and status never need to be manually aligned. It
@@ -50,6 +50,11 @@ Use **Pet Island** in the dashboard footer to show or hide the island and choose
 an installed custom pet. Its display mode can be **Auto**, **Notch Bar**, or
 **Floating Pet**. Auto keeps a compact status surface inside the menu-bar plane
 on a notched display and uses a small expandable pet on a non-notched display.
+In floating mode, an idle pet uses the manifest's idle animation while a live
+task uses its directional running frames. Drag the pet left or right to move the
+panel and change its running direction. Dropping it near either screen edge
+snaps it into a compact blinking head peek; click the peek to reveal the full
+summary again.
 By default it follows the newest canonical local pet
 package (the folder name matches the manifest `id`) and ignores backup package
 folders. A pet id is stored in macOS user defaults only after the user explicitly

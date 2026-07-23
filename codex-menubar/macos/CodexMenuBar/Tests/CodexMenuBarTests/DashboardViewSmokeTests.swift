@@ -74,8 +74,15 @@ final class DashboardViewSmokeTests: XCTestCase {
                     preferences: preferences,
                     mode: mode,
                     isExpanded: false,
+                    isPeeking: false,
+                    dockEdge: nil,
+                    initialDirection: .right,
                     menuBarHeight: 34,
                     toggleExpanded: {},
+                    beginDrag: {},
+                    changeDirection: { _ in },
+                    updateDrag: { _ in },
+                    endDrag: { _ in },
                     openDashboard: {}
                 )
             )
@@ -100,8 +107,15 @@ final class DashboardViewSmokeTests: XCTestCase {
                 preferences: preferences,
                 mode: .floating,
                 isExpanded: true,
+                isPeeking: false,
+                dockEdge: nil,
+                initialDirection: .right,
                 menuBarHeight: 34,
                 toggleExpanded: {},
+                beginDrag: {},
+                changeDirection: { _ in },
+                updateDrag: { _ in },
+                endDrag: { _ in },
                 openDashboard: {}
             )
         )

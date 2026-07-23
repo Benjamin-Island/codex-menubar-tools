@@ -6,9 +6,18 @@ struct PetIslandView: View {
     @ObservedObject var preferences: PetIslandPreferences
     let mode: PetSurfaceMode
     let isExpanded: Bool
+    let isPeeking: Bool
+    let dockEdge: PetDockEdge?
+    let initialDirection: PetDockEdge
     let menuBarHeight: CGFloat
     let toggleExpanded: () -> Void
+    let beginDrag: () -> Void
+    let changeDirection: (PetDockEdge) -> Void
+    let updateDrag: (CGSize) -> Void
+    let endDrag: (CGSize) -> Void
     let openDashboard: () -> Void
+    @State private var dragDirection: PetDockEdge = .right
+    @State private var isDraggingPet = false
 
     private var usage: UsageSnapshot? {
         guard case let .content(usage) = store.snapshot.rateLimit else { return nil }
@@ -37,16 +46,21 @@ struct PetIslandView: View {
             width: PetIslandPlacement.size(
                 mode: mode,
                 expanded: isExpanded,
-                menuBarHeight: menuBarHeight
+                menuBarHeight: menuBarHeight,
+                peeking: isPeeking
             ).width,
             height: PetIslandPlacement.size(
                 mode: mode,
                 expanded: isExpanded,
-                menuBarHeight: menuBarHeight
+                menuBarHeight: menuBarHeight,
+                peeking: isPeeking
             ).height
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Codex Pet Status")
+        .onAppear {
+            dragDirection = initialDirection
+        }
     }
 
     private var notchSurface: some View {
@@ -100,7 +114,13 @@ struct PetIslandView: View {
 
     private var floatingSurface: some View {
         ZStack {
-            if isExpanded {
+            if isPeeking {
+                Button(action: toggleExpanded) {
+                    peekingPet
+                }
+                .buttonStyle(.plain)
+                .help("Reveal Codex pet")
+            } else if isExpanded {
                 expandedTaskPanel
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
                     .transition(.scale(scale: 0.96, anchor: .topTrailing).combined(with: .opacity))
@@ -123,9 +143,62 @@ struct PetIslandView: View {
                 }
                 .buttonStyle(.plain)
                 .help("Show Codex summary")
+                .overlay(alignment: .bottomTrailing) {
+                    PetDragCaptureView(
+                        onClick: toggleExpanded,
+                        onDragBegan: {
+                            isDraggingPet = true
+                            beginDrag()
+                        },
+                        onDirectionChanged: { direction in
+                            dragDirection = direction
+                            changeDirection(direction)
+                        },
+                        onDragChanged: updateDrag,
+                        onDragEnded: { translation in
+                            endDrag(translation)
+                            isDraggingPet = false
+                        }
+                    )
+                    .frame(width: 68, height: 68)
+                    .accessibilityLabel("Drag Codex pet")
+                    .help("Drag Codex pet; move to a screen edge to tuck it away")
+                }
             }
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
+    }
+
+    private var peekingPet: some View {
+        ZStack {
+            pet
+                .frame(width: 82, height: 90)
+                .offset(
+                    x: dockEdge == .left ? 13 : -13,
+                    y: 25
+                )
+        }
+        .frame(
+            width: PetIslandPlacement.peekSize.width,
+            height: PetIslandPlacement.peekSize.height
+        )
+        .background(.ultraThinMaterial)
+        .clipShape(peekShape)
+        .overlay {
+            peekShape
+                .strokeBorder(.white.opacity(0.4), lineWidth: 1)
+        }
+        .shadow(color: .black.opacity(0.16), radius: 7, y: 2)
+        .contentShape(Rectangle())
+    }
+
+    private var peekShape: UnevenRoundedRectangle {
+        UnevenRoundedRectangle(
+            topLeadingRadius: dockEdge == .left ? 0 : 18,
+            bottomLeadingRadius: dockEdge == .left ? 0 : 18,
+            bottomTrailingRadius: dockEdge == .right ? 0 : 18,
+            topTrailingRadius: dockEdge == .right ? 0 : 18
+        )
     }
 
     private var collapsedFloatingSummary: some View {
@@ -414,7 +487,7 @@ struct PetIslandView: View {
         if let selectedPet = preferences.selectedPet {
             PetSpriteView(
                 pet: selectedPet,
-                isActive: !runningSessions.isEmpty
+                state: petAnimationState
             )
         } else {
             Image(systemName: "pawprint.fill")
@@ -423,6 +496,16 @@ struct PetIslandView: View {
                 .padding(10)
                 .foregroundStyle(.secondary)
         }
+    }
+
+    private var petAnimationState: PetAnimationState {
+        if isPeeking {
+            return dockEdge == .left ? .peekingLeft : .peekingRight
+        }
+        guard !runningSessions.isEmpty || isDraggingPet else {
+            return .idle
+        }
+        return dragDirection == .left ? .runningLeft : .runningRight
     }
 
     private var sessionSummary: String {
