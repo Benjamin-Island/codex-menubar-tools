@@ -3,6 +3,7 @@ import CodexMenuBarCore
 
 struct OverviewView: View {
     @ObservedObject var store: DashboardStore
+    @Environment(\.appDisplayLanguage) private var language
 
     var body: some View {
         ScrollView {
@@ -20,11 +21,11 @@ struct OverviewView: View {
     private var usageSection: some View {
         switch store.snapshot.rateLimit {
         case .loading:
-            LoadingPanel(title: "Loading usage limits")
+            LoadingPanel(title: text("Loading usage limits", "正在读取额度"))
         case let .content(usage):
             HStack(alignment: .top, spacing: 12) {
-                UsageCard(title: "Primary", window: usage.primary)
-                UsageCard(title: "Secondary", window: usage.secondary)
+                UsageCard(title: text("Primary", "短周期额度"), window: usage.primary)
+                UsageCard(title: text("Secondary", "长周期额度"), window: usage.secondary)
             }
         case let .empty(message):
             EmptyPanel(message: message)
@@ -37,11 +38,14 @@ struct OverviewView: View {
     private var historySection: some View {
         switch store.snapshot.history {
         case .loading:
-            LoadingPanel(title: "Loading Token history")
+            LoadingPanel(title: text("Loading Token history", "正在读取 Token 历史"))
         case let .content(history):
             Panel {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionTitle("60-day Token history", subtitle: "Monday–Sunday · Select a day for details")
+                    SectionTitle(
+                        text("60-day Token history", "60 天 Token 历史"),
+                        subtitle: text("Monday–Sunday · Select a day for details", "周一至周日 · 选择日期查看详情")
+                    )
                     HeatmapGrid(history: history, compact: true) { date in
                         store.showHistory(date: date)
                     }
@@ -58,18 +62,21 @@ struct OverviewView: View {
     private var sessionsSection: some View {
         switch store.snapshot.sessions {
         case .loading:
-            LoadingPanel(title: "Scanning interactive TUI sessions")
+            LoadingPanel(title: text("Scanning interactive TUI sessions", "正在扫描交互式终端任务"))
         case let .content(sessions):
             Panel {
                 VStack(alignment: .leading, spacing: 9) {
-                    SectionTitle("Live sessions", subtitle: "Strict interactive TUI processes only")
+                    SectionTitle(
+                        text("Live sessions", "当前任务"),
+                        subtitle: text("Strict interactive TUI processes only", "仅显示交互式终端进程")
+                    )
                     ForEach(sessions.prefix(4)) { session in
                         Button {
                             store.showLiveSession(pid: session.pid)
                         } label: {
                             SessionRow(
                                 title: session.displayTaskDescription,
-                                subtitle: "PID \(session.pid) · \(session.activity.rawValue.capitalized)",
+                                subtitle: "PID \(session.pid) · \(activityText(session.activity))",
                                 activity: session.activity,
                                 tokens: session.tokenCounts.total
                             )
@@ -83,5 +90,13 @@ struct OverviewView: View {
         case let .failure(error):
             ErrorPanel(error: error)
         }
+    }
+
+    private func activityText(_ activity: SessionActivity) -> String {
+        activity == .running ? text("Running", "运行中") : text("Stalled", "已暂停")
+    }
+
+    private func text(_ english: String, _ chinese: String) -> String {
+        appText(english, chinese, language: language)
     }
 }

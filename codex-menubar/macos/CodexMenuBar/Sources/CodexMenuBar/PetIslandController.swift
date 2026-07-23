@@ -90,6 +90,7 @@ final class PetIslandController: NSObject {
     private let panel: NSPanel
     private let store: DashboardStore
     private let preferences: PetIslandPreferences
+    private let languagePreferences: AppLanguagePreferences
     private let screenProvider: () -> NSScreen?
     private let openDashboard: () -> Void
     private var isExpanded = false
@@ -105,11 +106,13 @@ final class PetIslandController: NSObject {
     init(
         store: DashboardStore,
         preferences: PetIslandPreferences,
+        languagePreferences: AppLanguagePreferences,
         screenProvider: @escaping () -> NSScreen?,
         openDashboard: @escaping () -> Void
     ) {
         self.store = store
         self.preferences = preferences
+        self.languagePreferences = languagePreferences
         self.screenProvider = screenProvider
         self.openDashboard = openDashboard
 
@@ -154,6 +157,11 @@ final class PetIslandController: NSObject {
                 self?.isExpanded = false
                 self?.updatePresentation()
             }
+            .store(in: &cancellables)
+
+        languagePreferences.$selection
+            .removeDuplicates()
+            .sink { [weak self] _ in self?.updatePresentation(animateFrame: false) }
             .store(in: &cancellables)
 
         NotificationCenter.default.addObserver(
@@ -409,7 +417,12 @@ final class PetIslandController: NSObject {
                 self?.openDashboard()
             }
         )
-        panel.contentViewController = NSHostingController(rootView: rootView)
+        panel.contentViewController = NSHostingController(
+            rootView: rootView.environment(
+                \.appDisplayLanguage,
+                languagePreferences.resolvedLanguage
+            )
+        )
     }
 
     private func resolvedMode(on screen: NSScreen) -> PetSurfaceMode {

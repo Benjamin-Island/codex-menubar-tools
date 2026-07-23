@@ -16,6 +16,7 @@ struct PetIslandView: View {
     let updateDrag: (CGSize) -> Void
     let endDrag: (CGSize) -> Void
     let openDashboard: () -> Void
+    @Environment(\.appDisplayLanguage) private var language
     @State private var dragDirection: PetDockEdge = .right
     @State private var isDraggingPet = false
 
@@ -57,7 +58,7 @@ struct PetIslandView: View {
             ).height
         )
         .accessibilityElement(children: .contain)
-        .accessibilityLabel("Codex Pet Status")
+        .accessibilityLabel(text("Codex Pet Status", "Codex 宠物状态"))
         .onAppear {
             dragDirection = initialDirection
         }
@@ -75,7 +76,11 @@ struct PetIslandView: View {
                 compactNotch
             }
             .buttonStyle(.plain)
-            .help(isExpanded ? "Hide Codex summary" : "Show Codex summary")
+            .help(
+                isExpanded
+                    ? text("Hide Codex summary", "收起 Codex 摘要")
+                    : text("Show Codex summary", "展开 Codex 摘要")
+            )
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
     }
@@ -141,7 +146,7 @@ struct PetIslandView: View {
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
                 .padding(.trailing, 10)
-                .help("Hide Codex summary")
+                .help(text("Hide Codex summary", "收起 Codex 摘要"))
             } else {
                 Button(action: toggleExpanded) {
                     ZStack(alignment: .bottomTrailing) {
@@ -162,7 +167,7 @@ struct PetIslandView: View {
                     )
                 }
                 .buttonStyle(.plain)
-                .help("Show Codex summary")
+                .help(text("Show Codex summary", "展开 Codex 摘要"))
                 .overlay(alignment: .bottomTrailing) {
                     petDragCapture
                 }
@@ -208,7 +213,7 @@ struct PetIslandView: View {
             height: PetIslandPlacement.peekSize.height
         )
         .contentShape(Circle())
-        .accessibilityLabel("Codex pet usage")
+        .accessibilityLabel(text("Codex pet usage", "Codex 宠物额度"))
         .accessibilityValue(dockedUsageAccessibilityText)
     }
 
@@ -229,7 +234,7 @@ struct PetIslandView: View {
                         remaining: usage?.secondary?.remainingPercent
                     )
                     Label(
-                        "\(runningSessions.count) running",
+                        runningCountText,
                         systemImage: runningSessions.isEmpty ? "pause.fill" : "bolt.fill"
                     )
                     .foregroundStyle(runningSessions.isEmpty ? Color.secondary : Color.green)
@@ -283,8 +288,11 @@ struct PetIslandView: View {
             }
         )
         .frame(width: 78, height: 78)
-        .accessibilityLabel("Drag Codex pet")
-        .help("Drag Codex pet; move to a screen edge to dock it")
+        .accessibilityLabel(text("Drag Codex pet", "拖动 Codex 宠物"))
+        .help(text(
+            "Drag Codex pet; move to a screen edge to dock it",
+            "拖动 Codex 宠物；移到屏幕边缘即可吸附"
+        ))
     }
 
     private var expandedTaskPanel: some View {
@@ -300,7 +308,7 @@ struct PetIslandView: View {
                 .frame(width: 34, height: 34)
 
                 VStack(alignment: .leading, spacing: 3) {
-                    Text("Codex tasks")
+                    Text(text("Codex tasks", "Codex 任务"))
                         .font(.system(size: 14, weight: .semibold))
                     Text(sessionSummary)
                         .font(.system(size: 11))
@@ -317,7 +325,7 @@ struct PetIslandView: View {
                         .background(.quaternary, in: Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Hide summary")
+                .help(text("Hide summary", "收起摘要"))
             }
 
             Divider()
@@ -336,7 +344,7 @@ struct PetIslandView: View {
                     value: percentText(usage?.secondary?.remainingPercent)
                 )
                 summaryMetric(
-                    label: "Running",
+                    label: text("Running", "运行中"),
                     value: "\(runningSessions.count)"
                 )
 
@@ -349,7 +357,7 @@ struct PetIslandView: View {
                         .background(Color.accentColor.opacity(0.14), in: Circle())
                 }
                 .buttonStyle(.plain)
-                .help("Open full Codex usage dashboard")
+                .help(text("Open full Codex usage dashboard", "打开完整 Codex 用量面板"))
             }
         }
         .padding(14)
@@ -369,7 +377,7 @@ struct PetIslandView: View {
                 Image(systemName: "checkmark.circle")
                     .font(.system(size: 24))
                     .foregroundStyle(.secondary)
-                Text("No active Codex tasks")
+                Text(text("No active Codex tasks", "当前没有 Codex 任务"))
                     .font(.system(size: 12, weight: .medium))
                     .foregroundStyle(.secondary)
             }
@@ -415,7 +423,11 @@ struct PetIslandView: View {
                     Text("·")
                     Text(tokenText(session.tokenCounts.total))
                     Text("·")
-                    Text(session.activity == .running ? "Running" : "Recent")
+                    Text(
+                        session.activity == .running
+                            ? text("Running", "运行中")
+                            : text("Recent", "最近")
+                    )
                 }
                 .font(.system(size: 10))
                 .foregroundStyle(.secondary)
@@ -548,25 +560,38 @@ struct PetIslandView: View {
     }
 
     private var dockedUsageAccessibilityText: String {
-        "\(percentText(dockedUsage?.remainingPercent)) remaining, resets in \(resetCountdown(dockedUsage?.resetsAt))"
+        language == .simplifiedChinese
+            ? "剩余 \(percentText(dockedUsage?.remainingPercent))，\(resetCountdown(dockedUsage?.resetsAt))后重置"
+            : "\(percentText(dockedUsage?.remainingPercent)) remaining, resets in \(resetCountdown(dockedUsage?.resetsAt))"
     }
 
     private func resetCountdown(_ date: Date?) -> String {
         guard let date else { return "--" }
         let remaining = date.timeIntervalSinceNow
-        guard remaining > 0 else { return "now" }
+        guard remaining > 0 else { return text("now", "现在") }
         if remaining >= 86_400 {
-            return "\(max(1, Int(ceil(remaining / 86_400))))d"
+            let value = max(1, Int(ceil(remaining / 86_400)))
+            return language == .simplifiedChinese ? "\(value)天" : "\(value)d"
         }
         if remaining >= 3_600 {
-            return "\(max(1, Int(ceil(remaining / 3_600))))h"
+            let value = max(1, Int(ceil(remaining / 3_600)))
+            return language == .simplifiedChinese ? "\(value)小时" : "\(value)h"
         }
-        return "\(max(1, Int(ceil(remaining / 60))))m"
+        let value = max(1, Int(ceil(remaining / 60)))
+        return language == .simplifiedChinese ? "\(value)分钟" : "\(value)m"
     }
 
     private var sessionSummary: String {
         if runningSessions.isEmpty {
-            return sessions.isEmpty ? "No active sessions" : "\(sessions.count) recent tasks"
+            if sessions.isEmpty {
+                return text("No active sessions", "当前没有任务")
+            }
+            return language == .simplifiedChinese
+                ? "\(sessions.count) 个最近任务"
+                : "\(sessions.count) recent tasks"
+        }
+        if language == .simplifiedChinese {
+            return "\(runningSessions.count) 个运行中 · 共 \(sessions.count) 个任务"
         }
         let noun = runningSessions.count == 1 ? "task" : "tasks"
         return "\(runningSessions.count) active \(noun) · \(sessions.count) total sessions"
@@ -575,7 +600,7 @@ struct PetIslandView: View {
     private var primaryTaskTitle: String {
         runningSessions.first?.displayTaskDescription
             ?? sessions.first?.displayTaskDescription
-            ?? "No active Codex tasks"
+            ?? text("No active Codex tasks", "当前没有 Codex 任务")
     }
 
     private var secondaryUsageLabel: String {
@@ -595,12 +620,18 @@ struct PetIslandView: View {
 
     private func tokenText(_ total: Int64) -> String {
         if total >= 1_000_000 {
-            return String(format: "%.1fM tokens", Double(total) / 1_000_000)
+            return String(
+                format: language == .simplifiedChinese ? "%.1fM Token" : "%.1fM tokens",
+                Double(total) / 1_000_000
+            )
         }
         if total >= 1_000 {
-            return String(format: "%.1fK tokens", Double(total) / 1_000)
+            return String(
+                format: language == .simplifiedChinese ? "%.1fK Token" : "%.1fK tokens",
+                Double(total) / 1_000
+            )
         }
-        return "\(total) tokens"
+        return language == .simplifiedChinese ? "\(total) Token" : "\(total) tokens"
     }
 
     private func percentText(_ remaining: Int?) -> String {
@@ -619,5 +650,15 @@ struct PetIslandView: View {
         if remaining <= 10 { return .red }
         if remaining <= 30 { return .orange }
         return .green
+    }
+
+    private var runningCountText: String {
+        language == .simplifiedChinese
+            ? "\(runningSessions.count) 运行中"
+            : "\(runningSessions.count) running"
+    }
+
+    private func text(_ english: String, _ chinese: String) -> String {
+        appText(english, chinese, language: language)
     }
 }

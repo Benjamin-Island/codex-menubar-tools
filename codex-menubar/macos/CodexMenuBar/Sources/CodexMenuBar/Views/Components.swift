@@ -42,6 +42,7 @@ struct SectionTitle: View {
 struct UsageCard: View {
     let title: String
     let window: WindowUsage?
+    @Environment(\.appDisplayLanguage) private var language
 
     var body: some View {
         Panel {
@@ -58,7 +59,7 @@ struct UsageCard: View {
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .contentTransition(.numericText())
                 ProgressView(value: Double(window?.remainingPercent ?? 0), total: 100)
-                Text("Resets \(UsageFormatting.dateLabel(window?.resetsAt))")
+                Text("\(appText("Resets", "重置时间", language: language)) \(UsageFormatting.dateLabel(window?.resetsAt))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
             }
@@ -116,14 +117,15 @@ struct HeatmapGrid: View {
 
 struct TokenBreakdown: View {
     let counts: TokenCounts
+    @Environment(\.appDisplayLanguage) private var language
 
     var body: some View {
         Grid(alignment: .leading, horizontalSpacing: 20, verticalSpacing: 8) {
-            tokenRow("Total", value: counts.total, icon: "sum")
-            tokenRow("Input", value: counts.input, icon: "arrow.down.circle")
-            tokenRow("Cached", value: counts.cachedInput, icon: "bolt.horizontal.circle")
-            tokenRow("Output", value: counts.output, icon: "arrow.up.circle")
-            tokenRow("Reasoning", value: counts.reasoning, icon: "brain.head.profile")
+            tokenRow(appText("Total", "总计", language: language), value: counts.total, icon: "sum")
+            tokenRow(appText("Input", "输入", language: language), value: counts.input, icon: "arrow.down.circle")
+            tokenRow(appText("Cached", "缓存", language: language), value: counts.cachedInput, icon: "bolt.horizontal.circle")
+            tokenRow(appText("Output", "输出", language: language), value: counts.output, icon: "arrow.up.circle")
+            tokenRow(appText("Reasoning", "推理", language: language), value: counts.reasoning, icon: "brain.head.profile")
         }
     }
 
@@ -176,9 +178,10 @@ struct LoadingPanel: View {
 
 struct EmptyPanel: View {
     let message: String
+    @Environment(\.appDisplayLanguage) private var language
     var body: some View {
         Panel {
-            Label(message, systemImage: "tray")
+            Label(localizedDashboardMessage(message, language: language), systemImage: "tray")
                 .foregroundStyle(.secondary)
         }
     }
@@ -186,10 +189,14 @@ struct EmptyPanel: View {
 
 struct ErrorPanel: View {
     let error: DashboardError
+    @Environment(\.appDisplayLanguage) private var language
     var body: some View {
         Panel {
             VStack(alignment: .leading, spacing: 5) {
-                Label(error.message, systemImage: "exclamationmark.triangle.fill")
+                Label(
+                    localizedDashboardMessage(error.message, language: language),
+                    systemImage: "exclamationmark.triangle.fill"
+                )
                     .foregroundStyle(.orange)
                 if let detail = error.detail {
                     Text(detail).font(.caption).foregroundStyle(.secondary).textSelection(.enabled)
@@ -201,14 +208,22 @@ struct ErrorPanel: View {
 
 struct PartialWarningBanner: View {
     let count: Int
+    @Environment(\.appDisplayLanguage) private var language
     var body: some View {
-        Label("\(count) log \(count == 1 ? "warning" : "warnings"); available data is still shown.", systemImage: "exclamationmark.circle")
+        Label(warningText, systemImage: "exclamationmark.circle")
             .font(.caption)
             .foregroundStyle(.orange)
             .padding(.horizontal, 10)
             .padding(.vertical, 6)
             .frame(maxWidth: .infinity, alignment: .leading)
             .background(Color.orange.opacity(0.09), in: RoundedRectangle(cornerRadius: 8))
+    }
+
+    private var warningText: String {
+        if language == .simplifiedChinese {
+            return "\(count) 条日志警告；仍显示可用数据。"
+        }
+        return "\(count) log \(count == 1 ? "warning" : "warnings"); available data is still shown."
     }
 }
 
