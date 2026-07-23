@@ -29,6 +29,10 @@ are stored in macOS user defaults; pet packages are never modified. If the Codex
 app's own pet overlay is enabled, turn one of the two overlays off to avoid
 showing the same pet twice.
 
+No pet artwork is bundled, copied, or redistributed by Codex Menu Bar. Every
+rendered frame is loaded at runtime from the local manifest's
+`spritesheetPath`, and the sprite layout follows its `spriteVersionNumber`.
+
 ## Why
 
 Codex already records useful local session data, but checking usage and understanding activity across days normally requires leaving the current workflow. Codex Menu Bar turns that local data into a small read-only dashboard without Electron, accounts, or a background service.
