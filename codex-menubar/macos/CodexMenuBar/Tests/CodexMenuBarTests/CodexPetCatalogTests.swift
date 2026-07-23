@@ -11,7 +11,7 @@ final class CodexPetCatalogTests: XCTestCase {
 
         try writePet(
             id: "alpha",
-            manifest: #"{"displayName":"Alpha","description":"First local pet"}"#,
+            manifest: #"{"id":"alpha","displayName":"Alpha","description":"First local pet"}"#,
             root: firstRoot
         )
         try writePet(
@@ -21,7 +21,7 @@ final class CodexPetCatalogTests: XCTestCase {
         )
         try writePet(
             id: "beta",
-            manifest: #"{"displayName":"Beta","spriteVersionNumber":2,"spritesheetPath":"pet.webp"}"#,
+            manifest: #"{"id":"beta","displayName":"Beta","spriteVersionNumber":2,"spritesheetPath":"pet.webp"}"#,
             root: secondRoot,
             spriteName: "pet.webp"
         )
@@ -32,6 +32,7 @@ final class CodexPetCatalogTests: XCTestCase {
         XCTAssertEqual(pets.first(where: { $0.id == "alpha" })?.displayName, "Alpha")
         XCTAssertEqual(pets.first(where: { $0.id == "alpha" })?.spriteVersionNumber, 1)
         XCTAssertEqual(pets.first(where: { $0.id == "beta" })?.spriteVersionNumber, 2)
+        XCTAssertEqual(pets.first(where: { $0.id == "alpha" })?.isCanonicalPackage, true)
     }
 
     func testRejectsSpritesheetPathOutsidePetDirectory() throws {

@@ -2,10 +2,16 @@ import Foundation
 
 struct CodexPet: Identifiable, Equatable, Sendable {
     let id: String
+    let manifestID: String?
     let displayName: String
     let description: String?
     let spriteVersionNumber: Int
     let spritesheetURL: URL
+    let manifestModifiedAt: Date
+
+    var isCanonicalPackage: Bool {
+        manifestID == nil || manifestID == id
+    }
 }
 
 struct CodexPetCatalog {
@@ -84,23 +90,30 @@ struct CodexPetCatalog {
         }
 
         let id = directory.lastPathComponent
+        let modifiedAt = (try? manifestURL.resourceValues(
+            forKeys: [.contentModificationDateKey]
+        ).contentModificationDate) ?? .distantPast
         return CodexPet(
             id: id,
+            manifestID: manifest.id?.trimmedNonEmpty,
             displayName: manifest.displayName?.trimmedNonEmpty ?? id,
             description: manifest.description?.trimmedNonEmpty,
             spriteVersionNumber: manifest.spriteVersionNumber,
-            spritesheetURL: spriteURL
+            spritesheetURL: spriteURL,
+            manifestModifiedAt: modifiedAt
         )
     }
 }
 
 private struct CodexPetManifest: Decodable {
+    let id: String?
     let displayName: String?
     let description: String?
     let spriteVersionNumber: Int
     let spritesheetPath: String
 
     private enum CodingKeys: String, CodingKey {
+        case id
         case displayName
         case description
         case spriteVersionNumber
@@ -109,6 +122,7 @@ private struct CodexPetManifest: Decodable {
 
     init(from decoder: Decoder) throws {
         let container = try decoder.container(keyedBy: CodingKeys.self)
+        id = try container.decodeIfPresent(String.self, forKey: .id)
         displayName = try container.decodeIfPresent(String.self, forKey: .displayName)
         description = try container.decodeIfPresent(String.self, forKey: .description)
         spriteVersionNumber = try container.decodeIfPresent(
