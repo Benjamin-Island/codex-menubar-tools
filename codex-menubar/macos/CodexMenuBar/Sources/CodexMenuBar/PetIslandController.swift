@@ -2,86 +2,33 @@ import AppKit
 import Combine
 import SwiftUI
 
-enum PetSurfaceMode: Equatable {
-    case notch
-    case floating
-}
-
 enum PetDockEdge: Equatable {
     case left
     case right
 }
 
 struct PetIslandPlacement {
-    static let notchWidth: CGFloat = 236
     static let floatingSize = NSSize(width: 324, height: 132)
     static let expandedSize = NSSize(width: 410, height: 380)
     static let peekSize = NSSize(width: 104, height: 112)
 
-    static func mode(on screen: NSScreen) -> PetSurfaceMode {
-        let hasAuxiliaryAreas: Bool
-        if let left = screen.auxiliaryTopLeftArea,
-           let right = screen.auxiliaryTopRightArea {
-            hasAuxiliaryAreas = !left.isEmpty && !right.isEmpty
-        } else {
-            hasAuxiliaryAreas = false
-        }
-        return screen.safeAreaInsets.top > 0 && hasAuxiliaryAreas ? .notch : .floating
-    }
-
-    static func menuBarHeight(on screen: NSScreen) -> CGFloat {
-        max(28, screen.frame.maxY - screen.visibleFrame.maxY)
-    }
-
-    static func size(
-        mode: PetSurfaceMode,
-        expanded: Bool,
-        menuBarHeight: CGFloat,
-        peeking: Bool = false
-    ) -> NSSize {
-        if mode == .floating, peeking {
-            return peekSize
-        }
-        if expanded {
-            return expandedSize
-        }
-        switch mode {
-        case .notch:
-            return NSSize(width: notchWidth, height: menuBarHeight)
-        case .floating:
-            return floatingSize
-        }
+    static func size(expanded: Bool, peeking: Bool = false) -> NSSize {
+        if peeking { return peekSize }
+        return expanded ? expandedSize : floatingSize
     }
 
     static func frame(
-        mode: PetSurfaceMode,
         expanded: Bool,
-        screenFrame: NSRect,
-        visibleFrame: NSRect,
-        menuBarHeight: CGFloat
+        visibleFrame: NSRect
     ) -> NSRect {
-        let size = size(
-            mode: mode,
-            expanded: expanded,
-            menuBarHeight: menuBarHeight
+        let size = size(expanded: expanded)
+        let inset: CGFloat = 14
+        return NSRect(
+            x: visibleFrame.maxX - size.width - inset,
+            y: visibleFrame.maxY - size.height - 10,
+            width: size.width,
+            height: size.height
         )
-        switch mode {
-        case .notch:
-            return NSRect(
-                x: screenFrame.midX - size.width / 2,
-                y: screenFrame.maxY - size.height,
-                width: size.width,
-                height: size.height
-            )
-        case .floating:
-            let inset: CGFloat = 14
-            return NSRect(
-                x: visibleFrame.maxX - size.width - inset,
-                y: visibleFrame.maxY - size.height - 10,
-                width: size.width,
-                height: size.height
-            )
-        }
     }
 }
 
@@ -190,21 +137,9 @@ final class PetIslandController: NSObject {
             panel.orderOut(nil)
             return
         }
-        let mode = resolvedMode(on: screen)
-        if mode == .notch {
-            isPeeking = false
-            dockEdge = nil
-            floatingOrigin = nil
-            floatingScreenNumber = nil
-        }
-        let menuBarHeight = PetIslandPlacement.menuBarHeight(on: screen)
         let targetFrame: NSRect?
         if !isDragging {
-            let frame = presentationFrame(
-                mode: mode,
-                screen: screen,
-                menuBarHeight: menuBarHeight
-            )
+            let frame = presentationFrame(screen: screen)
             targetFrame = frame
             panel.setFrame(
                 frame,
@@ -214,28 +149,14 @@ final class PetIslandController: NSObject {
         } else {
             targetFrame = nil
         }
-        rebuildContent(screen: screen, mode: mode, menuBarHeight: menuBarHeight)
+        rebuildContent()
         if let targetFrame {
             panel.setFrame(targetFrame, display: true, animate: false)
         }
         panel.orderFrontRegardless()
     }
 
-    private func presentationFrame(
-        mode: PetSurfaceMode,
-        screen: NSScreen,
-        menuBarHeight: CGFloat
-    ) -> NSRect {
-        guard mode == .floating else {
-            return PetIslandPlacement.frame(
-                mode: mode,
-                expanded: isExpanded,
-                screenFrame: screen.frame,
-                visibleFrame: screen.visibleFrame,
-                menuBarHeight: menuBarHeight
-            )
-        }
-
+    private func presentationFrame(screen: NSScreen) -> NSRect {
         if isPeeking, let dockEdge {
             let size = PetIslandPlacement.peekSize
             let preferredY = floatingOrigin?.y
@@ -250,18 +171,11 @@ final class PetIslandController: NSObject {
             return NSRect(x: x, y: y, width: size.width, height: size.height)
         }
 
-        let size = PetIslandPlacement.size(
-            mode: mode,
-            expanded: isExpanded,
-            menuBarHeight: menuBarHeight
-        )
+        let size = PetIslandPlacement.size(expanded: isExpanded)
         guard let origin = floatingOrigin else {
             return PetIslandPlacement.frame(
-                mode: mode,
                 expanded: isExpanded,
-                screenFrame: screen.frame,
-                visibleFrame: screen.visibleFrame,
-                menuBarHeight: menuBarHeight
+                visibleFrame: screen.visibleFrame
             )
         }
         return clampedFrame(
@@ -374,24 +288,14 @@ final class PetIslandController: NSObject {
         ] as? NSNumber
     }
 
-    private func rebuildContent(
-        screen: NSScreen? = nil,
-        mode requestedMode: PetSurfaceMode? = nil,
-        menuBarHeight requestedMenuBarHeight: CGFloat? = nil
-    ) {
-        guard let display = screen ?? preferredScreen() else { return }
-        let mode = requestedMode ?? resolvedMode(on: display)
-        let menuBarHeight = requestedMenuBarHeight
-            ?? PetIslandPlacement.menuBarHeight(on: display)
+    private func rebuildContent() {
         let rootView = PetIslandView(
             store: store,
             preferences: preferences,
-            mode: mode,
             isExpanded: isExpanded,
             isPeeking: isPeeking,
             dockEdge: dockEdge,
             initialDirection: movementDirection,
-            menuBarHeight: menuBarHeight,
             toggleExpanded: { [weak self] in self?.toggleExpanded() },
             beginDrag: { [weak self] in self?.beginFloatingDrag() },
             changeDirection: { [weak self] direction in
@@ -417,7 +321,4 @@ final class PetIslandController: NSObject {
         )
     }
 
-    private func resolvedMode(on screen: NSScreen) -> PetSurfaceMode {
-        PetIslandPlacement.mode(on: screen)
-    }
 }

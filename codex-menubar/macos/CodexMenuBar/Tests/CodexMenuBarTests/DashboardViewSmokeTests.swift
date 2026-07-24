@@ -50,50 +50,40 @@ final class DashboardViewSmokeTests: XCTestCase {
         defaults.removePersistentDomain(forName: "PetIslandViewSmokeTests")
         let preferences = PetIslandPreferences(pets: [], defaults: defaults)
 
-        for mode in [PetSurfaceMode.notch, .floating] {
-            let controller = NSHostingController(
-                rootView: PetIslandView(
-                    store: store,
-                    preferences: preferences,
-                    mode: mode,
-                    isExpanded: false,
-                    isPeeking: false,
-                    dockEdge: nil,
-                    initialDirection: .right,
-                    menuBarHeight: 34,
-                    toggleExpanded: {},
-                    beginDrag: {},
-                    changeDirection: { _ in },
-                    updateDrag: { _ in },
-                    endDrag: { _ in },
-                    openDashboard: {}
-                )
+        let controller = NSHostingController(
+            rootView: PetIslandView(
+                store: store,
+                preferences: preferences,
+                isExpanded: false,
+                isPeeking: false,
+                dockEdge: nil,
+                initialDirection: .right,
+                toggleExpanded: {},
+                beginDrag: {},
+                changeDirection: { _ in },
+                updateDrag: { _ in },
+                endDrag: { _ in },
+                openDashboard: {}
             )
-            controller.view.frame = CGRect(
-                origin: .zero,
-                size: PetIslandPlacement.size(
-                    mode: mode,
-                    expanded: false,
-                    menuBarHeight: 34
-                )
-            )
-            controller.view.layoutSubtreeIfNeeded()
-            let size = controller.view.fittingSize
-            XCTAssertTrue(size.width.isFinite && size.height.isFinite)
-            XCTAssertGreaterThan(size.width, 0)
-            XCTAssertGreaterThan(size.height, 0)
-        }
+        )
+        controller.view.frame = CGRect(
+            origin: .zero,
+            size: PetIslandPlacement.size(expanded: false)
+        )
+        controller.view.layoutSubtreeIfNeeded()
+        let size = controller.view.fittingSize
+        XCTAssertTrue(size.width.isFinite && size.height.isFinite)
+        XCTAssertGreaterThan(size.width, 0)
+        XCTAssertGreaterThan(size.height, 0)
 
         let expanded = NSHostingController(
             rootView: PetIslandView(
                 store: store,
                 preferences: preferences,
-                mode: .floating,
                 isExpanded: true,
                 isPeeking: false,
                 dockEdge: nil,
                 initialDirection: .right,
-                menuBarHeight: 34,
                 toggleExpanded: {},
                 beginDrag: {},
                 changeDirection: { _ in },

@@ -4,12 +4,10 @@ import CodexMenuBarCore
 struct PetIslandView: View {
     @ObservedObject var store: DashboardStore
     @ObservedObject var preferences: PetIslandPreferences
-    let mode: PetSurfaceMode
     let isExpanded: Bool
     let isPeeking: Bool
     let dockEdge: PetDockEdge?
     let initialDirection: PetDockEdge
-    let menuBarHeight: CGFloat
     let toggleExpanded: () -> Void
     let beginDrag: () -> Void
     let changeDirection: (PetDockEdge) -> Void
@@ -44,86 +42,16 @@ struct PetIslandView: View {
     }
 
     var body: some View {
-        Group {
-            switch mode {
-            case .notch:
-                notchSurface
-            case .floating:
-                floatingSurface
-            }
-        }
+        floatingSurface
         .frame(
-            width: PetIslandPlacement.size(
-                mode: mode,
-                expanded: isExpanded,
-                menuBarHeight: menuBarHeight,
-                peeking: isPeeking
-            ).width,
-            height: PetIslandPlacement.size(
-                mode: mode,
-                expanded: isExpanded,
-                menuBarHeight: menuBarHeight,
-                peeking: isPeeking
-            ).height
+            width: PetIslandPlacement.size(expanded: isExpanded, peeking: isPeeking).width,
+            height: PetIslandPlacement.size(expanded: isExpanded, peeking: isPeeking).height
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(text("Codex Pet Status", "Codex 宠物状态"))
         .onAppear {
             dragDirection = initialDirection
         }
-    }
-
-    private var notchSurface: some View {
-        ZStack(alignment: .top) {
-            if isExpanded {
-                expandedTaskPanel
-                    .padding(.top, menuBarHeight + 8)
-                    .transition(.move(edge: .top).combined(with: .opacity))
-            }
-
-            Button(action: toggleExpanded) {
-                compactNotch
-            }
-            .buttonStyle(.plain)
-            .help(
-                isExpanded
-                    ? text("Hide Codex summary", "收起 Codex 摘要")
-                    : text("Show Codex summary", "展开 Codex 摘要")
-            )
-        }
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .top)
-    }
-
-    private var compactNotch: some View {
-        HStack(spacing: 0) {
-            Group {
-                if let first = usageWindows.first {
-                    usageMetric(label: first.label, remaining: first.remainingPercent)
-                }
-            }
-            .frame(width: 67, alignment: .leading)
-
-            Spacer(minLength: 72)
-
-            HStack(spacing: 8) {
-                if usageWindows.count > 1, let last = usageWindows.last {
-                    usageMetric(label: last.label, remaining: last.remainingPercent)
-                }
-                activityDot
-            }
-            .frame(width: 72, alignment: .trailing)
-        }
-        .padding(.horizontal, 10)
-        .frame(width: PetIslandPlacement.notchWidth, height: menuBarHeight)
-        .foregroundStyle(.white)
-        .background {
-            UnevenRoundedRectangle(
-                bottomLeadingRadius: 14,
-                bottomTrailingRadius: 14
-            )
-            .fill(Color.black.opacity(0.97))
-        }
-        .contentShape(Rectangle())
     }
 
     private var floatingSurface: some View {
@@ -451,17 +379,6 @@ struct PetIslandView: View {
         .background(.quaternary.opacity(0.56), in: RoundedRectangle(cornerRadius: 14))
     }
 
-    private func usageMetric(label: String, remaining: Int?) -> some View {
-        HStack(spacing: 4) {
-            Text(label)
-                .foregroundStyle(.white.opacity(0.62))
-            Text(remaining.map { "\($0)%" } ?? "--")
-                .foregroundStyle(usageColor(remaining))
-                .contentTransition(.numericText())
-        }
-        .font(.system(size: 11, weight: .semibold, design: .rounded))
-    }
-
     private func summaryMetric(label: String, value: String) -> some View {
         VStack(alignment: .leading, spacing: 1) {
             Text(label)
@@ -500,16 +417,6 @@ struct PetIslandView: View {
                 .font(.system(size: 10, weight: .bold, design: .rounded))
         }
         .frame(width: 38, height: 38)
-    }
-
-    private var activityDot: some View {
-        HStack(spacing: 3) {
-            Circle()
-                .fill(runningSessions.isEmpty ? Color.secondary : Color.green)
-                .frame(width: 6, height: 6)
-            Text("\(runningSessions.count)")
-                .font(.system(size: 10, weight: .semibold, design: .monospaced))
-        }
     }
 
     private var activityBadge: some View {
@@ -631,13 +538,6 @@ struct PetIslandView: View {
 
     private func percentText(_ remaining: Int?) -> String {
         remaining.map { "\($0)%" } ?? "--"
-    }
-
-    private func usageColor(_ remaining: Int?) -> Color {
-        guard let remaining else { return .white.opacity(0.6) }
-        if remaining <= 10 { return .red }
-        if remaining <= 30 { return .orange }
-        return .green
     }
 
     private func summaryUsageColor(_ remaining: Int?) -> Color {
