@@ -67,9 +67,10 @@ current local day. The card otherwise remains fully usable.
 ### Parser summary
 
 `SessionLogAccumulator` will continue to parse `token_count.rate_limits`
-records. In addition to `latestRateLimit`, it will maintain a bounded
-`DailyRateLimitTrace` for the most recent local day represented by valid rate
-events in that log.
+records. In addition to `latestRateLimit`, it will maintain one bounded
+`DailyRateLimitTrace` tagged with the local `today` value injected during the
+index refresh. Only valid events whose local day equals that value update the
+trace.
 
 The trace stores only mergeable summary information:
 
@@ -81,10 +82,11 @@ The trace stores only mergeable summary information:
 - separate canonical (`limit_id == "codex"`) and fallback limit families so
   the existing selection priority is preserved.
 
-It does not retain every event. When a newer local day appears, the accumulator
-replaces the previous day's trace. A trace from yesterday is harmless if a log
-does not receive new bytes: the reducer selects only a trace whose day equals
-today.
+It does not retain every event. When an incremental refresh starts using a new
+local day, the next valid event from that day starts a new trace. Older and
+future events are ignored for the daily trace. A trace from yesterday is
+harmless if a log does not receive new bytes: the reducer selects only a trace
+whose day equals today.
 
 `SessionLogSummary` exposes the bounded daily trace alongside the existing
 latest candidate.
@@ -98,11 +100,14 @@ the existing current Usage selection behavior:
 2. the newest candidate within the selected family supplies the current card.
 
 For today's state, the reducer selects traces from the same canonical or
-fallback family as the current Usage result. It then:
+fallback family as the current Usage result. It orders their mergeable edge
+observations by event timestamp and then:
 
 1. chooses the earliest valid observation for Primary;
 2. chooses the earliest valid observation for Secondary;
-3. merges reset evidence independently for each window;
+3. marks a window reset only if two non-nil `resets_at` values observed in
+   timestamp order differ, whether those observations came from the same log
+   or different logs;
 4. converts each earliest `used_percent` to a remaining percentage with the
    existing formatter.
 
