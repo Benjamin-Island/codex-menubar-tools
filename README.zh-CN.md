@@ -71,10 +71,23 @@ xcode-select --install
 > [!WARNING]
 > 此免费预览版面向 Apple Silicon Mac，使用临时签名且未经 Apple 公证。macOS 可能会阻止首次启动。
 
-- [下载 Codex Menu Bar v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip)
-- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip.sha256)
+- [下载 Codex Menu Bar v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip)
+- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip.sha256)
 
 解压下载文件，将 `CodexMenuBar.app` 移到 `Applications`，然后右键点击应用并选择“打开”完成首次启动。如果 macOS 仍然拒绝打开，请改为从源码构建，不要关闭系统级安全防护。
+
+### 版本历史
+
+| 版本 | 发布日期 | 主要更新 |
+| --- | --- | --- |
+| [v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.3) | 2026-07-24 | 实时跟踪 Codex Desktop 会话 |
+| [v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.2) | 2026-07-21 | 点击外部区域时关闭弹窗 |
+| [v0.3.1](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.1) | 2026-07-21 | 减少超大日志产生的干扰 |
+| [v0.3.0](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.0) | 2026-07-21 | 60 天增量用量历史 |
+| [v0.2.1](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.2.1) | 2026-07-21 | Token Prism 图标 |
+| [v0.2.0](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.2.0) | 2026-07-21 | Apple Silicon 预览版 |
+
+[查看全部 Releases](https://github.com/Benjamin-Island/codex-menubar-tools/releases)
 
 ### 从源码构建
 
