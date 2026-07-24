@@ -5,12 +5,23 @@ public struct WindowUsage: Equatable, Sendable {
     public let usedPercent: Double?
     public let remainingPercent: Int?
     public let resetsAt: Date?
+    public let todayInitialRemainingPercent: Int?
+    public let didResetToday: Bool
 
-    public init(label: String, usedPercent: Double?, remainingPercent: Int?, resetsAt: Date?) {
+    public init(
+        label: String,
+        usedPercent: Double?,
+        remainingPercent: Int?,
+        resetsAt: Date?,
+        todayInitialRemainingPercent: Int? = nil,
+        didResetToday: Bool = false
+    ) {
         self.label = label
         self.usedPercent = usedPercent
         self.remainingPercent = remainingPercent
         self.resetsAt = resetsAt
+        self.todayInitialRemainingPercent = todayInitialRemainingPercent
+        self.didResetToday = didResetToday
     }
 }
 
@@ -89,6 +100,12 @@ public enum UsageFormatting {
     public static func percentLabel(_ remainingPercent: Int?) -> String {
         guard let remainingPercent else { return "--" }
         return "\(remainingPercent)%"
+    }
+
+    public static func todayInitialLabel(_ window: WindowUsage?) -> String? {
+        guard let initial = window?.todayInitialRemainingPercent else { return nil }
+        return "Today initial: \(initial)%"
+            + (window?.didResetToday == true ? " · reset today" : "")
     }
 
     public static func dateLabel(
