@@ -62,7 +62,7 @@ final class SessionLogAccumulatorTests: XCTestCase {
         XCTAssertEqual(summary.session.workingDirectory, "/tmp/project")
         XCTAssertEqual(summary.session.sourceKind, "cli")
         XCTAssertEqual(summary.lifecycle, .active)
-        XCTAssertTrue(summary.isTopLevelInteractiveTUI)
+        XCTAssertTrue(summary.isTopLevelLiveSession)
     }
 
     private func makeAccumulator(

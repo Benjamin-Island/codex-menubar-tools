@@ -115,14 +115,14 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
             candidates = try processResult.get()
         } catch {
             return .failure(DashboardError(
-                message: "Unable to scan Codex CLI processes",
+                message: "Unable to scan Codex processes",
                 detail: error.localizedDescription
             ))
         }
         switch sessionInventory.read(summaries: summaries, candidates: candidates, now: now) {
         case let .snapshots(items):
             return items.isEmpty
-                ? .empty("No interactive Codex TUI sessions are running.")
+                ? .empty("No live Codex sessions are running.")
                 : .content(items)
         case let .failure(error):
             return .failure(DashboardError(message: error.message, detail: error.detail))

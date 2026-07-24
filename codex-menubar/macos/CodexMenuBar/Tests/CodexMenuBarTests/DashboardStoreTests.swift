@@ -55,13 +55,58 @@ final class DashboardStoreTests: XCTestCase {
             pasteboard: pasteboard
         )
 
-        store.showLiveSession(pid: 42)
+        store.showLiveSession(id: session.id)
         store.copySelectedSessionPath()
         XCTAssertEqual(pasteboard.values, ["/tmp/project"])
 
-        store.showLiveSession(pid: 999)
+        store.showLiveSession(id: "missing")
         store.copySelectedSessionPath()
         XCTAssertEqual(pasteboard.values, ["/tmp/project"])
+    }
+
+    func testSelectsAndCopiesByStableSessionIDWhenPIDIsShared() {
+        let pasteboard = PasteboardSpy()
+        let first = SessionDisplaySnapshot(
+            pid: 42,
+            sessionID: "desktop-a",
+            sourceKind: "App",
+            activity: .running,
+            taskDescription: "Alpha",
+            displayTaskDescription: "Alpha",
+            workingDirectory: "/tmp/alpha",
+            sourcePath: "/sessions/alpha.jsonl",
+            lastUpdatedAt: nil,
+            tokenCounts: .zero
+        )
+        let second = SessionDisplaySnapshot(
+            pid: 42,
+            sessionID: "desktop-b",
+            sourceKind: "App",
+            activity: .running,
+            taskDescription: "Beta",
+            displayTaskDescription: "Beta",
+            workingDirectory: "/tmp/beta",
+            sourcePath: "/sessions/beta.jsonl",
+            lastUpdatedAt: nil,
+            tokenCounts: .zero
+        )
+        let store = DashboardStore(
+            snapshot: DashboardSnapshot(
+                rateLimit: .empty("No usage"),
+                history: .empty("No history"),
+                sessions: .content([first, second]),
+                warnings: [],
+                updatedAt: .distantPast
+            ),
+            reader: { DashboardSnapshot.loading(at: .distantPast) },
+            pasteboard: pasteboard
+        )
+
+        store.showLiveSession(id: second.id)
+        store.copySelectedSessionPath()
+
+        XCTAssertEqual(store.selectedSessionID, second.id)
+        XCTAssertEqual(pasteboard.values, ["/tmp/beta"])
     }
 
     private func snapshot(at timestamp: TimeInterval) -> DashboardSnapshot {

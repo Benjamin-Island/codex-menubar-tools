@@ -8,7 +8,7 @@ struct SessionsView: View {
         Group {
             switch store.snapshot.sessions {
             case .loading:
-                LoadingPanel(title: "Scanning interactive TUI sessions").padding(16)
+                LoadingPanel(title: "Scanning live sessions").padding(16)
             case let .empty(message):
                 EmptyPanel(message: message).padding(16)
             case let .failure(error):
@@ -23,20 +23,20 @@ struct SessionsView: View {
         HStack(alignment: .top, spacing: 12) {
             ScrollView {
                 VStack(alignment: .leading, spacing: 8) {
-                    SectionTitle("Interactive TUI", subtitle: "\(sessions.count) live \(sessions.count == 1 ? "session" : "sessions")")
+                    SectionTitle("Live sessions", subtitle: "\(sessions.count) active \(sessions.count == 1 ? "session" : "sessions")")
                     ForEach(sessions) { session in
                         Button {
-                            store.showLiveSession(pid: session.pid)
+                            store.showLiveSession(id: session.id)
                         } label: {
                             SessionRow(
                                 title: session.displayTaskDescription,
-                                subtitle: "PID \(session.pid) · \(session.activity.rawValue.capitalized)",
+                                subtitle: "\(session.sourceKind) · PID \(session.pid) · \(session.activity.rawValue.capitalized)",
                                 activity: session.activity,
                                 tokens: session.tokenCounts.total
                             )
                             .padding(9)
                             .background(
-                                store.selectedSessionPID == session.pid ? Color.accentColor.opacity(0.12) : Color.clear,
+                                store.selectedSessionID == session.id ? Color.accentColor.opacity(0.12) : Color.clear,
                                 in: RoundedRectangle(cornerRadius: 8)
                             )
                         }
@@ -54,7 +54,7 @@ struct SessionsView: View {
 
     @ViewBuilder
     private func detail(_ sessions: [SessionDisplaySnapshot]) -> some View {
-        let selected = sessions.first(where: { $0.pid == store.selectedSessionPID }) ?? sessions.first
+        let selected = sessions.first(where: { $0.id == store.selectedSessionID }) ?? sessions.first
         if let selected {
             ScrollView {
                 Panel {
@@ -64,7 +64,7 @@ struct SessionsView: View {
                             systemImage: selected.activity == .running ? "play.circle.fill" : "pause.circle"
                         )
                         .foregroundStyle(selected.activity == .running ? Color.green : Color.secondary)
-                        SectionTitle(selected.taskDescription, subtitle: "PID \(selected.pid)")
+                        SectionTitle(selected.taskDescription, subtitle: "\(selected.sourceKind) · PID \(selected.pid)")
                         TokenBreakdown(counts: selected.tokenCounts)
                         Divider()
                         Text(selected.workingDirectory)
@@ -72,7 +72,7 @@ struct SessionsView: View {
                             .foregroundStyle(.secondary)
                             .textSelection(.enabled)
                         Button {
-                            store.showLiveSession(pid: selected.pid)
+                            store.showLiveSession(id: selected.id)
                             store.copySelectedSessionPath()
                         } label: {
                             Label("Copy Path", systemImage: "doc.on.doc")

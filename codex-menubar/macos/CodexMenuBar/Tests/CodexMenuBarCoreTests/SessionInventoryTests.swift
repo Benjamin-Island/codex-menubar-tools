@@ -42,6 +42,81 @@ final class SessionInventoryTests: XCTestCase {
         XCTAssertEqual(items[0].activity, .running)
     }
 
+    func testDesktopAppServerShowsEveryOpenSessionLog() throws {
+        let first = log(
+            id: "desktop-a",
+            name: "Desktop Alpha",
+            cwd: "/tmp/alpha",
+            metadataAt: 1_900,
+            running: true,
+            sourceKind: "App"
+        )
+        let second = log(
+            id: "desktop-b",
+            name: "Desktop Beta",
+            cwd: "/tmp/beta",
+            metadataAt: 1_910,
+            running: true,
+            sourceKind: "App"
+        )
+        let desktopProcess = process(
+            pid: 15,
+            cwd: nil,
+            startedAt: 1_000,
+            openLogs: [first.path, second.path],
+            executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
+            arguments: ["codex", "app-server"],
+            hasControllingTerminal: false
+        )
+        let provider = MutableProcessProvider(.success([desktopProcess]))
+        let inventory = SessionInventory(
+            processProvider: provider,
+            classifier: InteractiveTUIClassifier(),
+            currentUID: 501
+        )
+
+        let items = try snapshots(from: inventory.read(summaries: [first, second], now: now))
+
+        XCTAssertEqual(Set(items.compactMap(\.sessionID)), Set(["desktop-a", "desktop-b"]))
+        XCTAssertEqual(Set(items.map(\.id)).count, 2)
+        XCTAssertEqual(Set(items.map(\.sourceKind)), Set(["App"]))
+
+        provider.result = .success([
+            process(
+                pid: 15,
+                cwd: nil,
+                startedAt: 1_000,
+                executablePath: desktopProcess.executablePath,
+                arguments: desktopProcess.arguments,
+                hasControllingTerminal: false
+            )
+        ])
+        let cachedItems = try snapshots(from: inventory.read(summaries: [first, second], now: now))
+        XCTAssertEqual(Set(cachedItems.compactMap(\.sessionID)), Set(["desktop-a", "desktop-b"]))
+    }
+
+    func testDesktopAppServerWithoutOpenSessionDoesNotAppear() throws {
+        let provider = MutableProcessProvider(.success([
+            process(
+                pid: 16,
+                cwd: nil,
+                startedAt: 1_000,
+                executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
+                arguments: ["codex", "app-server"],
+                hasControllingTerminal: false
+            )
+        ]))
+        let inventory = SessionInventory(
+            processProvider: provider,
+            classifier: InteractiveTUIClassifier(),
+            currentUID: 501
+        )
+
+        let items = try snapshots(from: inventory.read(summaries: [], now: now))
+
+        XCTAssertTrue(items.isEmpty)
+    }
+
     func testFallbackUsesExactCWDZeroTo120SecondsAndClosestTimestamp() throws {
         let logs = [
             log(id: "later", cwd: "/tmp/project", metadataAt: 1_100),
@@ -130,7 +205,7 @@ final class SessionInventoryTests: XCTestCase {
         guard case let .failure(error) = inventory.read(summaries: logs, now: now) else {
             return XCTFail("Expected failure")
         }
-        XCTAssertEqual(error.message, "Unable to scan Codex CLI processes")
+        XCTAssertEqual(error.message, "Unable to scan Codex processes")
     }
 
     func testActiveTaskAtExactlyFiveMinutesAndCompletedTaskAreStalled() throws {
@@ -169,17 +244,20 @@ final class SessionInventoryTests: XCTestCase {
         pid: Int32,
         cwd: String?,
         startedAt: TimeInterval,
-        openLogs: [String] = []
+        openLogs: [String] = [],
+        executablePath: String = "/opt/homebrew/bin/codex",
+        arguments: [String] = ["codex"],
+        hasControllingTerminal: Bool = true
     ) -> ProcessSnapshot {
         ProcessSnapshot(
             pid: pid,
             parentPID: 1,
             userID: 501,
             startedAt: Date(timeIntervalSince1970: startedAt),
-            executablePath: "/opt/homebrew/bin/codex",
-            arguments: ["codex"],
+            executablePath: executablePath,
+            arguments: arguments,
             workingDirectory: cwd,
-            hasControllingTerminal: true,
+            hasControllingTerminal: hasControllingTerminal,
             openFilePaths: openLogs
         )
     }
@@ -192,7 +270,8 @@ final class SessionInventoryTests: XCTestCase {
         modifiedAt: TimeInterval = 1_980,
         running: Bool = false,
         totalTokens: Int64 = 0,
-        isTUI: Bool = true
+        isTUI: Bool = true,
+        sourceKind: String? = nil
     ) -> SessionLogSummary {
         let path = "/sessions/\(id).jsonl"
         return SessionLogSummary(
@@ -203,7 +282,7 @@ final class SessionInventoryTests: XCTestCase {
                 name: name ?? id,
                 displayName: name ?? id,
                 workingDirectory: cwd,
-                sourceKind: isTUI ? "cli" : "exec"
+                sourceKind: sourceKind ?? (isTUI ? "cli" : "exec")
             ),
             metadataTimestamp: Date(timeIntervalSince1970: metadataAt),
             dailyCounts: [:],
@@ -212,7 +291,7 @@ final class SessionInventoryTests: XCTestCase {
             lifecycle: running ? .active : .inactive,
             warnings: [],
             suppressedWarningCount: 0,
-            isTopLevelInteractiveTUI: isTUI
+            isTopLevelLiveSession: isTUI
         )
     }
 }

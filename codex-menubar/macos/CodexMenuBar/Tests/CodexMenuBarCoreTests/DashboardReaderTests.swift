@@ -16,7 +16,7 @@ final class DashboardReaderTests: XCTestCase {
         guard case .content = snapshot.rateLimit else { return XCTFail("Expected rate limit content") }
         guard case .content = snapshot.history else { return XCTFail("Expected history content") }
         guard case let .failure(error) = snapshot.sessions else { return XCTFail("Expected process failure") }
-        XCTAssertEqual(error.message, "Unable to scan Codex CLI processes")
+        XCTAssertEqual(error.message, "Unable to scan Codex processes")
         XCTAssertFalse(error.detail?.isEmpty ?? true)
         XCTAssertEqual(snapshot.updatedAt, now)
     }
@@ -45,7 +45,7 @@ final class DashboardReaderTests: XCTestCase {
 
         XCTAssertEqual(snapshot.rateLimit, .empty("No rate limit event found yet. Open or use Codex once to generate usage data."))
         XCTAssertEqual(snapshot.history, .empty("No Token history found yet."))
-        XCTAssertEqual(snapshot.sessions, .empty("No interactive Codex TUI sessions are running."))
+        XCTAssertEqual(snapshot.sessions, .empty("No live Codex sessions are running."))
     }
 
     func testIndexWarningLeavesGoodContentUsable() {
@@ -144,7 +144,7 @@ final class DashboardReaderTests: XCTestCase {
             lifecycle: .active,
             warnings: [],
             suppressedWarningCount: 0,
-            isTopLevelInteractiveTUI: true
+            isTopLevelLiveSession: true
         )
     }
 

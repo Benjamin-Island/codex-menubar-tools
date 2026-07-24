@@ -5,7 +5,7 @@
 
 <div align="center">
   <h1>Codex Menu Bar</h1>
-  <p>A native, local-only macOS menu bar dashboard for Codex usage, Token history, and live interactive CLI sessions.</p>
+  <p>A native, local-only macOS menu bar dashboard for Codex usage, Token history, and live Codex sessions.</p>
   <p>
     <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple">
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&amp;logoColor=white">
@@ -28,7 +28,7 @@
 
 - **Overview** — see primary and secondary rate-limit windows, a compact Token heatmap, and shortcuts to live sessions.
 - **History** — explore the latest 60 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
-- **Sessions** — find strictly detected top-level Codex terminal TUIs, including activity, working directory, last update, and cumulative Tokens.
+- **Sessions** — follow active top-level Codex terminal and Codex Desktop sessions, including activity, working directory, last update, and cumulative Tokens.
 - **Private by design** — inspect local Codex data without accounts, network requests, analytics, or a background service.
 
 ## Why Codex Menu Bar
@@ -50,7 +50,7 @@ The app:
 
 Session JSONL files are streamed in bounded chunks. While the app is running, appended bytes update in-memory daily summaries; raw historical Token events are not retained. The index is never written to disk, so restarting the app performs a fresh streaming scan.
 
-History includes every indexed local rollout source from the latest 60 local calendar days. The live Sessions page intentionally includes only top-level interactive terminal TUIs. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
+History includes every indexed local rollout source from the latest 60 local calendar days. The live Sessions page includes top-level interactive terminal sessions and user sessions currently open in Codex Desktop. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
 
 ## Requirements
 

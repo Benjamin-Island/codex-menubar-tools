@@ -21,9 +21,9 @@ final class DashboardRoutingTests: XCTestCase {
         store.showDay(date)
         XCTAssertEqual(store.historySelection, .day(date))
 
-        store.showLiveSession(pid: 42)
+        store.showLiveSession(id: "session-42")
         XCTAssertEqual(store.selectedTab, .sessions)
-        XCTAssertEqual(store.selectedSessionPID, 42)
+        XCTAssertEqual(store.selectedSessionID, "session-42")
     }
 
     private func snapshot() -> DashboardSnapshot {
