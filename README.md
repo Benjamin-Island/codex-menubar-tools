@@ -71,10 +71,23 @@ xcode-select --install
 > [!WARNING]
 > This free preview is built for Apple Silicon Macs, uses an ad-hoc signature, and is not Apple-notarized. macOS may block the first launch.
 
-- [Download Codex Menu Bar v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip)
-- [SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.2/CodexMenuBar-v0.3.2-apple-silicon.zip.sha256)
+- [Download Codex Menu Bar v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip)
+- [SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip.sha256)
 
 Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click the app and choose **Open** for the first launch. If macOS still refuses to open it, build from source instead of disabling system-wide security controls.
+
+### Release history
+
+| Version | Released | Highlights |
+| --- | --- | --- |
+| [v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.3) | 2026-07-24 | Live Codex Desktop session tracking |
+| [v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.2) | 2026-07-21 | Outside-click popover dismissal |
+| [v0.3.1](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.1) | 2026-07-21 | Quieter oversized-log handling |
+| [v0.3.0](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.0) | 2026-07-21 | 60-day incremental usage history |
+| [v0.2.1](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.2.1) | 2026-07-21 | Token Prism icon |
+| [v0.2.0](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.2.0) | 2026-07-21 | Apple Silicon preview |
+
+[View all releases](https://github.com/Benjamin-Island/codex-menubar-tools/releases)
 
 ### Build from source
 
