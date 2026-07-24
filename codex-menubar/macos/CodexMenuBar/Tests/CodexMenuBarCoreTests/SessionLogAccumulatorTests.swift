@@ -32,6 +32,192 @@ final class SessionLogAccumulatorTests: XCTestCase {
         XCTAssertEqual(accumulator.summary(modifiedAt: modifiedAt, threadName: nil).latestRateLimit?.primary?.usedPercent, 20)
     }
 
+    func testDailyRateTraceKeepsEarliestValuesAndIndependentResetState() throws {
+        var accumulator = makeAccumulator()
+        let cutoff = try date("2026-05-23T00:00:00Z")
+        let today = try date("2026-07-21T00:00:00Z")
+
+        consume(
+            limit(
+                primaryUsed: 20,
+                secondaryUsed: 40,
+                primaryReset: 100,
+                secondaryReset: 700,
+                at: "2026-07-21T01:00:00Z"
+            ),
+            line: 1,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+        consume(
+            limit(
+                primaryUsed: 28,
+                secondaryUsed: 42,
+                primaryReset: 100,
+                secondaryReset: 700,
+                at: "2026-07-21T02:00:00Z"
+            ),
+            line: 2,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+        consume(
+            limit(
+                primaryUsed: 8,
+                secondaryUsed: 45,
+                primaryReset: 200,
+                secondaryReset: 700,
+                at: "2026-07-21T06:00:00Z"
+            ),
+            line: 3,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+
+        let trace = try XCTUnwrap(
+            accumulator.summary(modifiedAt: modifiedAt, threadName: nil).dailyRateLimitTrace
+        )
+        XCTAssertEqual(trace.day, today)
+        XCTAssertEqual(trace.canonical?.primary?.first.usedPercent, 20)
+        XCTAssertEqual(trace.canonical?.secondary?.first.usedPercent, 40)
+        XCTAssertEqual(trace.canonical?.primary?.last.usedPercent, 8)
+        XCTAssertTrue(trace.canonical?.primary?.didReset ?? false)
+        XCTAssertFalse(trace.canonical?.secondary?.didReset ?? true)
+    }
+
+    func testDailyRateTraceIgnoresNonTodayTimestampFreeAndInvalidEvents() throws {
+        var accumulator = makeAccumulator()
+        let cutoff = try date("2026-05-23T00:00:00Z")
+        let today = try date("2026-07-21T00:00:00Z")
+
+        consume(
+            limit(primaryUsed: 70, at: "2026-07-20T23:59:59Z"),
+            line: 1,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+        consume(
+            #"{"type":"event_msg","payload":{"type":"token_count","rate_limits":{"limit_id":"codex","primary":{"used_percent":60,"window_minutes":300}}}}"#,
+            line: 2,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+        consume(
+            #"{"timestamp":"2026-07-21T00:30:00Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"limit_id":"codex","primary":{"used_percent":"bad","window_minutes":300}}}}"#,
+            line: 3,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+        consume(
+            limit(primaryUsed: 20, at: "2026-07-21T01:00:00Z"),
+            line: 4,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+        consume(
+            limit(primaryUsed: 90, at: "2026-07-22T00:00:00Z"),
+            line: 5,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+
+        let trace = try XCTUnwrap(
+            accumulator.summary(modifiedAt: modifiedAt, threadName: nil).dailyRateLimitTrace
+        )
+        XCTAssertEqual(trace.canonical?.primary?.first.usedPercent, 20)
+    }
+
+    func testInvalidOnlyRateEventDoesNotCreateDailyTrace() throws {
+        var accumulator = makeAccumulator()
+        let cutoff = try date("2026-05-23T00:00:00Z")
+        let today = try date("2026-07-21T00:00:00Z")
+
+        consume(
+            #"{"timestamp":"2026-07-21T00:30:00Z","type":"event_msg","payload":{"type":"token_count","rate_limits":{"limit_id":"codex","primary":{"used_percent":"bad","window_minutes":300}}}}"#,
+            line: 1,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+
+        XCTAssertNil(
+            accumulator.summary(modifiedAt: modifiedAt, threadName: nil).dailyRateLimitTrace
+        )
+    }
+
+    func testPruneDropsYesterdayTraceAndCanonicalDoesNotOverwriteFallback() throws {
+        var accumulator = makeAccumulator()
+        let cutoff = try date("2026-05-23T00:00:00Z")
+        let july21 = try date("2026-07-21T00:00:00Z")
+        let july22 = try date("2026-07-22T00:00:00Z")
+
+        consume(
+            limit(
+                primaryUsed: 60,
+                limitID: "codex_spark",
+                at: "2026-07-21T01:00:00Z"
+            ),
+            line: 1,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: july21
+        )
+        consume(
+            limit(primaryUsed: 20, at: "2026-07-21T02:00:00Z"),
+            line: 2,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: july21
+        )
+
+        let trace = try XCTUnwrap(
+            accumulator.summary(modifiedAt: modifiedAt, threadName: nil).dailyRateLimitTrace
+        )
+        XCTAssertEqual(trace.canonical?.primary?.first.usedPercent, 20)
+        XCTAssertEqual(trace.fallback?.primary?.first.usedPercent, 60)
+
+        accumulator.prune(cutoff: cutoff, today: july22)
+        let afterPrune = accumulator.summary(
+            modifiedAt: modifiedAt,
+            threadName: nil
+        ).dailyRateLimitTrace
+        XCTAssertNil(afterPrune)
+    }
+
+    func testMissingResetMetadataDoesNotInferReset() throws {
+        var accumulator = makeAccumulator()
+        let cutoff = try date("2026-05-23T00:00:00Z")
+        let today = try date("2026-07-21T00:00:00Z")
+
+        consume(
+            limit(primaryUsed: 20, at: "2026-07-21T01:00:00Z"),
+            line: 1,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+        consume(
+            limit(primaryUsed: 8, at: "2026-07-21T06:00:00Z"),
+            line: 2,
+            into: &accumulator,
+            cutoff: cutoff,
+            today: today
+        )
+
+        let trace = try XCTUnwrap(
+            accumulator.summary(modifiedAt: modifiedAt, threadName: nil).dailyRateLimitTrace
+        )
+        XCTAssertFalse(trace.canonical?.primary?.didReset ?? true)
+    }
+
     func testFallbackNameAndWarningsAreBounded() throws {
         var accumulator = makeAccumulator(maximumWarnings: 2, maximumNameCharacters: 5)
         let cutoff = try date("2026-05-23T00:00:00Z")
@@ -98,10 +284,32 @@ final class SessionLogAccumulatorTests: XCTestCase {
         """
     }
 
+    private func limit(
+        primaryUsed: Int?,
+        secondaryUsed: Int? = nil,
+        primaryReset: Int? = nil,
+        secondaryReset: Int? = nil,
+        limitID: String = "codex",
+        at timestamp: String
+    ) -> String {
+        let primary = primaryUsed.map { used -> String in
+            var fields = ["\"used_percent\":\(used)", "\"window_minutes\":300"]
+            if let primaryReset { fields.append("\"resets_at\":\(primaryReset)") }
+            return "\"primary\":{\(fields.joined(separator: ","))}"
+        }
+        let secondary = secondaryUsed.map { used -> String in
+            var fields = ["\"used_percent\":\(used)", "\"window_minutes\":10080"]
+            if let secondaryReset { fields.append("\"resets_at\":\(secondaryReset)") }
+            return "\"secondary\":{\(fields.joined(separator: ","))}"
+        }
+        let windows = [primary, secondary].compactMap { $0 }.joined(separator: ",")
+        return """
+        {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","rate_limits":{"limit_id":"\(limitID)",\(windows)}}}
+        """
+    }
+
     private func limit(used: Int, at timestamp: String) -> String {
-        """
-        {"timestamp":"\(timestamp)","type":"event_msg","payload":{"type":"token_count","rate_limits":{"limit_id":"codex","primary":{"used_percent":\(used),"window_minutes":300}}}}
-        """
+        limit(primaryUsed: used, at: timestamp)
     }
 
     private func userMessage(_ message: String) -> String {

@@ -75,6 +75,73 @@ public struct RateLimitCandidate: Equatable, Sendable {
     }
 }
 
+public struct DailyRateLimitWindowObservation: Equatable, Sendable {
+    public let usedPercent: Double
+    public let resetsAt: Double?
+    public let reportedAt: Date
+    public let sequence: Int
+    public let sourcePath: String
+
+    public init(
+        usedPercent: Double,
+        resetsAt: Double?,
+        reportedAt: Date,
+        sequence: Int,
+        sourcePath: String
+    ) {
+        self.usedPercent = usedPercent
+        self.resetsAt = resetsAt
+        self.reportedAt = reportedAt
+        self.sequence = sequence
+        self.sourcePath = sourcePath
+    }
+}
+
+public struct DailyRateLimitWindowTrace: Equatable, Sendable {
+    public let first: DailyRateLimitWindowObservation
+    public let last: DailyRateLimitWindowObservation
+    public let didReset: Bool
+
+    public init(
+        first: DailyRateLimitWindowObservation,
+        last: DailyRateLimitWindowObservation,
+        didReset: Bool
+    ) {
+        self.first = first
+        self.last = last
+        self.didReset = didReset
+    }
+}
+
+public struct DailyRateLimitFamilyTrace: Equatable, Sendable {
+    public let primary: DailyRateLimitWindowTrace?
+    public let secondary: DailyRateLimitWindowTrace?
+
+    public init(
+        primary: DailyRateLimitWindowTrace?,
+        secondary: DailyRateLimitWindowTrace?
+    ) {
+        self.primary = primary
+        self.secondary = secondary
+    }
+}
+
+public struct DailyRateLimitTrace: Equatable, Sendable {
+    public let day: Date
+    public let canonical: DailyRateLimitFamilyTrace?
+    public let fallback: DailyRateLimitFamilyTrace?
+
+    public init(
+        day: Date,
+        canonical: DailyRateLimitFamilyTrace?,
+        fallback: DailyRateLimitFamilyTrace?
+    ) {
+        self.day = day
+        self.canonical = canonical
+        self.fallback = fallback
+    }
+}
+
 public struct SessionLogSummary: Equatable, Sendable {
     public let path: String
     public let modifiedAt: Date
@@ -83,6 +150,7 @@ public struct SessionLogSummary: Equatable, Sendable {
     public let dailyCounts: [Date: TokenCounts]
     public let latestTokenCounts: TokenCounts
     public let latestRateLimit: RateLimitCandidate?
+    public let dailyRateLimitTrace: DailyRateLimitTrace?
     public let lifecycle: LifecycleSummary
     public let warnings: [ParseWarning]
     public let suppressedWarningCount: Int
@@ -96,6 +164,7 @@ public struct SessionLogSummary: Equatable, Sendable {
         dailyCounts: [Date: TokenCounts],
         latestTokenCounts: TokenCounts,
         latestRateLimit: RateLimitCandidate?,
+        dailyRateLimitTrace: DailyRateLimitTrace? = nil,
         lifecycle: LifecycleSummary,
         warnings: [ParseWarning],
         suppressedWarningCount: Int,
@@ -108,6 +177,7 @@ public struct SessionLogSummary: Equatable, Sendable {
         self.dailyCounts = dailyCounts
         self.latestTokenCounts = latestTokenCounts
         self.latestRateLimit = latestRateLimit
+        self.dailyRateLimitTrace = dailyRateLimitTrace
         self.lifecycle = lifecycle
         self.warnings = warnings
         self.suppressedWarningCount = suppressedWarningCount
