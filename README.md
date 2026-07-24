@@ -26,7 +26,7 @@
 
 ## Features
 
-- **Overview** — see primary and secondary rate-limit windows, a compact Token heatmap, and shortcuts to live sessions.
+- **Overview** — see current rate-limit windows and each window's initial remaining percentage for today, a compact Token heatmap, and shortcuts to live sessions.
 - **History** — explore the latest 60 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
 - **Sessions** — follow active top-level Codex terminal and Codex Desktop sessions, including activity, working directory, last update, and cumulative Tokens.
 - **Private by design** — inspect local Codex data without accounts, network requests, analytics, or a background service.
