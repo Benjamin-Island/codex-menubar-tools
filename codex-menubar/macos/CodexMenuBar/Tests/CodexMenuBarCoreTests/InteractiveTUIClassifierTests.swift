@@ -16,6 +16,20 @@ final class InteractiveTUIClassifierTests: XCTestCase {
         XCTAssertEqual(classifier.candidates(from: processes, currentUID: currentUID).map(\.pid), [1, 2, 3, 4])
     }
 
+    func testAcceptsCodexDesktopAppServerWithoutTerminal() {
+        let desktop = process(
+            pid: 5,
+            executablePath: "/Applications/ChatGPT.app/Contents/Resources/codex",
+            arguments: ["codex", "app-server"],
+            hasControllingTerminal: false
+        )
+
+        XCTAssertEqual(
+            classifier.candidates(from: [desktop], currentUID: currentUID).map(\.pid),
+            [5]
+        )
+    }
+
     func testRejectsDocumentedNonInteractiveSubcommands() {
         let commands = [
             "exec", "review", "login", "logout", "mcp", "plugin", "mcp-server",

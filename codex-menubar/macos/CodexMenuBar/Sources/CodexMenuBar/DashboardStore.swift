@@ -9,7 +9,7 @@ final class DashboardStore: ObservableObject {
     @Published private(set) var snapshot: DashboardSnapshot
     @Published var selectedTab: DashboardTab = .overview
     @Published var historySelection: HistorySelection
-    @Published var selectedSessionPID: Int32?
+    @Published var selectedSessionID: String?
     @Published private(set) var isRefreshing = false
 
     private let reader: DashboardReadOperation
@@ -46,15 +46,15 @@ final class DashboardStore: ObservableObject {
         historySelection = .day(date)
     }
 
-    func showLiveSession(pid: Int32) {
-        selectedSessionPID = pid
+    func showLiveSession(id: String) {
+        selectedSessionID = id
         selectedTab = .sessions
     }
 
     func copySelectedSessionPath() {
-        guard let selectedSessionPID,
+        guard let selectedSessionID,
               case let .content(sessions) = snapshot.sessions,
-              let session = sessions.first(where: { $0.pid == selectedSessionPID })
+              let session = sessions.first(where: { $0.id == selectedSessionID })
         else {
             return
         }

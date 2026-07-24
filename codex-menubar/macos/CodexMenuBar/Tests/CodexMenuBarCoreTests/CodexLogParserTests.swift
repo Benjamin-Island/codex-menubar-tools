@@ -35,7 +35,7 @@ final class CodexLogParserTests: XCTestCase {
         XCTAssertEqual(summary.dailyCounts.values.first?.total, 160)
         XCTAssertEqual(summary.lifecycle, .active)
         XCTAssertEqual(summary.warnings.count, 1)
-        XCTAssertTrue(summary.isTopLevelInteractiveTUI)
+        XCTAssertTrue(summary.isTopLevelLiveSession)
     }
 
     func testFallsBackToMessageThenDirectoryThenUntitledSession() throws {
@@ -88,6 +88,21 @@ final class CodexLogParserTests: XCTestCase {
             ])
             XCTAssertEqual(summary.session.sourceKind, expected)
         }
+    }
+
+    func testCodexDesktopMetadataIsTopLevelAppSession() throws {
+        let summary = try parse(records: [
+            metadata(
+                id: "desktop-session",
+                cwd: "/tmp/project",
+                source: "vscode",
+                originator: "Codex Desktop",
+                threadSource: "user"
+            )
+        ])
+
+        XCTAssertEqual(summary.session.sourceKind, "App")
+        XCTAssertTrue(summary.isTopLevelLiveSession)
     }
 
     func testTokenRateAndCreditsDecodeTolerantlyAtIntegerBoundary() throws {

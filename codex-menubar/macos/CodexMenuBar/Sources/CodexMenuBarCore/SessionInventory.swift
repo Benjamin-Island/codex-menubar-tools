@@ -3,7 +3,7 @@ import Foundation
 public final class SessionInventory: @unchecked Sendable {
     private struct CachedAssociation {
         let processStartedAt: Date
-        let logPath: String
+        var logPaths: Set<String>
     }
 
     private let processProvider: any ProcessProviding
@@ -33,8 +33,8 @@ public final class SessionInventory: @unchecked Sendable {
         lock.lock()
         defer { lock.unlock() }
         let starts = Dictionary(uniqueKeysWithValues: candidates.map { ($0.pid, $0.startedAt) })
-        let cached = cachedAssociationByPID.compactMap { pid, association -> String? in
-            starts[pid] == association.processStartedAt ? association.logPath : nil
+        let cached = cachedAssociationByPID.flatMap { pid, association -> [String] in
+            starts[pid] == association.processStartedAt ? Array(association.logPaths) : []
         }
         return Set(candidates.flatMap(\.openFilePaths) + cached)
     }
@@ -44,7 +44,7 @@ public final class SessionInventory: @unchecked Sendable {
             return read(summaries: summaries, candidates: try scanProcesses(), now: now)
         } catch {
             return .failure(SessionInventoryError(
-                message: "Unable to scan Codex CLI processes",
+                message: "Unable to scan Codex processes",
                 detail: error.localizedDescription
             ))
         }
@@ -63,43 +63,52 @@ public final class SessionInventory: @unchecked Sendable {
             processStartByPID[pid] == association.processStartedAt
         }
 
-        let eligibleLogs = summaries.filter(\.isTopLevelInteractiveTUI)
+        let eligibleLogs = summaries.filter(\.isTopLevelLiveSession)
         let logsByPath = Dictionary(uniqueKeysWithValues: eligibleLogs.map {
             (URL(fileURLWithPath: $0.path).standardizedFileURL.path, $0)
         })
         var assignedPaths = Set<String>()
-        var snapshotsByPID: [Int32: SessionDisplaySnapshot] = [:]
+        var snapshots: [SessionDisplaySnapshot] = []
         var unresolved: [ProcessSnapshot] = []
 
         for process in candidates {
             let openPaths = process.openFilePaths
                 .map { URL(fileURLWithPath: $0).standardizedFileURL.path }
                 .sorted()
-            if let match = openPaths.first(where: {
+            let matches = openPaths.filter {
                 !assignedPaths.contains($0) && logsByPath[$0] != nil
-            }),
-               let log = logsByPath[match]
-            {
+            }
+            for match in matches {
+                guard let log = logsByPath[match] else { continue }
                 assignedPaths.insert(match)
                 cache(logPath: match, for: process)
-                snapshotsByPID[process.pid] = displaySnapshot(process: process, log: log, now: now)
-            } else {
+                snapshots.append(displaySnapshot(process: process, log: log, now: now))
+            }
+            if matches.isEmpty {
                 unresolved.append(process)
             }
         }
 
         var needsFallback: [ProcessSnapshot] = []
         for process in unresolved {
-            guard let cachedPath = cachedAssociationByPID[process.pid]?.logPath,
-                  !assignedPaths.contains(cachedPath),
-                  let log = logsByPath[cachedPath]
-            else {
+            guard let association = cachedAssociationByPID[process.pid] else {
                 cachedAssociationByPID.removeValue(forKey: process.pid)
                 needsFallback.append(process)
                 continue
             }
-            assignedPaths.insert(cachedPath)
-            snapshotsByPID[process.pid] = displaySnapshot(process: process, log: log, now: now)
+            let cachedPaths = association.logPaths.sorted().filter {
+                !assignedPaths.contains($0) && logsByPath[$0] != nil
+            }
+            guard !cachedPaths.isEmpty else {
+                cachedAssociationByPID.removeValue(forKey: process.pid)
+                needsFallback.append(process)
+                continue
+            }
+            for cachedPath in cachedPaths {
+                guard let log = logsByPath[cachedPath] else { continue }
+                assignedPaths.insert(cachedPath)
+                snapshots.append(displaySnapshot(process: process, log: log, now: now))
+            }
         }
 
         for process in needsFallback {
@@ -108,19 +117,18 @@ public final class SessionInventory: @unchecked Sendable {
                 logs: eligibleLogs,
                 excluding: assignedPaths
             ) else {
-                snapshotsByPID[process.pid] = unassociatedSnapshot(process: process)
+                if !classifier.isDesktopAppServer(process) {
+                    snapshots.append(unassociatedSnapshot(process: process))
+                }
                 continue
             }
             let path = URL(fileURLWithPath: log.path).standardizedFileURL.path
             assignedPaths.insert(path)
             cache(logPath: path, for: process)
-            snapshotsByPID[process.pid] = displaySnapshot(process: process, log: log, now: now)
+            snapshots.append(displaySnapshot(process: process, log: log, now: now))
         }
 
-        let items = candidates
-            .compactMap { snapshotsByPID[$0.pid] }
-            .sorted(by: displayOrder)
-        return .snapshots(items)
+        return .snapshots(snapshots.sorted(by: displayOrder))
     }
 
     private func fallbackMatch(
@@ -148,10 +156,17 @@ public final class SessionInventory: @unchecked Sendable {
     }
 
     private func cache(logPath: String, for process: ProcessSnapshot) {
-        cachedAssociationByPID[process.pid] = CachedAssociation(
-            processStartedAt: process.startedAt,
-            logPath: logPath
-        )
+        if var existing = cachedAssociationByPID[process.pid],
+           existing.processStartedAt == process.startedAt
+        {
+            existing.logPaths.insert(logPath)
+            cachedAssociationByPID[process.pid] = existing
+        } else {
+            cachedAssociationByPID[process.pid] = CachedAssociation(
+                processStartedAt: process.startedAt,
+                logPaths: [logPath]
+            )
+        }
     }
 
     private func displaySnapshot(
@@ -167,6 +182,7 @@ public final class SessionInventory: @unchecked Sendable {
         return SessionDisplaySnapshot(
             pid: process.pid,
             sessionID: log.session.id,
+            sourceKind: log.session.sourceKind,
             activity: activity,
             taskDescription: taskDescription,
             displayTaskDescription: SessionTextFormatting.displayDescription(taskDescription),

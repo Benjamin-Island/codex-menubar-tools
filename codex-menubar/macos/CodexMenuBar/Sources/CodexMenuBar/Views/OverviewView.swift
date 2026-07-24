@@ -62,14 +62,14 @@ struct OverviewView: View {
         case let .content(sessions):
             Panel {
                 VStack(alignment: .leading, spacing: 9) {
-                    SectionTitle("Live sessions", subtitle: "Strict interactive TUI processes only")
+                    SectionTitle("Live sessions", subtitle: "Terminal and Codex Desktop")
                     ForEach(sessions.prefix(4)) { session in
                         Button {
-                            store.showLiveSession(pid: session.pid)
+                            store.showLiveSession(id: session.id)
                         } label: {
                             SessionRow(
                                 title: session.displayTaskDescription,
-                                subtitle: "PID \(session.pid) · \(session.activity.rawValue.capitalized)",
+                                subtitle: "\(session.sourceKind) · PID \(session.pid) · \(session.activity.rawValue.capitalized)",
                                 activity: session.activity,
                                 tokens: session.tokenCounts.total
                             )

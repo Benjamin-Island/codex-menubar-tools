@@ -149,7 +149,7 @@ final class TokenHistoryAggregatorTests: XCTestCase {
             lifecycle: .inactive,
             warnings: [],
             suppressedWarningCount: 0,
-            isTopLevelInteractiveTUI: false
+            isTopLevelLiveSession: false
         )
     }
 

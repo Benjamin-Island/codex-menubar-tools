@@ -44,9 +44,10 @@ public protocol ProcessProviding: Sendable {
 }
 
 public struct SessionDisplaySnapshot: Identifiable, Equatable, Sendable {
-    public var id: Int32 { pid }
+    public var id: String { sessionID ?? "process:\(pid)" }
     public let pid: Int32
     public let sessionID: String?
+    public let sourceKind: String
     public let activity: SessionActivity
     public let taskDescription: String
     public let displayTaskDescription: String
@@ -58,6 +59,7 @@ public struct SessionDisplaySnapshot: Identifiable, Equatable, Sendable {
     public init(
         pid: Int32,
         sessionID: String?,
+        sourceKind: String = "cli",
         activity: SessionActivity,
         taskDescription: String,
         displayTaskDescription: String,
@@ -68,6 +70,7 @@ public struct SessionDisplaySnapshot: Identifiable, Equatable, Sendable {
     ) {
         self.pid = pid
         self.sessionID = sessionID
+        self.sourceKind = sourceKind
         self.activity = activity
         self.taskDescription = taskDescription
         self.displayTaskDescription = displayTaskDescription

@@ -26,11 +26,12 @@ public struct InteractiveTUIClassifier: Sendable {
     ) -> [ProcessSnapshot] {
         processes.filter { process in
             guard process.userID == currentUID,
-                  process.hasControllingTerminal,
                   URL(fileURLWithPath: process.executablePath).lastPathComponent == "codex"
             else {
                 return false
             }
+            if isDesktopAppServer(process) { return true }
+            guard process.hasControllingTerminal else { return false }
             let normalizedPath = process.executablePath.lowercased()
             guard !Self.excludedPathMarkers.contains(where: normalizedPath.contains) else {
                 return false
@@ -38,6 +39,11 @@ public struct InteractiveTUIClassifier: Sendable {
             guard let subcommand = subcommand(in: process.arguments) else { return true }
             return Self.allowedSubcommands.contains(subcommand)
         }.sorted { $0.pid < $1.pid }
+    }
+
+    func isDesktopAppServer(_ process: ProcessSnapshot) -> Bool {
+        process.executablePath.lowercased().contains("/chatgpt.app/")
+            && subcommand(in: process.arguments) == "app-server"
     }
 
     private func subcommand(in arguments: [String]) -> String? {

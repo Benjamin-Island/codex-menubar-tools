@@ -86,7 +86,7 @@ public struct SessionLogSummary: Equatable, Sendable {
     public let lifecycle: LifecycleSummary
     public let warnings: [ParseWarning]
     public let suppressedWarningCount: Int
-    public let isTopLevelInteractiveTUI: Bool
+    public let isTopLevelLiveSession: Bool
 
     public init(
         path: String,
@@ -99,7 +99,7 @@ public struct SessionLogSummary: Equatable, Sendable {
         lifecycle: LifecycleSummary,
         warnings: [ParseWarning],
         suppressedWarningCount: Int,
-        isTopLevelInteractiveTUI: Bool
+        isTopLevelLiveSession: Bool
     ) {
         self.path = path
         self.modifiedAt = modifiedAt
@@ -111,6 +111,6 @@ public struct SessionLogSummary: Equatable, Sendable {
         self.lifecycle = lifecycle
         self.warnings = warnings
         self.suppressedWarningCount = suppressedWarningCount
-        self.isTopLevelInteractiveTUI = isTopLevelInteractiveTUI
+        self.isTopLevelLiveSession = isTopLevelLiveSession
     }
 }

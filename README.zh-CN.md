@@ -5,7 +5,7 @@
 
 <div align="center">
   <h1>Codex Menu Bar</h1>
-  <p>原生、仅本地运行的 macOS 菜单栏仪表盘，用于查看 Codex 用量、Token 历史记录和实时交互式 CLI 会话。</p>
+  <p>原生、仅本地运行的 macOS 菜单栏仪表盘，用于查看 Codex 用量、Token 历史记录和实时 Codex 会话。</p>
   <p>
     <img alt="macOS 14+" src="https://img.shields.io/badge/macOS-14%2B-000000?logo=apple">
     <img alt="Swift 6" src="https://img.shields.io/badge/Swift-6-F05138?logo=swift&amp;logoColor=white">
@@ -28,7 +28,7 @@
 
 - **概览** — 查看主要和次要速率限制周期、紧凑的 Token 热力图，以及实时会话快捷入口。
 - **历史记录** — 浏览最近 60 个本地自然日的数据，包括每天的 Total、Input、Cached、Output、Reasoning 明细和各会话分项。
-- **会话** — 严格识别顶层 Codex 终端 TUI，并显示活动状态、工作目录、最后更新时间和累计 Token。
+- **会话** — 跟踪活跃的顶层 Codex 终端会话和 Codex Desktop 会话，并显示活动状态、工作目录、最后更新时间和累计 Token。
 - **隐私优先** — 无需账户、网络请求、分析服务或后台服务，即可查看本地 Codex 数据。
 
 ## 为什么使用 Codex Menu Bar
@@ -50,7 +50,7 @@ Codex 已经记录了实用的本地会话数据，但检查用量或了解多�
 
 应用以有界数据块流式读取会话 JSONL 文件。运行期间，新增字节只会更新内存中的每日汇总；原始历史 Token 事件不会保留。索引不会写入磁盘，因此每次重启都会重新进行流式扫描。
 
-“历史记录”包含最近 60 个本地自然日内所有已建立索引的本地 rollout 来源。“会话”页面则只显示顶层交互式终端 TUI。应用最多索引 10,000 个普通日志，并额外包含当前运行会话所需的全部日志。
+“历史记录”包含最近 60 个本地自然日内所有已建立索引的本地 rollout 来源。“会话”页面显示顶层交互式终端会话，以及 Codex Desktop 中当前打开的用户会话。应用最多索引 10,000 个普通日志，并额外包含当前运行会话所需的全部日志。
 
 ## 系统要求
 

@@ -97,7 +97,7 @@ final class SummaryConsumerTests: XCTestCase {
             lifecycle: .active,
             warnings: [],
             suppressedWarningCount: 0,
-            isTopLevelInteractiveTUI: topLevel
+            isTopLevelLiveSession: topLevel
         )
     }
 

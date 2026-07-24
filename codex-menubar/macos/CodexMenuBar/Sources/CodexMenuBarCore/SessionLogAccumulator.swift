@@ -166,7 +166,11 @@ struct SessionLogAccumulator: Equatable, Sendable {
             lifecycle: lifecycle,
             warnings: warnings,
             suppressedWarningCount: suppressedWarningCount,
-            isTopLevelInteractiveTUI: source == "cli" && originator == "codex-tui" && threadSource == "user"
+            isTopLevelLiveSession: isTopLevelLiveSession(
+                source: source,
+                originator: originator,
+                threadSource: threadSource
+            )
         )
     }
 
@@ -209,9 +213,22 @@ struct SessionLogAccumulator: Equatable, Sendable {
         if values.contains("codex-tui") || source?.lowercased() == "cli" { return "cli" }
         if values.contains("exec") { return "exec" }
         if values.contains("review") { return "review" }
+        if values.contains("codex desktop") { return "App" }
         if values.contains("vscode") || values.contains("ide") { return "IDE" }
         if values.contains("chatgpt") || values.contains("app") { return "App" }
         return "Other"
+    }
+
+    private func isTopLevelLiveSession(
+        source: String?,
+        originator: String?,
+        threadSource: String?
+    ) -> Bool {
+        guard threadSource?.lowercased() == "user" else { return false }
+        if source?.lowercased() == "cli" && originator?.lowercased() == "codex-tui" {
+            return true
+        }
+        return originator?.lowercased() == "codex desktop"
     }
 
     private func string(_ value: Any?) -> String? {
