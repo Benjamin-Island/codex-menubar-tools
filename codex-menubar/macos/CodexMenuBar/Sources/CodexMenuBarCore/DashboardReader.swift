@@ -81,7 +81,11 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
         } ? .content(history) : .empty("No Token history found yet.")
 
         let rateLimitState: ContentState<UsageSnapshot>
-        switch rateLimitReducer.reduce(summaries: indexSnapshot.summaries) {
+        switch rateLimitReducer.reduce(
+            summaries: indexSnapshot.summaries,
+            calendar: calendar,
+            now: readAt
+        ) {
         case let .snapshot(snapshot):
             rateLimitState = .content(snapshot)
         case let .failure(error):

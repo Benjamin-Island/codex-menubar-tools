@@ -79,6 +79,39 @@ final class DashboardReaderTests: XCTestCase {
         XCTAssertEqual(index.modifiedSinceValues.last, utcCalendar().date(byAdding: .day, value: -59, to: utcCalendar().startOfDay(for: now)))
     }
 
+    func testUsageReductionUsesInjectedCalendarAndClock() {
+        let observation = DailyRateLimitWindowObservation(
+            usedPercent: 20,
+            resetsAt: nil,
+            reportedAt: now,
+            sequence: 1,
+            sourcePath: "/sessions/good.jsonl"
+        )
+        let trace = DailyRateLimitTrace(
+            day: utcCalendar().startOfDay(for: now),
+            canonical: DailyRateLimitFamilyTrace(
+                primary: DailyRateLimitWindowTrace(
+                    first: observation,
+                    last: observation,
+                    didReset: false
+                ),
+                secondary: nil
+            ),
+            fallback: nil
+        )
+        let reader = makeReader(
+            indexResults: [.success(snapshot(summaries: [
+                summary(hasRateLimit: true, totalTokens: 10, dailyRateLimitTrace: trace)
+            ]))],
+            processes: .success([])
+        )
+
+        guard case let .content(usage) = reader.read().rateLimit else {
+            return XCTFail("Expected rate limit content")
+        }
+        XCTAssertEqual(usage.primary?.todayInitialRemainingPercent, 80)
+    }
+
     private func makeReader(
         indexResults: [Result<IncrementalLogIndexSnapshot, Error>],
         processes: Result<[ProcessSnapshot], Error>
@@ -113,7 +146,11 @@ final class DashboardReaderTests: XCTestCase {
         IncrementalLogIndexSnapshot(summaries: summaries, warnings: warnings)
     }
 
-    private func summary(hasRateLimit: Bool, totalTokens: Int64) -> SessionLogSummary {
+    private func summary(
+        hasRateLimit: Bool,
+        totalTokens: Int64,
+        dailyRateLimitTrace: DailyRateLimitTrace? = nil
+    ) -> SessionLogSummary {
         let path = "/sessions/good.jsonl"
         let counts = TokenCounts(total: totalTokens, input: totalTokens, cachedInput: 0, output: 0, reasoning: 0)
         let rate = hasRateLimit ? RateLimitCandidate(
@@ -141,6 +178,7 @@ final class DashboardReaderTests: XCTestCase {
             dailyCounts: totalTokens > 0 ? [utcCalendar().startOfDay(for: now): counts] : [:],
             latestTokenCounts: counts,
             latestRateLimit: rate,
+            dailyRateLimitTrace: dailyRateLimitTrace,
             lifecycle: .active,
             warnings: [],
             suppressedWarningCount: 0,

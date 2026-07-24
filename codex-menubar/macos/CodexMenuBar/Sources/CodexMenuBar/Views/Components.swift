@@ -43,6 +43,10 @@ struct UsageCard: View {
     let title: String
     let window: WindowUsage?
 
+    var todayInitialText: String? {
+        UsageFormatting.todayInitialLabel(window)
+    }
+
     var body: some View {
         Panel {
             VStack(alignment: .leading, spacing: 9) {
@@ -58,6 +62,12 @@ struct UsageCard: View {
                     .font(.system(size: 28, weight: .semibold, design: .rounded))
                     .contentTransition(.numericText())
                 ProgressView(value: Double(window?.remainingPercent ?? 0), total: 100)
+                if let todayInitialText {
+                    Text(todayInitialText)
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                        .contentTransition(.numericText())
+                }
                 Text("Resets \(UsageFormatting.dateLabel(window?.resetsAt))")
                     .font(.caption)
                     .foregroundStyle(.secondary)
