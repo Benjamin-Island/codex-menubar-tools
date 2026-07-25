@@ -46,14 +46,18 @@ struct PetIslandView: View {
     }
 
     private var petControlSize: CGFloat {
-        78 * petScale
+        PetIslandPlacement.petControlSize(petScale: petScale)
+    }
+
+    private var dockedPetScale: CGFloat {
+        min(petScale, 1.25)
     }
 
     var body: some View {
         floatingSurface
         .frame(
-            width: PetIslandPlacement.size(expanded: isExpanded, peeking: isPeeking).width,
-            height: PetIslandPlacement.size(expanded: isExpanded, peeking: isPeeking).height
+            width: islandSize.width,
+            height: islandSize.height
         )
         .accessibilityElement(children: .contain)
         .accessibilityLabel(text("Codex Pet Status", "Codex 宠物状态"))
@@ -106,8 +110,8 @@ struct PetIslandView: View {
                         floatingPet
                     }
                     .frame(
-                        width: PetIslandPlacement.floatingSize.width,
-                        height: PetIslandPlacement.floatingSize.height,
+                        width: islandSize.width,
+                        height: islandSize.height,
                         alignment: .bottomTrailing
                     )
                 }
@@ -135,7 +139,10 @@ struct PetIslandView: View {
                     .rotationEffect(.degrees(-90))
 
                 pet
-                    .frame(width: 50 * petScale, height: 56 * petScale)
+                    .frame(
+                        width: 50 * dockedPetScale,
+                        height: 56 * dockedPetScale
+                    )
             }
             .frame(width: 82, height: 82)
 
@@ -338,10 +345,18 @@ struct PetIslandView: View {
         .frame(width: 112, height: 42)
         .background(.quaternary.opacity(0.65), in: RoundedRectangle(cornerRadius: 11))
         .help(text(
-            "Adjust pet size from 75% to 125%",
-            "调整宠物大小，范围为 75% 到 125%"
+            "Adjust pet size from 75% to 300%",
+            "调整宠物大小，范围为 75% 到 300%"
         ))
         .accessibilityElement(children: .contain)
+    }
+
+    private var islandSize: CGSize {
+        PetIslandPlacement.size(
+            expanded: isExpanded,
+            peeking: isPeeking,
+            petScale: petScale
+        )
     }
 
     @ViewBuilder

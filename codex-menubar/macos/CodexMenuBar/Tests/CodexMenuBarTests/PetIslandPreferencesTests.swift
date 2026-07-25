@@ -93,7 +93,15 @@ final class PetIslandPreferencesTests: XCTestCase {
             defaults: defaults,
             localSelectedPetID: nil
         )
-        XCTAssertEqual(clamped.petScalePercent, 125)
+        XCTAssertEqual(clamped.petScalePercent, 200)
+
+        defaults.set(400, forKey: PetIslandPreferences.petScaleKey)
+        let upperClamped = PetIslandPreferences(
+            pets: [],
+            defaults: defaults,
+            localSelectedPetID: nil
+        )
+        XCTAssertEqual(upperClamped.petScalePercent, 300)
     }
 
     func testFollowingLocalPetReloadsSelectionWhenCodexConfigurationChanges() {
