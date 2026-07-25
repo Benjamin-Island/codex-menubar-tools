@@ -15,14 +15,14 @@ final class PetIslandPlacementTests: XCTestCase {
         XCTAssertEqual(frame.size, PetIslandPlacement.floatingSize)
     }
 
-    func testPeekingPetUsesCompactEdgeSize() {
+    func testPeekingPetUsesSelectedPetScale() {
         let size = PetIslandPlacement.size(
             expanded: false,
             peeking: true,
             petScale: 3
         )
 
-        XCTAssertEqual(size, PetIslandPlacement.peekSize)
+        XCTAssertEqual(size, NSSize(width: 312, height: 336))
     }
 
     func testThreeHundredPercentPetExpandsFloatingAndExpandedWindows() {

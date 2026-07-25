@@ -49,10 +49,6 @@ struct PetIslandView: View {
         PetIslandPlacement.petControlSize(petScale: petScale)
     }
 
-    private var dockedPetScale: CGFloat {
-        min(petScale, 1.25)
-    }
-
     var body: some View {
         floatingSurface
         .frame(
@@ -77,8 +73,8 @@ struct PetIslandView: View {
                     }
                 }
                 .frame(
-                    width: PetIslandPlacement.peekSize.width,
-                    height: PetIslandPlacement.peekSize.height
+                    width: islandSize.width,
+                    height: islandSize.height
                 )
                 .overlay {
                     petDragCapture
@@ -126,43 +122,56 @@ struct PetIslandView: View {
     }
 
     private var peekingPet: some View {
-        VStack(spacing: -6) {
+        VStack(spacing: -6 * petScale) {
             ZStack {
                 Circle()
-                    .stroke(Color.secondary.opacity(0.14), lineWidth: 5)
+                    .stroke(
+                        Color.secondary.opacity(0.14),
+                        lineWidth: 5 * petScale
+                    )
                 Circle()
                     .trim(from: 0, to: dockedUsageProgress)
                     .stroke(
                         summaryUsageColor(dockedUsage?.remainingPercent),
-                        style: StrokeStyle(lineWidth: 5, lineCap: .round)
+                        style: StrokeStyle(
+                            lineWidth: 5 * petScale,
+                            lineCap: .round
+                        )
                     )
                     .rotationEffect(.degrees(-90))
 
                 pet
                     .frame(
-                        width: 50 * dockedPetScale,
-                        height: 56 * dockedPetScale
+                        width: 50 * petScale,
+                        height: 56 * petScale
                     )
             }
-            .frame(width: 82, height: 82)
+            .frame(width: 82 * petScale, height: 82 * petScale)
 
             Text(dockedUsageText)
-                .font(.system(size: 11, weight: .bold, design: .rounded))
+                .font(.system(
+                    size: 11 * petScale,
+                    weight: .bold,
+                    design: .rounded
+                ))
                 .monospacedDigit()
                 .foregroundStyle(.primary)
-                .padding(.horizontal, 9)
-                .frame(height: 24)
+                .padding(.horizontal, 9 * petScale)
+                .frame(height: 24 * petScale)
                 .background(.regularMaterial, in: Capsule())
                 .overlay {
                     Capsule()
-                        .strokeBorder(.white.opacity(0.55), lineWidth: 1)
+                        .strokeBorder(
+                            .white.opacity(0.55),
+                            lineWidth: petScale
+                        )
                 }
         }
-        .padding(.top, 6)
-        .padding(.horizontal, 8)
+        .padding(.top, 6 * petScale)
+        .padding(.horizontal, 8 * petScale)
         .frame(
-            width: PetIslandPlacement.peekSize.width,
-            height: PetIslandPlacement.peekSize.height
+            width: islandSize.width,
+            height: islandSize.height
         )
         .contentShape(Circle())
         .accessibilityLabel(text("Codex pet usage", "Codex 宠物额度"))
@@ -216,7 +225,10 @@ struct PetIslandView: View {
             activityBadge
                 .offset(x: -2 * petScale, y: -2 * petScale)
         }
-        .frame(width: petControlSize, height: petControlSize)
+        .frame(
+            width: isPeeking ? islandSize.width : petControlSize,
+            height: isPeeking ? islandSize.height : petControlSize
+        )
         .contentShape(Circle())
     }
 

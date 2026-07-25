@@ -30,12 +30,19 @@ struct PetIslandPlacement {
         )
     }
 
+    static func peekSize(petScale: CGFloat) -> NSSize {
+        NSSize(
+            width: peekSize.width * petScale,
+            height: peekSize.height * petScale
+        )
+    }
+
     static func size(
         expanded: Bool,
         peeking: Bool = false,
         petScale: CGFloat = 1
     ) -> NSSize {
-        if peeking { return peekSize }
+        if peeking { return peekSize(petScale: petScale) }
         return expanded
             ? expandedSize(petScale: petScale)
             : floatingSize(petScale: petScale)
@@ -211,7 +218,7 @@ final class PetIslandController: NSObject {
 
     private func presentationFrame(screen: NSScreen) -> NSRect {
         if isPeeking, let dockEdge {
-            let size = PetIslandPlacement.peekSize
+            let size = PetIslandPlacement.peekSize(petScale: petScale)
             let preferredY = floatingOrigin?.y
                 ?? screen.visibleFrame.maxY - size.height - 10
             let y = min(
