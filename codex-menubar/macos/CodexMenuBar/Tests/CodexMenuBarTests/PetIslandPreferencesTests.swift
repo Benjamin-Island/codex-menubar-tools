@@ -67,6 +67,50 @@ final class PetIslandPreferencesTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: PetIslandPreferences.presentationKey))
     }
 
+    func testFollowingLocalPetReloadsSelectionWhenCodexConfigurationChanges() {
+        let suiteName = "PetIslandPreferencesTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let oldPet = pet(id: "pang-q", manifestID: "pang-q", modifiedAt: 1)
+        let newPet = pet(id: "sharkler", manifestID: "sharkler", modifiedAt: 2)
+        let preferences = PetIslandPreferences(
+            pets: [oldPet],
+            defaults: defaults,
+            localSelectedPetID: "pang-q"
+        )
+
+        preferences.reloadLocalConfiguration(
+            pets: [oldPet, newPet],
+            localSelectedPetID: "sharkler"
+        )
+
+        XCTAssertEqual(preferences.selectedPetID, "sharkler")
+        XCTAssertEqual(preferences.selectedPet?.displayName, "sharkler")
+        XCTAssertTrue(preferences.followsLocalPet)
+    }
+
+    func testExplicitPetSelectionDoesNotFollowReloadedCodexConfiguration() {
+        let suiteName = "PetIslandPreferencesTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+        let oldPet = pet(id: "pang-q", manifestID: "pang-q", modifiedAt: 1)
+        let newPet = pet(id: "sharkler", manifestID: "sharkler", modifiedAt: 2)
+        let preferences = PetIslandPreferences(
+            pets: [oldPet, newPet],
+            defaults: defaults,
+            localSelectedPetID: "pang-q"
+        )
+        preferences.selectPet(id: "pang-q")
+
+        preferences.reloadLocalConfiguration(
+            pets: [oldPet, newPet],
+            localSelectedPetID: "sharkler"
+        )
+
+        XCTAssertEqual(preferences.selectedPetID, "pang-q")
+        XCTAssertFalse(preferences.followsLocalPet)
+    }
+
     func testReadsSelectedCustomPetFromLocalCodexConfig() throws {
         let configURL = FileManager.default.temporaryDirectory
             .appendingPathComponent("pet-config-\(UUID().uuidString).toml")

@@ -15,6 +15,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
     private let languagePreferences: AppLanguagePreferences
     private var cancellables: Set<AnyCancellable> = []
     private var monitor: SessionDirectoryMonitor?
+    private var petConfigurationMonitor: PetConfigurationMonitor?
     private var refreshTimer: Timer?
     private var petIslandController: PetIslandController?
     private lazy var dismissalCoordinator = PopoverDismissalCoordinator(
@@ -76,11 +77,13 @@ final class StatusController: NSObject, NSPopoverDelegate {
             .store(in: &cancellables)
         apply(store.snapshot)
         ensureMonitor()
+        ensurePetConfigurationMonitor()
         store.refresh()
 
         let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.ensureMonitor()
+                self?.ensurePetConfigurationMonitor()
                 self?.store.refresh()
             }
         }
@@ -114,6 +117,28 @@ final class StatusController: NSObject, NSPopoverDelegate {
         }
         guard candidate.start() else { return }
         monitor = candidate
+    }
+
+    private func ensurePetConfigurationMonitor() {
+        guard petConfigurationMonitor == nil else { return }
+        let configURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex/config.toml")
+        let petRoots = CodexPetCatalog.defaultRoots()
+        let candidate = PetConfigurationMonitor(
+            configURL: configURL,
+            petRoots: petRoots
+        ) { [weak self] in
+            self?.reloadPetConfiguration()
+        }
+        guard candidate.start() else { return }
+        petConfigurationMonitor = candidate
+    }
+
+    private func reloadPetConfiguration() {
+        petIslandPreferences.reloadLocalConfiguration(
+            pets: CodexPetCatalog().load(),
+            localSelectedPetID: CodexPetSelectionReader().selectedPetID()
+        )
     }
 
     private func apply(_ snapshot: DashboardSnapshot) {
