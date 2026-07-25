@@ -16,10 +16,10 @@ final class PetIslandPreferences: ObservableObject {
     }
 
     @Published private(set) var followsLocalPet: Bool
-    let pets: [CodexPet]
+    @Published private(set) var pets: [CodexPet]
 
     private let defaults: UserDefaults
-    private let localSelectedPetID: String?
+    private var localSelectedPetID: String?
 
     init(
         pets: [CodexPet] = CodexPetCatalog().load(),
@@ -73,6 +73,23 @@ final class PetIslandPreferences: ObservableObject {
         } else {
             defaults.set(true, forKey: Self.explicitSelectionKey)
             followsLocalPet = false
+        }
+    }
+
+    func reloadLocalConfiguration(
+        pets: [CodexPet],
+        localSelectedPetID: String?
+    ) {
+        self.pets = pets
+        self.localSelectedPetID = localSelectedPetID
+
+        if followsLocalPet {
+            selectedPetID = Self.recommendedPet(
+                in: pets,
+                localSelectedPetID: localSelectedPetID
+            )?.id ?? ""
+        } else if !pets.contains(where: { $0.id == selectedPetID }) {
+            selectedPetID = pets.first?.id ?? ""
         }
     }
 
