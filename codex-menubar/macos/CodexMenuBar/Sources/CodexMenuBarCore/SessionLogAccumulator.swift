@@ -1,5 +1,57 @@
 import Foundation
 
+private struct DailyWindowBuilder: Equatable, Sendable {
+    var first: DailyRateLimitWindowObservation?
+    var last: DailyRateLimitWindowObservation?
+    var firstResetAt: Double?
+    var didReset = false
+
+    mutating func record(_ observation: DailyRateLimitWindowObservation) {
+        if let resetsAt = observation.resetsAt {
+            if let firstResetAt, firstResetAt != resetsAt {
+                didReset = true
+            } else if firstResetAt == nil {
+                firstResetAt = resetsAt
+            }
+        }
+        if first.map({ observationOrder(observation, $0) }) ?? true {
+            first = observation
+        }
+        if last.map({ observationOrder($0, observation) }) ?? true {
+            last = observation
+        }
+    }
+
+    func snapshot() -> DailyRateLimitWindowTrace? {
+        guard let first, let last else { return nil }
+        return DailyRateLimitWindowTrace(first: first, last: last, didReset: didReset)
+    }
+}
+
+private struct DailyFamilyBuilder: Equatable, Sendable {
+    var primary = DailyWindowBuilder()
+    var secondary = DailyWindowBuilder()
+
+    var isEmpty: Bool { primary.first == nil && secondary.first == nil }
+
+    func snapshot() -> DailyRateLimitFamilyTrace? {
+        guard !isEmpty else { return nil }
+        return DailyRateLimitFamilyTrace(
+            primary: primary.snapshot(),
+            secondary: secondary.snapshot()
+        )
+    }
+}
+
+private func observationOrder(
+    _ lhs: DailyRateLimitWindowObservation,
+    _ rhs: DailyRateLimitWindowObservation
+) -> Bool {
+    if lhs.reportedAt != rhs.reportedAt { return lhs.reportedAt < rhs.reportedAt }
+    if lhs.sourcePath != rhs.sourcePath { return lhs.sourcePath < rhs.sourcePath }
+    return lhs.sequence < rhs.sequence
+}
+
 struct SessionLogAccumulator: Equatable, Sendable {
     private static let typeMarker = Data("\"type\"".utf8)
     private static let relevantRecordMarkers = [
@@ -23,6 +75,9 @@ struct SessionLogAccumulator: Equatable, Sendable {
     private var dailyCounts: [Date: TokenCounts] = [:]
     private var latestTokenCounts: TokenCounts = .zero
     private var latestRateLimit: RateLimitCandidate?
+    private var dailyRateLimitDay: Date?
+    private var dailyCanonicalRateLimit = DailyFamilyBuilder()
+    private var dailyFallbackRateLimit = DailyFamilyBuilder()
     private var lifecycle: LifecycleSummary = .inactive
     private var warnings: [ParseWarning] = []
     private var suppressedWarningCount = 0
@@ -106,6 +161,7 @@ struct SessionLogAccumulator: Equatable, Sendable {
                     sequence: record.lineNumber - 1,
                     sourcePath: path
                 )
+                recordDailyRateLimit(candidate, today: today, calendar: calendar)
                 if RateLimitCandidateOrdering.isNewer(candidate, than: latestRateLimit) {
                     latestRateLimit = candidate
                 }
@@ -125,6 +181,11 @@ struct SessionLogAccumulator: Equatable, Sendable {
 
     mutating func prune(cutoff: Date, today: Date) {
         dailyCounts = dailyCounts.filter { $0.key >= cutoff && $0.key <= today }
+        if dailyRateLimitDay != today {
+            dailyRateLimitDay = nil
+            dailyCanonicalRateLimit = DailyFamilyBuilder()
+            dailyFallbackRateLimit = DailyFamilyBuilder()
+        }
     }
 
     func summary(modifiedAt: Date, threadName: String?) -> SessionLogSummary {
@@ -163,6 +224,13 @@ struct SessionLogAccumulator: Equatable, Sendable {
             dailyCounts: dailyCounts,
             latestTokenCounts: latestTokenCounts,
             latestRateLimit: rateLimit,
+            dailyRateLimitTrace: dailyRateLimitDay.map {
+                DailyRateLimitTrace(
+                    day: $0,
+                    canonical: dailyCanonicalRateLimit.snapshot(),
+                    fallback: dailyFallbackRateLimit.snapshot()
+                )
+            },
             lifecycle: lifecycle,
             warnings: warnings,
             suppressedWarningCount: suppressedWarningCount,
@@ -194,6 +262,56 @@ struct SessionLogAccumulator: Equatable, Sendable {
             usedPercent: finiteDouble(object["used_percent"]),
             windowMinutes: finiteDouble(object["window_minutes"]),
             resetsAt: finiteDouble(object["resets_at"])
+        )
+    }
+
+    private mutating func recordDailyRateLimit(
+        _ candidate: RateLimitCandidate,
+        today: Date,
+        calendar: Calendar
+    ) {
+        guard let reportedAt = candidate.reportedAt,
+              calendar.startOfDay(for: reportedAt) == today
+        else {
+            return
+        }
+        let primary = observation(
+            candidate.primary,
+            candidate: candidate,
+            reportedAt: reportedAt
+        )
+        let secondary = observation(
+            candidate.secondary,
+            candidate: candidate,
+            reportedAt: reportedAt
+        )
+        guard primary != nil || secondary != nil else { return }
+        if dailyRateLimitDay != today {
+            dailyRateLimitDay = today
+            dailyCanonicalRateLimit = DailyFamilyBuilder()
+            dailyFallbackRateLimit = DailyFamilyBuilder()
+        }
+        if candidate.limitID == "codex" {
+            if let primary { dailyCanonicalRateLimit.primary.record(primary) }
+            if let secondary { dailyCanonicalRateLimit.secondary.record(secondary) }
+        } else {
+            if let primary { dailyFallbackRateLimit.primary.record(primary) }
+            if let secondary { dailyFallbackRateLimit.secondary.record(secondary) }
+        }
+    }
+
+    private func observation(
+        _ window: RawRateLimitWindow?,
+        candidate: RateLimitCandidate,
+        reportedAt: Date
+    ) -> DailyRateLimitWindowObservation? {
+        guard let usedPercent = window?.usedPercent, usedPercent.isFinite else { return nil }
+        return DailyRateLimitWindowObservation(
+            usedPercent: usedPercent,
+            resetsAt: window?.resetsAt,
+            reportedAt: reportedAt,
+            sequence: candidate.sequence,
+            sourcePath: candidate.sourcePath
         )
     }
 

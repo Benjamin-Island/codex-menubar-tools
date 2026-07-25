@@ -26,7 +26,7 @@
 
 ## Features
 
-- **Overview** — see primary and secondary rate-limit windows, a compact Token heatmap, and shortcuts to live sessions.
+- **Overview** — see current rate-limit windows and each window's initial remaining percentage for today, a compact Token heatmap, and shortcuts to live sessions.
 - **History** — explore the latest 60 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
 - **Sessions** — follow active top-level Codex terminal and Codex Desktop sessions, including activity, working directory, last update, and cumulative Tokens.
 - **Private by design** — inspect local Codex data without accounts, network requests, analytics, or a background service.
@@ -71,8 +71,8 @@ xcode-select --install
 > [!WARNING]
 > This free preview is built for Apple Silicon Macs, uses an ad-hoc signature, and is not Apple-notarized. macOS may block the first launch.
 
-- [Download Codex Menu Bar v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip)
-- [SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip.sha256)
+- [Download Codex Menu Bar v0.3.4](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.4/CodexMenuBar-v0.3.4-apple-silicon.zip)
+- [SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.4/CodexMenuBar-v0.3.4-apple-silicon.zip.sha256)
 
 Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click the app and choose **Open** for the first launch. If macOS still refuses to open it, build from source instead of disabling system-wide security controls.
 
@@ -80,6 +80,7 @@ Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click 
 
 | Version | Released | Highlights |
 | --- | --- | --- |
+| [v0.3.4](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.4) | 2026-07-25 | Initial remaining usage for today |
 | [v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.3) | 2026-07-24 | Live Codex Desktop session tracking |
 | [v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.2) | 2026-07-21 | Outside-click popover dismissal |
 | [v0.3.1](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.1) | 2026-07-21 | Quieter oversized-log handling |

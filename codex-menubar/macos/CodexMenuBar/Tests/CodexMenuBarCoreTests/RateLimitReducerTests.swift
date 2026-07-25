@@ -62,6 +62,203 @@ final class RateLimitReducerTests: XCTestCase {
         XCTAssertEqual(snapshot.sourcePath, "/newer.jsonl")
     }
 
+    func testBuildsTodayInitialStateFromEarliestSameFamilyTrace() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-07-20T10:00:00Z")
+        let day = calendar.startOfDay(for: now)
+        let earlier = observation(
+            usedPercent: 20,
+            resetsAt: 1_783_070_400,
+            reportedAt: date("2026-07-20T01:00:00Z"),
+            sourcePath: "/earlier.jsonl"
+        )
+        let later = observation(
+            usedPercent: 35,
+            resetsAt: 1_783_070_400,
+            reportedAt: date("2026-07-20T02:00:00Z"),
+            sourcePath: "/later.jsonl"
+        )
+
+        let snapshot = try snapshot(from: RateLimitReducer().reduce(
+            summaries: [
+                log(
+                    path: "/later.jsonl",
+                    candidates: [candidate(limitID: "codex", usedPrimary: 35)],
+                    dailyTrace: DailyRateLimitTrace(
+                        day: day,
+                        canonical: DailyRateLimitFamilyTrace(
+                            primary: DailyRateLimitWindowTrace(first: later, last: later, didReset: false),
+                            secondary: nil
+                        ),
+                        fallback: nil
+                    )
+                ),
+                log(
+                    path: "/earlier.jsonl",
+                    candidates: [candidate(limitID: "codex", usedPrimary: 20)],
+                    dailyTrace: DailyRateLimitTrace(
+                        day: day,
+                        canonical: DailyRateLimitFamilyTrace(
+                            primary: DailyRateLimitWindowTrace(first: earlier, last: earlier, didReset: false),
+                            secondary: nil
+                        ),
+                        fallback: nil
+                    )
+                )
+            ],
+            calendar: calendar,
+            now: now
+        ))
+
+        XCTAssertEqual(snapshot.primary?.todayInitialRemainingPercent, 80)
+        XCTAssertEqual(snapshot.primary?.didResetToday, false)
+    }
+
+    func testTodayInitialIgnoresTraceFromDifferentLocalDay() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-07-20T00:30:00Z")
+        let yesterday = calendar.startOfDay(for: date("2026-07-19T12:00:00Z"))
+        let old = observation(
+            usedPercent: 25,
+            resetsAt: 1_783_070_400,
+            reportedAt: date("2026-07-19T23:59:00Z"),
+            sourcePath: "/old.jsonl"
+        )
+
+        let snapshot = try snapshot(from: RateLimitReducer().reduce(
+            summaries: [
+                log(
+                    path: "/old.jsonl",
+                    candidates: [candidate(limitID: "codex", usedPrimary: 30)],
+                    dailyTrace: DailyRateLimitTrace(
+                        day: yesterday,
+                        canonical: DailyRateLimitFamilyTrace(
+                            primary: DailyRateLimitWindowTrace(first: old, last: old, didReset: false),
+                            secondary: nil
+                        ),
+                        fallback: nil
+                    )
+                )
+            ],
+            calendar: calendar,
+            now: now
+        ))
+
+        XCTAssertNil(snapshot.primary?.todayInitialRemainingPercent)
+        XCTAssertEqual(snapshot.primary?.didResetToday, false)
+    }
+
+    func testFallbackCurrentUsesFallbackDailyTrace() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-07-20T10:00:00Z")
+        let day = calendar.startOfDay(for: now)
+        let canonical = observation(
+            usedPercent: 5,
+            resetsAt: nil,
+            reportedAt: date("2026-07-20T01:00:00Z"),
+            sourcePath: "/named.jsonl"
+        )
+        let fallback = observation(
+            usedPercent: 40,
+            resetsAt: nil,
+            reportedAt: date("2026-07-20T02:00:00Z"),
+            sourcePath: "/named.jsonl"
+        )
+
+        let snapshot = try snapshot(from: RateLimitReducer().reduce(
+            summaries: [
+                log(
+                    path: "/named.jsonl",
+                    candidates: [candidate(limitID: "codex_beta", usedPrimary: 55)],
+                    dailyTrace: DailyRateLimitTrace(
+                        day: day,
+                        canonical: DailyRateLimitFamilyTrace(
+                            primary: DailyRateLimitWindowTrace(
+                                first: canonical,
+                                last: canonical,
+                                didReset: false
+                            ),
+                            secondary: nil
+                        ),
+                        fallback: DailyRateLimitFamilyTrace(
+                            primary: DailyRateLimitWindowTrace(
+                                first: fallback,
+                                last: fallback,
+                                didReset: false
+                            ),
+                            secondary: nil
+                        )
+                    )
+                )
+            ],
+            calendar: calendar,
+            now: now
+        ))
+
+        XCTAssertEqual(snapshot.primary?.remainingPercent, 45)
+        XCTAssertEqual(snapshot.primary?.todayInitialRemainingPercent, 60)
+    }
+
+    func testAggregatesResetMetadataAcrossSummaries() throws {
+        let calendar = utcCalendar()
+        let now = date("2026-07-20T10:00:00Z")
+        let day = calendar.startOfDay(for: now)
+        let beforeReset = observation(
+            usedPercent: 50,
+            resetsAt: 1_783_070_400,
+            reportedAt: date("2026-07-20T01:00:00Z"),
+            sourcePath: "/before.jsonl"
+        )
+        let afterReset = observation(
+            usedPercent: 2,
+            resetsAt: 1_783_088_400,
+            reportedAt: date("2026-07-20T06:00:00Z"),
+            sourcePath: "/after.jsonl"
+        )
+
+        let snapshot = try snapshot(from: RateLimitReducer().reduce(
+            summaries: [
+                log(
+                    path: "/before.jsonl",
+                    candidates: [candidate(limitID: "codex", usedPrimary: 50)],
+                    dailyTrace: DailyRateLimitTrace(
+                        day: day,
+                        canonical: DailyRateLimitFamilyTrace(
+                            primary: DailyRateLimitWindowTrace(
+                                first: beforeReset,
+                                last: beforeReset,
+                                didReset: false
+                            ),
+                            secondary: nil
+                        ),
+                        fallback: nil
+                    )
+                ),
+                log(
+                    path: "/after.jsonl",
+                    candidates: [candidate(limitID: "codex", usedPrimary: 2)],
+                    dailyTrace: DailyRateLimitTrace(
+                        day: day,
+                        canonical: DailyRateLimitFamilyTrace(
+                            primary: DailyRateLimitWindowTrace(
+                                first: afterReset,
+                                last: afterReset,
+                                didReset: false
+                            ),
+                            secondary: nil
+                        ),
+                        fallback: nil
+                    )
+                )
+            ],
+            calendar: calendar,
+            now: now
+        ))
+
+        XCTAssertEqual(snapshot.primary?.todayInitialRemainingPercent, 50)
+        XCTAssertEqual(snapshot.primary?.didResetToday, true)
+    }
+
     func testReportedTimestampWinsAcrossFilesThenFileDateIsFallback() throws {
         let olderReported = candidate(
             usedPrimary: 90,
@@ -170,6 +367,41 @@ final class RateLimitReducerTests: XCTestCase {
         )
     }
 
+    func testTodayInitialFormattingIsExactAndOmitsMissingState() {
+        let initial = WindowUsage(
+            label: "5h",
+            usedPercent: 50,
+            remainingPercent: 50,
+            resetsAt: nil,
+            todayInitialRemainingPercent: 50,
+            didResetToday: false
+        )
+        let reset = WindowUsage(
+            label: "5h",
+            usedPercent: 10,
+            remainingPercent: 90,
+            resetsAt: nil,
+            todayInitialRemainingPercent: 50,
+            didResetToday: true
+        )
+        let missing = WindowUsage(
+            label: "5h",
+            usedPercent: 10,
+            remainingPercent: 90,
+            resetsAt: nil,
+            todayInitialRemainingPercent: nil,
+            didResetToday: true
+        )
+
+        XCTAssertEqual(UsageFormatting.todayInitialLabel(initial), "Today initial: 50%")
+        XCTAssertEqual(
+            UsageFormatting.todayInitialLabel(reset),
+            "Today initial: 50% · reset today"
+        )
+        XCTAssertNil(UsageFormatting.todayInitialLabel(missing))
+        XCTAssertNil(UsageFormatting.todayInitialLabel(nil))
+    }
+
     private func candidate(
         limitID: String? = nil,
         usedPrimary: Double,
@@ -192,7 +424,11 @@ final class RateLimitReducerTests: XCTestCase {
         )
     }
 
-    private func log(path: String, candidates: [RateLimitCandidate]) -> SessionLogSummary {
+    private func log(
+        path: String,
+        candidates: [RateLimitCandidate],
+        dailyTrace: DailyRateLimitTrace? = nil
+    ) -> SessionLogSummary {
         let updatedCandidates = candidates.map { candidate in
             RateLimitCandidate(
                 limitID: candidate.limitID,
@@ -217,6 +453,7 @@ final class RateLimitReducerTests: XCTestCase {
             dailyCounts: [:],
             latestTokenCounts: .zero,
             latestRateLimit: latest,
+            dailyRateLimitTrace: dailyTrace,
             lifecycle: .inactive,
             warnings: [],
             suppressedWarningCount: 0,
@@ -245,6 +482,22 @@ final class RateLimitReducerTests: XCTestCase {
             sourcePath: "/credits.jsonl"
         )
         return try? snapshot(from: RateLimitReducer().reduce(summaries: [log(path: "/credits.jsonl", candidates: [candidate])])).creditsDescription
+    }
+
+    private func observation(
+        usedPercent: Double,
+        resetsAt: Double?,
+        reportedAt: Date,
+        sequence: Int = 0,
+        sourcePath: String
+    ) -> DailyRateLimitWindowObservation {
+        DailyRateLimitWindowObservation(
+            usedPercent: usedPercent,
+            resetsAt: resetsAt,
+            reportedAt: reportedAt,
+            sequence: sequence,
+            sourcePath: sourcePath
+        )
     }
 
     private func utcCalendar() -> Calendar {

@@ -6,6 +6,23 @@ import CodexMenuBarCore
 
 @MainActor
 final class DashboardViewSmokeTests: XCTestCase {
+    func testUsageCardExposesTodayInitialTextFromWindowState() {
+        let window = WindowUsage(
+            label: "5h",
+            usedPercent: 28,
+            remainingPercent: 72,
+            resetsAt: nil,
+            todayInitialRemainingPercent: 80,
+            didResetToday: true
+        )
+
+        XCTAssertEqual(
+            UsageCard(title: "Primary", window: window).todayInitialText,
+            "Today initial: 80% · reset today"
+        )
+        XCTAssertNil(UsageCard(title: "Primary", window: nil).todayInitialText)
+    }
+
     func testLoadingFullEmptyAndIndependentFailureStatesHaveFiniteLayout() {
         let states = [
             DashboardSnapshot.loading(at: Date(timeIntervalSince1970: 1)),
@@ -80,8 +97,22 @@ final class DashboardViewSmokeTests: XCTestCase {
 
     private func usage() -> UsageSnapshot {
         UsageSnapshot(
-            primary: WindowUsage(label: "5h", usedPercent: 28, remainingPercent: 72, resetsAt: nil),
-            secondary: WindowUsage(label: "7d", usedPercent: 40, remainingPercent: 60, resetsAt: nil),
+            primary: WindowUsage(
+                label: "5h",
+                usedPercent: 28,
+                remainingPercent: 72,
+                resetsAt: nil,
+                todayInitialRemainingPercent: 80,
+                didResetToday: false
+            ),
+            secondary: WindowUsage(
+                label: "7d",
+                usedPercent: 40,
+                remainingPercent: 60,
+                resetsAt: nil,
+                todayInitialRemainingPercent: 65,
+                didResetToday: true
+            ),
             planType: "plus",
             creditsDescription: nil,
             reportedAt: nil,

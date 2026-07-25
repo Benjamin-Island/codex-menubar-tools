@@ -26,7 +26,7 @@
 
 ## 核心功能
 
-- **概览** — 查看主要和次要速率限制周期、紧凑的 Token 热力图，以及实时会话快捷入口。
+- **概览** — 查看当前速率限制周期及各周期今日初始剩余百分比、紧凑的 Token 热力图，以及实时会话快捷入口。
 - **历史记录** — 浏览最近 60 个本地自然日的数据，包括每天的 Total、Input、Cached、Output、Reasoning 明细和各会话分项。
 - **会话** — 跟踪活跃的顶层 Codex 终端会话和 Codex Desktop 会话，并显示活动状态、工作目录、最后更新时间和累计 Token。
 - **隐私优先** — 无需账户、网络请求、分析服务或后台服务，即可查看本地 Codex 数据。
@@ -71,8 +71,8 @@ xcode-select --install
 > [!WARNING]
 > 此免费预览版面向 Apple Silicon Mac，使用临时签名且未经 Apple 公证。macOS 可能会阻止首次启动。
 
-- [下载 Codex Menu Bar v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip)
-- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.3/CodexMenuBar-v0.3.3-apple-silicon.zip.sha256)
+- [下载 Codex Menu Bar v0.3.4](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.4/CodexMenuBar-v0.3.4-apple-silicon.zip)
+- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.4/CodexMenuBar-v0.3.4-apple-silicon.zip.sha256)
 
 解压下载文件，将 `CodexMenuBar.app` 移到 `Applications`，然后右键点击应用并选择“打开”完成首次启动。如果 macOS 仍然拒绝打开，请改为从源码构建，不要关闭系统级安全防护。
 
@@ -80,6 +80,7 @@ xcode-select --install
 
 | 版本 | 发布日期 | 主要更新 |
 | --- | --- | --- |
+| [v0.3.4](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.4) | 2026-07-25 | 显示今日初始剩余额度 |
 | [v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.3) | 2026-07-24 | 实时跟踪 Codex Desktop 会话 |
 | [v0.3.2](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.2) | 2026-07-21 | 点击外部区域时关闭弹窗 |
 | [v0.3.1](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.1) | 2026-07-21 | 减少超大日志产生的干扰 |
