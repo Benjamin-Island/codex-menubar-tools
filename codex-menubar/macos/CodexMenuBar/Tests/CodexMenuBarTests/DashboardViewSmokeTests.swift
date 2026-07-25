@@ -100,6 +100,34 @@ final class DashboardViewSmokeTests: XCTestCase {
         expanded.view.layoutSubtreeIfNeeded()
         XCTAssertTrue(expanded.view.fittingSize.width.isFinite)
         XCTAssertTrue(expanded.view.fittingSize.height.isFinite)
+
+        let peeking = NSHostingController(
+            rootView: PetIslandView(
+                store: store,
+                preferences: preferences,
+                isExpanded: false,
+                isPeeking: true,
+                dockEdge: .right,
+                initialDirection: .right,
+                toggleExpanded: {},
+                beginDrag: {},
+                changeDirection: { _ in },
+                updateDrag: { _ in },
+                endDrag: { _ in },
+                openDashboard: {}
+            )
+        )
+        peeking.view.frame = CGRect(
+            origin: .zero,
+            size: PetIslandPlacement.size(
+                expanded: false,
+                peeking: true,
+                petScale: 3
+            )
+        )
+        peeking.view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(peeking.view.fittingSize.width.isFinite)
+        XCTAssertTrue(peeking.view.fittingSize.height.isFinite)
     }
 
     private func fullSnapshot() -> DashboardSnapshot {
