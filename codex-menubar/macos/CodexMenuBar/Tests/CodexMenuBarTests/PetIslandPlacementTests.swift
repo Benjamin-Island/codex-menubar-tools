@@ -18,10 +18,22 @@ final class PetIslandPlacementTests: XCTestCase {
     func testPeekingPetUsesCompactEdgeSize() {
         let size = PetIslandPlacement.size(
             expanded: false,
-            peeking: true
+            peeking: true,
+            petScale: 3
         )
 
         XCTAssertEqual(size, PetIslandPlacement.peekSize)
+    }
+
+    func testThreeHundredPercentPetExpandsFloatingAndExpandedWindows() {
+        XCTAssertEqual(
+            PetIslandPlacement.size(expanded: false, petScale: 3),
+            NSSize(width: 324, height: 288)
+        )
+        XCTAssertEqual(
+            PetIslandPlacement.size(expanded: true, petScale: 3),
+            NSSize(width: 410, height: 536)
+        )
     }
 
     func testFloatingPlacementSupportsSecondaryScreenCoordinates() {

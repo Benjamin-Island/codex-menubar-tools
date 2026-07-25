@@ -12,16 +12,41 @@ struct PetIslandPlacement {
     static let expandedSize = NSSize(width: 410, height: 380)
     static let peekSize = NSSize(width: 104, height: 112)
 
-    static func size(expanded: Bool, peeking: Bool = false) -> NSSize {
+    static func petControlSize(petScale: CGFloat) -> CGFloat {
+        78 * petScale
+    }
+
+    static func floatingSize(petScale: CGFloat) -> NSSize {
+        NSSize(
+            width: floatingSize.width,
+            height: max(floatingSize.height, petControlSize(petScale: petScale) + 54)
+        )
+    }
+
+    static func expandedSize(petScale: CGFloat) -> NSSize {
+        NSSize(
+            width: expandedSize.width,
+            height: max(expandedSize.height, petControlSize(petScale: petScale) + 302)
+        )
+    }
+
+    static func size(
+        expanded: Bool,
+        peeking: Bool = false,
+        petScale: CGFloat = 1
+    ) -> NSSize {
         if peeking { return peekSize }
-        return expanded ? expandedSize : floatingSize
+        return expanded
+            ? expandedSize(petScale: petScale)
+            : floatingSize(petScale: petScale)
     }
 
     static func frame(
         expanded: Bool,
-        visibleFrame: NSRect
+        visibleFrame: NSRect,
+        petScale: CGFloat = 1
     ) -> NSRect {
-        let size = size(expanded: expanded)
+        let size = size(expanded: expanded, petScale: petScale)
         let inset: CGFloat = 14
         return NSRect(
             x: visibleFrame.maxX - size.width - inset,
@@ -98,6 +123,12 @@ final class PetIslandController: NSObject {
             .sink { [weak self] _ in self?.updatePresentation() }
             .store(in: &cancellables)
 
+        preferences.$petScalePercent
+            .removeDuplicates()
+            .dropFirst()
+            .sink { [weak self] _ in self?.petScaleDidChange() }
+            .store(in: &cancellables)
+
         languagePreferences.$selection
             .removeDuplicates()
             .sink { [weak self] _ in self?.updatePresentation(animateFrame: false) }
@@ -128,8 +159,30 @@ final class PetIslandController: NSObject {
             updatePresentation(animateFrame: false)
             return
         }
+        let anchoredTopRight = NSPoint(x: panel.frame.maxX, y: panel.frame.maxY)
         isExpanded.toggle()
+        let size = PetIslandPlacement.size(
+            expanded: isExpanded,
+            petScale: petScale
+        )
+        floatingOrigin = NSPoint(
+            x: anchoredTopRight.x - size.width,
+            y: anchoredTopRight.y - size.height
+        )
         updatePresentation()
+    }
+
+    private func petScaleDidChange() {
+        if !isPeeking {
+            let size = PetIslandPlacement.size(
+                expanded: isExpanded,
+                petScale: petScale
+            )
+            var origin = floatingOrigin ?? panel.frame.origin
+            origin.y = panel.frame.maxY - size.height
+            floatingOrigin = origin
+        }
+        updatePresentation(animateFrame: false)
     }
 
     private func updatePresentation(animateFrame: Bool = true) {
@@ -171,11 +224,15 @@ final class PetIslandController: NSObject {
             return NSRect(x: x, y: y, width: size.width, height: size.height)
         }
 
-        let size = PetIslandPlacement.size(expanded: isExpanded)
+        let size = PetIslandPlacement.size(
+            expanded: isExpanded,
+            petScale: petScale
+        )
         guard let origin = floatingOrigin else {
             return PetIslandPlacement.frame(
                 expanded: isExpanded,
-                visibleFrame: screen.visibleFrame
+                visibleFrame: screen.visibleFrame,
+                petScale: petScale
             )
         }
         return clampedFrame(
@@ -237,7 +294,7 @@ final class PetIslandController: NSObject {
             isPeeking = false
         }
         if wasPeeking, !isPeeking {
-            let size = PetIslandPlacement.floatingSize
+            let size = PetIslandPlacement.floatingSize(petScale: petScale)
             let mouse = NSEvent.mouseLocation
             let undockedFrame = NSRect(
                 x: mouse.x - size.width + 39,
@@ -250,6 +307,10 @@ final class PetIslandController: NSObject {
             floatingOrigin = clampedFrame(frame, to: visibleFrame).origin
         }
         updatePresentation(animateFrame: false)
+    }
+
+    private var petScale: CGFloat {
+        CGFloat(preferences.petScalePercent / 100)
     }
 
     private func screenForPanel() -> NSScreen {

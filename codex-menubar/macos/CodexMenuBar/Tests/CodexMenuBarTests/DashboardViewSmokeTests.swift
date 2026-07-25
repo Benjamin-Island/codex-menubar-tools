@@ -49,6 +49,7 @@ final class DashboardViewSmokeTests: XCTestCase {
         let defaults = UserDefaults(suiteName: "PetIslandViewSmokeTests")!
         defaults.removePersistentDomain(forName: "PetIslandViewSmokeTests")
         let preferences = PetIslandPreferences(pets: [], defaults: defaults)
+        preferences.petScalePercent = 300
 
         let controller = NSHostingController(
             rootView: PetIslandView(
@@ -68,7 +69,7 @@ final class DashboardViewSmokeTests: XCTestCase {
         )
         controller.view.frame = CGRect(
             origin: .zero,
-            size: PetIslandPlacement.size(expanded: false)
+            size: PetIslandPlacement.size(expanded: false, petScale: 3)
         )
         controller.view.layoutSubtreeIfNeeded()
         let size = controller.view.fittingSize
@@ -92,7 +93,10 @@ final class DashboardViewSmokeTests: XCTestCase {
                 openDashboard: {}
             )
         )
-        expanded.view.frame = CGRect(origin: .zero, size: PetIslandPlacement.expandedSize)
+        expanded.view.frame = CGRect(
+            origin: .zero,
+            size: PetIslandPlacement.size(expanded: true, petScale: 3)
+        )
         expanded.view.layoutSubtreeIfNeeded()
         XCTAssertTrue(expanded.view.fittingSize.width.isFinite)
         XCTAssertTrue(expanded.view.fittingSize.height.isFinite)

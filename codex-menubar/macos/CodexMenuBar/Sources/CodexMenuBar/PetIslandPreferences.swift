@@ -8,7 +8,7 @@ final class PetIslandPreferences: ObservableObject {
     static let presentationKey = "petIsland.presentationMode"
     static let petScaleKey = "petIsland.petScalePercent"
     static let defaultPetScale = 100.0
-    static let petScaleRange = 75.0 ... 125.0
+    static let petScaleRange = 75.0 ... 300.0
 
     @Published var isEnabled: Bool {
         didSet { defaults.set(isEnabled, forKey: Self.enabledKey) }
