@@ -41,6 +41,14 @@ struct PetIslandView: View {
         usage?.secondary ?? usage?.primary
     }
 
+    private var petScale: CGFloat {
+        CGFloat(preferences.petScalePercent / 100)
+    }
+
+    private var petControlSize: CGFloat {
+        78 * petScale
+    }
+
     var body: some View {
         floatingSurface
         .frame(
@@ -78,7 +86,7 @@ struct PetIslandView: View {
 
                 Button(action: toggleExpanded) {
                     floatingPet
-                        .frame(width: 78, height: 78)
+                        .frame(width: petControlSize, height: petControlSize)
                 }
                 .buttonStyle(.plain)
                 .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomTrailing)
@@ -127,7 +135,7 @@ struct PetIslandView: View {
                     .rotationEffect(.degrees(-90))
 
                 pet
-                    .frame(width: 50, height: 56)
+                    .frame(width: 50 * petScale, height: 56 * petScale)
             }
             .frame(width: 82, height: 82)
 
@@ -194,14 +202,14 @@ struct PetIslandView: View {
     private var floatingPet: some View {
         ZStack(alignment: .bottomTrailing) {
             pet
-                .frame(width: 60, height: 66)
-                .padding(.trailing, 8)
-                .padding(.bottom, 5)
+                .frame(width: 60 * petScale, height: 66 * petScale)
+                .padding(.trailing, 8 * petScale)
+                .padding(.bottom, 5 * petScale)
 
             activityBadge
-                .offset(x: -2, y: -2)
+                .offset(x: -2 * petScale, y: -2 * petScale)
         }
-        .frame(width: 78, height: 78)
+        .frame(width: petControlSize, height: petControlSize)
         .contentShape(Circle())
     }
 
@@ -222,7 +230,7 @@ struct PetIslandView: View {
                 isDraggingPet = false
             }
         )
-        .frame(width: 78, height: 78)
+        .frame(width: petControlSize, height: petControlSize)
         .accessibilityLabel(text("Drag Codex pet", "拖动 Codex 宠物"))
         .help(text(
             "Drag Codex pet; move to a screen edge to dock it",
@@ -270,10 +278,10 @@ struct PetIslandView: View {
             Divider()
 
             HStack(spacing: 8) {
-                ForEach(Array(usageWindows.enumerated()), id: \.offset) { _, window in
+                if let preferredUsage {
                     summaryMetric(
-                        label: window.label,
-                        value: percentText(window.remainingPercent)
+                        label: preferredUsage.label,
+                        value: percentText(preferredUsage.remainingPercent)
                     )
                 }
                 summaryMetric(
@@ -282,6 +290,8 @@ struct PetIslandView: View {
                 )
 
                 Spacer(minLength: 2)
+
+                petSizeControl
 
                 Button(action: openDashboard) {
                     Image(systemName: "arrow.up.right")
@@ -301,6 +311,37 @@ struct PetIslandView: View {
                 .strokeBorder(.white.opacity(0.42), lineWidth: 1)
         }
         .shadow(color: .black.opacity(0.18), radius: 16, y: 6)
+    }
+
+    private var petSizeControl: some View {
+        VStack(alignment: .leading, spacing: 1) {
+            HStack(spacing: 3) {
+                Text(text("Pet size", "宠物大小"))
+                    .foregroundStyle(.secondary)
+                Spacer(minLength: 2)
+                Button("\(Int(preferences.petScalePercent))%") {
+                    preferences.petScalePercent = PetIslandPreferences.defaultPetScale
+                }
+                .buttonStyle(.plain)
+                .help(text("Reset pet size", "恢复默认大小"))
+            }
+            .font(.system(size: 9, weight: .medium))
+
+            Slider(
+                value: $preferences.petScalePercent,
+                in: PetIslandPreferences.petScaleRange,
+                step: 5
+            )
+            .controlSize(.mini)
+        }
+        .padding(.horizontal, 9)
+        .frame(width: 112, height: 42)
+        .background(.quaternary.opacity(0.65), in: RoundedRectangle(cornerRadius: 11))
+        .help(text(
+            "Adjust pet size from 75% to 125%",
+            "调整宠物大小，范围为 75% 到 125%"
+        ))
+        .accessibilityElement(children: .contain)
     }
 
     @ViewBuilder

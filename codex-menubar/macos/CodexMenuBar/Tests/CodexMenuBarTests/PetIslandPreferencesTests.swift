@@ -67,6 +67,35 @@ final class PetIslandPreferencesTests: XCTestCase {
         XCTAssertNil(defaults.string(forKey: PetIslandPreferences.presentationKey))
     }
 
+    func testPetScaleDefaultsPersistsAndClampsLegacyValues() {
+        let suiteName = "PetIslandPreferencesTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: suiteName)!
+        defer { defaults.removePersistentDomain(forName: suiteName) }
+
+        let initial = PetIslandPreferences(
+            pets: [],
+            defaults: defaults,
+            localSelectedPetID: nil
+        )
+        XCTAssertEqual(initial.petScalePercent, 100)
+
+        initial.petScalePercent = 115
+        let restored = PetIslandPreferences(
+            pets: [],
+            defaults: defaults,
+            localSelectedPetID: nil
+        )
+        XCTAssertEqual(restored.petScalePercent, 115)
+
+        defaults.set(200, forKey: PetIslandPreferences.petScaleKey)
+        let clamped = PetIslandPreferences(
+            pets: [],
+            defaults: defaults,
+            localSelectedPetID: nil
+        )
+        XCTAssertEqual(clamped.petScalePercent, 125)
+    }
+
     func testFollowingLocalPetReloadsSelectionWhenCodexConfigurationChanges() {
         let suiteName = "PetIslandPreferencesTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suiteName)!

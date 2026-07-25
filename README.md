@@ -47,6 +47,8 @@ discovers read-only pet packages from:
 
 Use **Pet Island** in the dashboard footer to show or hide the island, follow
 the current local Codex pet, or explicitly choose an installed custom pet.
+The expanded task summary includes a live pet-size slider from 75% to 125%;
+click its percentage to restore the 100% default.
 An idle pet uses the manifest's idle animation while a live task uses its
 directional running frames. Drag the pet left or right to move the panel and
 change its running direction, including across connected displays.

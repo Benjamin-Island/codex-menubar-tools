@@ -6,9 +6,16 @@ final class PetIslandPreferences: ObservableObject {
     static let selectedPetKey = "petIsland.selectedPetID"
     static let explicitSelectionKey = "petIsland.hasExplicitSelection"
     static let presentationKey = "petIsland.presentationMode"
+    static let petScaleKey = "petIsland.petScalePercent"
+    static let defaultPetScale = 100.0
+    static let petScaleRange = 75.0 ... 125.0
 
     @Published var isEnabled: Bool {
         didSet { defaults.set(isEnabled, forKey: Self.enabledKey) }
+    }
+
+    @Published var petScalePercent: Double {
+        didSet { defaults.set(petScalePercent, forKey: Self.petScaleKey) }
     }
 
     @Published var selectedPetID: String {
@@ -30,6 +37,12 @@ final class PetIslandPreferences: ObservableObject {
         self.defaults = defaults
         self.localSelectedPetID = localSelectedPetID
         isEnabled = defaults.object(forKey: Self.enabledKey) as? Bool ?? true
+        let savedScale = defaults.object(forKey: Self.petScaleKey) as? Double
+            ?? Self.defaultPetScale
+        petScalePercent = min(
+            Self.petScaleRange.upperBound,
+            max(Self.petScaleRange.lowerBound, savedScale)
+        )
         defaults.removeObject(forKey: Self.presentationKey)
 
         let savedID = defaults.string(forKey: Self.selectedPetKey)
