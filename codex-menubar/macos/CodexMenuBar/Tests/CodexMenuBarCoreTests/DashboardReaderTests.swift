@@ -76,7 +76,7 @@ final class DashboardReaderTests: XCTestCase {
         let recovered = reader.read()
         guard case .content = recovered.history else { return XCTFail("Expected recovery") }
         XCTAssertEqual(recovered.updatedAt, now)
-        XCTAssertEqual(index.modifiedSinceValues.last, utcCalendar().date(byAdding: .day, value: -59, to: utcCalendar().startOfDay(for: now)))
+        XCTAssertEqual(index.modifiedSinceValues.last, utcCalendar().date(byAdding: .day, value: -29, to: utcCalendar().startOfDay(for: now)))
     }
 
     func testUsageReductionUsesInjectedCalendarAndClock() {

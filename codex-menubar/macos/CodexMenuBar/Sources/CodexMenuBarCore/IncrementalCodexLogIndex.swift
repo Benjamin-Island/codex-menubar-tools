@@ -104,8 +104,7 @@ public final class IncrementalCodexLogIndex: IncrementalLogIndexing, @unchecked 
         )
         let fingerprints = discovery.fingerprints
         let today = calendar.startOfDay(for: now)
-        let cutoff = calendar.date(byAdding: .day, value: -59, to: today)
-            ?? now.addingTimeInterval(-59 * 86_400)
+        let cutoff = HistoryWindow.start(calendar: calendar, now: now)
 
         var nextCursors: [String: LogCursor] = [:]
         var refreshWarnings: [ParseWarning] = []

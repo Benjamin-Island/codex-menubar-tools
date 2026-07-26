@@ -58,7 +58,44 @@ final class CodexLogIndexTests: XCTestCase {
         }
     }
 
+    func testDiscoveryOnlyVisitsDatePartitionsInThirtyDayWindow() throws {
+        let root = FileManager.default.temporaryDirectory
+            .appendingPathComponent(UUID().uuidString, isDirectory: true)
+        let sessions = root.appendingPathComponent("sessions", isDirectory: true)
+        let recentDirectory = sessions.appendingPathComponent("2026/07/21", isDirectory: true)
+        let oldDirectory = sessions.appendingPathComponent("2026/06/21", isDirectory: true)
+        try FileManager.default.createDirectory(at: recentDirectory, withIntermediateDirectories: true)
+        try FileManager.default.createDirectory(at: oldDirectory, withIntermediateDirectories: true)
+        addTeardownBlock { try? FileManager.default.removeItem(at: root) }
+
+        let recent = recentDirectory.appendingPathComponent("recent.jsonl")
+        let old = oldDirectory.appendingPathComponent("old.jsonl")
+        try Data("{}\n".utf8).write(to: recent)
+        try Data("{}\n".utf8).write(to: old)
+        let misleadinglyRecentMTime = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-21T12:00:00Z"))
+        try FileManager.default.setAttributes([.modificationDate: misleadinglyRecentMTime], ofItemAtPath: old.path)
+
+        let now = try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-07-21T12:00:00Z"))
+        let discoverer = FileSystemLogDiscoverer(
+            calendar: utcCalendar(),
+            now: { now }
+        )
+        let output = try discoverer.discovery(
+            in: sessions,
+            modifiedSince: try XCTUnwrap(ISO8601DateFormatter().date(from: "2026-06-22T00:00:00Z")),
+            requiredPaths: []
+        )
+
+        XCTAssertEqual(output.fingerprints.map(\.path), [recent.path])
+    }
+
     private func fingerprint(_ path: String, modified: TimeInterval, size: Int64) -> LogFileFingerprint {
         LogFileFingerprint(path: path, modifiedAt: Date(timeIntervalSince1970: modified), byteSize: size)
+    }
+
+    private func utcCalendar() -> Calendar {
+        var calendar = Calendar(identifier: .gregorian)
+        calendar.timeZone = TimeZone(secondsFromGMT: 0)!
+        return calendar
     }
 }

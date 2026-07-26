@@ -83,11 +83,21 @@ public enum LogDiscoveryError: Error, Equatable, Sendable {
 public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
     private let fileManager: FileManager
     private let ordinaryLimit: Int
+    private var calendar: Calendar
+    private let now: @Sendable () -> Date
 
-    public init(fileManager: FileManager = .default, ordinaryLimit: Int = 10_000) {
+    public init(
+        fileManager: FileManager = .default,
+        ordinaryLimit: Int = 10_000,
+        calendar: Calendar = .current,
+        now: @escaping @Sendable () -> Date = Date.init
+    ) {
         precondition(ordinaryLimit >= 0)
         self.fileManager = fileManager
         self.ordinaryLimit = ordinaryLimit
+        self.calendar = calendar
+        self.calendar.firstWeekday = 2
+        self.now = now
     }
 
     public func discovery(
@@ -105,28 +115,57 @@ public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
         }
 
         let keys: [URLResourceKey] = [.isRegularFileKey, .contentModificationDateKey, .fileSizeKey]
-        var enumerationError: Error?
-        guard let enumerator = fileManager.enumerator(
-            at: directory,
-            includingPropertiesForKeys: keys,
-            options: [.skipsHiddenFiles],
-            errorHandler: { _, error in
-                enumerationError = error
-                return false
-            }
-        ) else {
-            throw LogDiscoveryError.cannotEnumerate(directory.path)
-        }
-
         let required = Set(requiredPaths.map {
             URL(fileURLWithPath: $0).standardizedFileURL.path
         })
         var urlsByPath: [String: URL] = [:]
-        for case let url as URL in enumerator where url.pathExtension == "jsonl" {
-            urlsByPath[url.standardizedFileURL.path] = url.standardizedFileURL
+        var partitionPaths: Set<String> = []
+        do {
+            let rootContents = try fileManager.contentsOfDirectory(
+                at: directory,
+                includingPropertiesForKeys: keys,
+                options: [.skipsHiddenFiles]
+            )
+            for url in rootContents where url.pathExtension == "jsonl" {
+                urlsByPath[url.standardizedFileURL.path] = url.standardizedFileURL
+            }
+        } catch {
+            throw LogDiscoveryError.cannotEnumerate(directory.path)
         }
-        if enumerationError != nil {
-            throw LogDiscoveryError.cannotRead(directory.path)
+        let currentDate = now()
+        let requestedStart = calendar.startOfDay(for: modifiedSince)
+        var day = max(requestedStart, HistoryWindow.start(calendar: calendar, now: currentDate))
+        let lastDay = calendar.startOfDay(for: currentDate)
+        while day <= lastDay {
+            let components = calendar.dateComponents([.year, .month, .day], from: day)
+            if let year = components.year,
+               let month = components.month,
+               let dayOfMonth = components.day {
+                let partition = directory
+                    .appendingPathComponent(String(format: "%04d", year), isDirectory: true)
+                    .appendingPathComponent(String(format: "%02d", month), isDirectory: true)
+                    .appendingPathComponent(String(format: "%02d", dayOfMonth), isDirectory: true)
+                var partitionIsDirectory: ObjCBool = false
+                if fileManager.fileExists(atPath: partition.path, isDirectory: &partitionIsDirectory),
+                   partitionIsDirectory.boolValue {
+                    do {
+                        let contents = try fileManager.contentsOfDirectory(
+                            at: partition,
+                            includingPropertiesForKeys: keys,
+                            options: [.skipsHiddenFiles]
+                        )
+                        for url in contents where url.pathExtension == "jsonl" {
+                            let standardized = url.standardizedFileURL
+                            urlsByPath[standardized.path] = standardized
+                            partitionPaths.insert(standardized.path)
+                        }
+                    } catch {
+                        throw LogDiscoveryError.cannotRead(partition.path)
+                    }
+                }
+            }
+            guard let nextDay = calendar.date(byAdding: .day, value: 1, to: day) else { break }
+            day = nextDay
         }
         for path in required where fileManager.fileExists(atPath: path) {
             urlsByPath[path] = URL(fileURLWithPath: path).standardizedFileURL
@@ -136,7 +175,12 @@ public struct FileSystemLogDiscoverer: LogFileDiscovering, @unchecked Sendable {
             let values = try url.resourceValues(forKeys: Set(keys))
             guard values.isRegularFile == true else { return nil }
             let modifiedAt = values.contentModificationDate ?? .distantPast
-            guard modifiedAt >= modifiedSince || required.contains(url.path) else { return nil }
+            guard partitionPaths.contains(url.path)
+                || modifiedAt >= modifiedSince
+                || required.contains(url.path)
+            else {
+                return nil
+            }
             return LogFileFingerprint(
                 path: url.path,
                 modifiedAt: modifiedAt,

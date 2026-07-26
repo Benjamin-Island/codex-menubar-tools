@@ -134,8 +134,6 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
     }
 
     private func historyStart(now: Date) -> Date {
-        let today = calendar.startOfDay(for: now)
-        return calendar.date(byAdding: .day, value: -59, to: today)
-            ?? now.addingTimeInterval(-59 * 86_400)
+        HistoryWindow.start(calendar: calendar, now: now)
     }
 }

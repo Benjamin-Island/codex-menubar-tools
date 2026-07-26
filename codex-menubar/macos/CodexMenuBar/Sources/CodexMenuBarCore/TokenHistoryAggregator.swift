@@ -40,7 +40,7 @@ public struct TokenHistoryAggregator: Sendable {
         let interval = historyInterval(calendar: calendar, now: now)
         let start = interval.start
         var rawDays: [(date: Date, counts: TokenCounts, sessions: [SessionDayUsage], isFuture: Bool)] = []
-        for offset in 0..<60 {
+        for offset in 0..<HistoryWindow.dayCount {
             let date = calendar.date(byAdding: .day, value: offset, to: start)!
             let sessionCounts = countsByDayAndSession[date, default: [:]]
             let sessions = sessionCounts.compactMap { sessionID, counts -> SessionDayUsage? in
@@ -85,7 +85,7 @@ public struct TokenHistoryAggregator: Sendable {
 
     private func historyInterval(calendar: Calendar, now: Date) -> DateInterval {
         let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -59, to: today)!
+        let start = HistoryWindow.start(calendar: calendar, now: now)
         let end = calendar.date(byAdding: .day, value: 1, to: today)!
         return DateInterval(start: start, end: end)
     }

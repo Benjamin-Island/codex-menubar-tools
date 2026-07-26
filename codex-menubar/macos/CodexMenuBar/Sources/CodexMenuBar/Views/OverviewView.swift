@@ -47,7 +47,7 @@ struct OverviewView: View {
             Panel {
                 VStack(alignment: .leading, spacing: 10) {
                     SectionTitle(
-                        text("60-day Token history", "60 天 Token 历史"),
+                        text("30-day Token history", "30 天 Token 历史"),
                         subtitle: text("Monday–Sunday · Select a day for details", "周一至周日 · 选择日期查看详情")
                     )
                     HeatmapGrid(history: history, compact: true) { date in

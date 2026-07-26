@@ -27,7 +27,7 @@ struct HistoryView: View {
                     VStack(alignment: .leading, spacing: 10) {
                         SectionTitle(
                             text("Token history", "Token 历史"),
-                            subtitle: text("60 days · Monday–Sunday · Local time", "60 天 · 周一至周日 · 本地时间")
+                            subtitle: text("30 days · Monday–Sunday · Local time", "30 天 · 周一至周日 · 本地时间")
                         )
                         HeatmapGrid(history: history) { date in store.showDay(date) }
                         HStack(spacing: 12) {

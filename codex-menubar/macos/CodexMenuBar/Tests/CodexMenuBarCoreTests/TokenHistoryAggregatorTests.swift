@@ -18,7 +18,7 @@ final class TokenHistoryAggregatorTests: XCTestCase {
         XCTAssertEqual(usage.sessions.map(\.counts.total), [180])
     }
 
-    func testHistoryContainsExactlySixtyDaysAndMondayAlignedPadding() throws {
+    func testHistoryContainsExactlyThirtyDaysAndMondayAlignedPadding() throws {
         let calendar = utcCalendar()
         let history = TokenHistoryAggregator().makeHistory(
             summaries: [],
@@ -26,24 +26,24 @@ final class TokenHistoryAggregatorTests: XCTestCase {
             now: try date("2026-07-21T12:00:00Z")
         )
 
-        XCTAssertEqual(history.days.count, 60)
-        XCTAssertEqual(history.days.first?.date, try date("2026-05-23T00:00:00Z"))
+        XCTAssertEqual(history.days.count, 30)
+        XCTAssertEqual(history.days.first?.date, try date("2026-06-22T00:00:00Z"))
         XCTAssertEqual(history.days.last?.date, try date("2026-07-21T00:00:00Z"))
-        XCTAssertEqual(history.heatmapDays.count, 70)
+        XCTAssertEqual(history.heatmapDays.count, 35)
         XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.heatmapDays.first).date), 2)
         XCTAssertEqual(calendar.component(.weekday, from: try XCTUnwrap(history.heatmapDays.last).date), 1)
-        XCTAssertEqual(history.heatmapDays.compactMap(\.usage).count, 60)
-        XCTAssertNil(history.heatmapDays.first?.usage)
+        XCTAssertEqual(history.heatmapDays.compactMap(\.usage).count, 30)
+        XCTAssertNotNil(history.heatmapDays.first?.usage)
         XCTAssertNil(history.heatmapDays.last?.usage)
     }
 
-    func testDaySixtyOneAndFutureBucketsAreExcluded() throws {
+    func testDayThirtyOneAndFutureBucketsAreExcluded() throws {
         let summary = summary(
             id: "edge",
             name: "Edge",
             dailyCounts: [
-                try date("2026-05-22T00:00:00Z"): counts(10),
-                try date("2026-05-23T00:00:00Z"): counts(20),
+                try date("2026-06-21T00:00:00Z"): counts(10),
+                try date("2026-06-22T00:00:00Z"): counts(20),
                 try date("2026-07-22T00:00:00Z"): counts(30)
             ]
         )
@@ -70,7 +70,7 @@ final class TokenHistoryAggregatorTests: XCTestCase {
 
         XCTAssertEqual(history.days.first { $0.date == march7 }?.counts.total, 10)
         XCTAssertEqual(history.days.first { $0.date == march8 }?.counts.total, 50)
-        XCTAssertEqual(history.days.count, 60)
+        XCTAssertEqual(history.days.count, 30)
     }
 
     func testYearBoundaryPreservesDailySummaries() throws {
