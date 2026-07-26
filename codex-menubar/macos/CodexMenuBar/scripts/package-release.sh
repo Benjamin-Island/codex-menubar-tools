@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
-VERSION="0.3.4"
+VERSION="0.3.5"
 APP_NAME="CodexMenuBar"
 BUNDLE_ID="dev.benjamin.codex-menubar"
 
