@@ -72,7 +72,6 @@ struct SessionLogAccumulator: Equatable, Sendable {
     private var metadataTimestamp: Date?
     private var firstUserMessage: String?
     private var previousCumulative: TokenCounts?
-    private var shouldEstablishCumulativeBaseline = false
     private var dailyCounts: [Date: TokenCounts] = [:]
     private var latestTokenCounts: TokenCounts = .zero
     private var latestRateLimit: RateLimitCandidate?
@@ -91,11 +90,6 @@ struct SessionLogAccumulator: Equatable, Sendable {
         self.path = URL(fileURLWithPath: path).standardizedFileURL.path
         self.maximumWarnings = maximumWarnings
         self.maximumNameCharacters = maximumNameCharacters
-    }
-
-    mutating func prepareForTailJump() {
-        previousCumulative = nil
-        shouldEstablishCumulativeBaseline = true
     }
 
     mutating func consume(
@@ -146,10 +140,7 @@ struct SessionLogAccumulator: Equatable, Sendable {
                let info = payload["info"] as? [String: Any],
                let totalUsage = info["total_token_usage"] as? [String: Any] {
                 let current = tokenCounts(from: totalUsage)
-                let increment = shouldEstablishCumulativeBaseline
-                    ? .zero
-                    : current.increment(since: previousCumulative)
-                shouldEstablishCumulativeBaseline = false
+                let increment = current.increment(since: previousCumulative)
                 previousCumulative = current
                 latestTokenCounts = current
                 let day = calendar.startOfDay(for: timestamp)
@@ -337,13 +328,12 @@ struct SessionLogAccumulator: Equatable, Sendable {
         let values = [source, originator, threadSource]
             .compactMap { $0?.lowercased() }
             .joined(separator: " ")
-        if values.contains("subagent") { return "Subagent" }
         if values.contains("codex-tui") || source?.lowercased() == "cli" { return "cli" }
         if values.contains("exec") { return "exec" }
         if values.contains("review") { return "review" }
         if values.contains("codex desktop") { return "App" }
         if values.contains("vscode") || values.contains("ide") { return "IDE" }
-        if values.contains("app") { return "App" }
+        if values.contains("chatgpt") || values.contains("app") { return "App" }
         return "Other"
     }
 

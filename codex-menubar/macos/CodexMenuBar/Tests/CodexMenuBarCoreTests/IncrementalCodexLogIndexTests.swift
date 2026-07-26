@@ -207,40 +207,6 @@ final class IncrementalCodexLogIndexTests: XCTestCase {
         XCTAssertTrue(snapshot.warnings.contains { $0.message.contains("10,000-file safety limit") })
     }
 
-    func testBoundedInitialReadUsesHeadAndTailThenAppendsNormally() throws {
-        let padding = String(repeating: "x", count: 400)
-        let fixture = try LogFixture(
-            url: logURL(),
-            records: [
-                metadata(),
-                #"{"timestamp":"2026-03-23T00:10:00Z","type":"event_msg","payload":{"type":"agent_message","message":"\#(padding)"}}"#,
-                token(total: 100),
-                token(total: 160)
-            ]
-        )
-        let reader = RecordingRangeReader()
-        let index = IncrementalCodexLogIndex(
-            rangeReader: reader,
-            initialHeadBytes: 180,
-            initialTailBytes: 260
-        )
-
-        var snapshot = try refresh(index)
-
-        XCTAssertEqual(snapshot.summaries.first?.session.id, "session-1")
-        XCTAssertEqual(snapshot.summaries.first?.latestTokenCounts.total, 160)
-        XCTAssertFalse(snapshot.warnings.contains { $0.message.contains("Malformed JSON") })
-        XCTAssertFalse(reader.ranges.contains(0..<fixture.byteSize))
-
-        let oldSize = fixture.byteSize
-        try fixture.append(token(total: 190))
-        snapshot = try refresh(index)
-
-        XCTAssertEqual(reader.ranges.last, oldSize..<fixture.byteSize)
-        XCTAssertEqual(snapshot.summaries.first?.latestTokenCounts.total, 190)
-        XCTAssertEqual(snapshot.summaries.first?.dailyCounts.values.first?.total, 30)
-    }
-
     private func makeIndex(reader: RecordingRangeReader) -> IncrementalCodexLogIndex {
         IncrementalCodexLogIndex(rangeReader: reader)
     }

@@ -152,7 +152,6 @@ final class DashboardReaderTests: XCTestCase {
         dailyRateLimitTrace: DailyRateLimitTrace? = nil
     ) -> SessionLogSummary {
         let path = "/sessions/good.jsonl"
-        let fileModifiedAt = now
         let counts = TokenCounts(total: totalTokens, input: totalTokens, cachedInput: 0, output: 0, reasoning: 0)
         let rate = hasRateLimit ? RateLimitCandidate(
             limitID: "codex",
@@ -161,13 +160,13 @@ final class DashboardReaderTests: XCTestCase {
             credits: nil,
             planType: "plus",
             reportedAt: now,
-            fileModifiedAt: fileModifiedAt,
+            fileModifiedAt: now,
             sequence: 1,
             sourcePath: path
         ) : nil
         return SessionLogSummary(
             path: path,
-            modifiedAt: fileModifiedAt,
+            modifiedAt: now,
             session: SessionIdentity(
                 id: path,
                 name: "Test session",
@@ -175,7 +174,7 @@ final class DashboardReaderTests: XCTestCase {
                 workingDirectory: "/tmp/project",
                 sourceKind: "cli"
             ),
-            metadataTimestamp: fileModifiedAt,
+            metadataTimestamp: now,
             dailyCounts: totalTokens > 0 ? [utcCalendar().startOfDay(for: now): counts] : [:],
             latestTokenCounts: counts,
             latestRateLimit: rate,
