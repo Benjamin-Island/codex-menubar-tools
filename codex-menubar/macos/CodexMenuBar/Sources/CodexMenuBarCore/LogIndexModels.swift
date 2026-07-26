@@ -1,11 +1,11 @@
 import Foundation
 
-public enum LifecycleSummary: Equatable, Sendable {
+public enum LifecycleSummary: Equatable, Sendable, Codable {
     case active
     case inactive
 }
 
-public struct ParseWarning: Equatable, Sendable {
+public struct ParseWarning: Equatable, Sendable, Codable {
     public let path: String
     public let line: Int
     public let message: String
@@ -17,7 +17,7 @@ public struct ParseWarning: Equatable, Sendable {
     }
 }
 
-public struct RawRateLimitWindow: Equatable, Sendable {
+public struct RawRateLimitWindow: Equatable, Sendable, Codable {
     public let usedPercent: Double?
     public let windowMinutes: Double?
     public let resetsAt: Double?
@@ -29,7 +29,7 @@ public struct RawRateLimitWindow: Equatable, Sendable {
     }
 }
 
-public struct RawCredits: Equatable, Sendable {
+public struct RawCredits: Equatable, Sendable, Codable {
     public let hasCredits: Bool?
     public let unlimited: Bool?
     public let balance: Int?
@@ -41,7 +41,7 @@ public struct RawCredits: Equatable, Sendable {
     }
 }
 
-public struct RateLimitCandidate: Equatable, Sendable {
+public struct RateLimitCandidate: Equatable, Sendable, Codable {
     public let limitID: String?
     public let primary: RawRateLimitWindow?
     public let secondary: RawRateLimitWindow?
@@ -75,7 +75,7 @@ public struct RateLimitCandidate: Equatable, Sendable {
     }
 }
 
-public struct DailyRateLimitWindowObservation: Equatable, Sendable {
+public struct DailyRateLimitWindowObservation: Equatable, Sendable, Codable {
     public let usedPercent: Double
     public let resetsAt: Double?
     public let reportedAt: Date
@@ -97,7 +97,7 @@ public struct DailyRateLimitWindowObservation: Equatable, Sendable {
     }
 }
 
-public struct DailyRateLimitWindowTrace: Equatable, Sendable {
+public struct DailyRateLimitWindowTrace: Equatable, Sendable, Codable {
     public let first: DailyRateLimitWindowObservation
     public let last: DailyRateLimitWindowObservation
     public let didReset: Bool
@@ -113,7 +113,7 @@ public struct DailyRateLimitWindowTrace: Equatable, Sendable {
     }
 }
 
-public struct DailyRateLimitFamilyTrace: Equatable, Sendable {
+public struct DailyRateLimitFamilyTrace: Equatable, Sendable, Codable {
     public let primary: DailyRateLimitWindowTrace?
     public let secondary: DailyRateLimitWindowTrace?
 
@@ -126,7 +126,7 @@ public struct DailyRateLimitFamilyTrace: Equatable, Sendable {
     }
 }
 
-public struct DailyRateLimitTrace: Equatable, Sendable {
+public struct DailyRateLimitTrace: Equatable, Sendable, Codable {
     public let day: Date
     public let canonical: DailyRateLimitFamilyTrace?
     public let fallback: DailyRateLimitFamilyTrace?

@@ -29,6 +29,11 @@ struct HistoryView: View {
                             text("Token history", "Token 历史"),
                             subtitle: text("30 days · Monday–Sunday · Local time", "30 天 · 周一至周日 · 本地时间")
                         )
+                        if !history.isComplete {
+                            Text(progressText(history))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         HeatmapGrid(history: history) { date in store.showDay(date) }
                         HStack(spacing: 12) {
                             Text(text("Less", "较少")).font(.caption).foregroundStyle(.secondary)
@@ -46,6 +51,13 @@ struct HistoryView: View {
             .padding(.horizontal, 16)
             .padding(.bottom, 12)
         }
+    }
+
+    private func progressText(_ history: TokenHistorySnapshot) -> String {
+        text(
+            "Scanning history · partial data · \(history.pendingFileCount) files remaining",
+            "历史统计中 · 当前为部分数据 · 剩余 \(history.pendingFileCount) 个文件"
+        )
     }
 
     @ViewBuilder

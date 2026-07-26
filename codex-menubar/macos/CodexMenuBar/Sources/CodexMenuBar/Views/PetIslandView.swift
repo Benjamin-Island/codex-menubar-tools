@@ -1,6 +1,12 @@
 import SwiftUI
 import CodexMenuBarCore
 
+enum PetIslandUsageSelection {
+    static func preferred(from usage: UsageSnapshot?) -> WindowUsage? {
+        usage?.primary ?? usage?.secondary
+    }
+}
+
 struct PetIslandView: View {
     @ObservedObject var store: DashboardStore
     @ObservedObject var preferences: PetIslandPreferences
@@ -38,7 +44,7 @@ struct PetIslandView: View {
     }
 
     private var preferredUsage: WindowUsage? {
-        usage?.secondary ?? usage?.primary
+        PetIslandUsageSelection.preferred(from: usage)
     }
 
     private var petScale: CGFloat {

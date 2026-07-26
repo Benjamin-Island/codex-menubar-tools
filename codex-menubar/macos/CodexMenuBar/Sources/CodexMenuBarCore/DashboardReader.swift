@@ -6,6 +6,7 @@ public protocol DashboardReading: Sendable {
 
 public final class DashboardReader: DashboardReading, @unchecked Sendable {
     private let logIndex: any IncrementalLogIndexing
+    private let todayLogIndex: (any IncrementalLogIndexing)?
     private let historyAggregator: TokenHistoryAggregator
     private let rateLimitReducer: RateLimitReducer
     private let sessionInventory: SessionInventory
@@ -16,6 +17,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
 
     public init(
         logIndex: any IncrementalLogIndexing,
+        todayLogIndex: (any IncrementalLogIndexing)? = nil,
         historyAggregator: TokenHistoryAggregator,
         rateLimitReducer: RateLimitReducer,
         sessionInventory: SessionInventory,
@@ -25,6 +27,7 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
         now: @escaping @Sendable () -> Date = Date.init
     ) {
         self.logIndex = logIndex
+        self.todayLogIndex = todayLogIndex
         self.historyAggregator = historyAggregator
         self.rateLimitReducer = rateLimitReducer
         self.sessionInventory = sessionInventory
@@ -46,6 +49,19 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
         let candidates = (try? processResult.get()) ?? []
         let requiredPaths = sessionInventory.requiredLogPaths(for: candidates)
         let modifiedSince = historyStart(now: readAt)
+        let todayStart = calendar.startOfDay(for: readAt)
+
+        var todayIndexSnapshot: IncrementalLogIndexSnapshot?
+        if let todayLogIndex {
+            todayIndexSnapshot = try? todayLogIndex.refresh(
+                sessionsDirectory: sessionsDirectory,
+                modifiedSince: todayStart,
+                requiredPaths: requiredPaths,
+                calendar: calendar,
+                now: readAt,
+                sessionIndexURL: sessionIndexURL
+            )
+        }
 
         let indexSnapshot: IncrementalLogIndexSnapshot
         do {
@@ -62,11 +78,16 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
                 message: "Unable to read Codex session logs",
                 detail: error.localizedDescription
             )
+            let todaySummaries = todayIndexSnapshot?.summaries ?? []
             return DashboardSnapshot(
-                rateLimit: .failure(indexError),
+                rateLimit: todaySummaries.isEmpty
+                    ? .failure(indexError)
+                    : rateLimitState(summaries: todaySummaries, now: readAt),
                 history: .failure(indexError),
-                sessions: sessionState(processResult: processResult, summaries: [], now: readAt),
-                warnings: [],
+                sessions: sessionState(processResult: processResult, summaries: todaySummaries, now: readAt),
+                warnings: (todayIndexSnapshot?.warnings ?? []).map {
+                    DashboardWarning(path: $0.path, line: $0.line, message: $0.message)
+                },
                 updatedAt: readAt
             )
         }
@@ -74,25 +95,18 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
         let history = historyAggregator.makeHistory(
             summaries: indexSnapshot.summaries,
             calendar: calendar,
-            now: readAt
+            now: readAt,
+            isComplete: indexSnapshot.isComplete,
+            pendingFileCount: indexSnapshot.pendingFileCount
         )
         let historyState: ContentState<TokenHistorySnapshot> = history.days.contains {
             $0.counts.total > 0
-        } ? .content(history) : .empty("No Token history found yet.")
+        } || !history.isComplete ? .content(history) : .empty("No Token history found yet.")
 
-        let rateLimitState: ContentState<UsageSnapshot>
-        switch rateLimitReducer.reduce(
-            summaries: indexSnapshot.summaries,
-            calendar: calendar,
+        let rateLimitState = rateLimitState(
+            summaries: indexSnapshot.summaries + (todayIndexSnapshot?.summaries ?? []),
             now: readAt
-        ) {
-        case let .snapshot(snapshot):
-            rateLimitState = .content(snapshot)
-        case let .failure(error):
-            rateLimitState = error.menuValue == "!"
-                ? .failure(DashboardError(message: error.message, detail: error.detail))
-                : .empty(error.message)
-        }
+        )
 
         return DashboardSnapshot(
             rateLimit: rateLimitState,
@@ -102,11 +116,25 @@ public final class DashboardReader: DashboardReading, @unchecked Sendable {
                 summaries: indexSnapshot.summaries,
                 now: readAt
             ),
-            warnings: indexSnapshot.warnings.map {
+            warnings: (indexSnapshot.warnings + (todayIndexSnapshot?.warnings ?? [])).map {
                 DashboardWarning(path: $0.path, line: $0.line, message: $0.message)
             },
             updatedAt: readAt
         )
+    }
+
+    private func rateLimitState(
+        summaries: [SessionLogSummary],
+        now: Date
+    ) -> ContentState<UsageSnapshot> {
+        switch rateLimitReducer.reduce(summaries: summaries, calendar: calendar, now: now) {
+        case let .snapshot(snapshot):
+            return .content(snapshot)
+        case let .failure(error):
+            return error.menuValue == "!"
+                ? .failure(DashboardError(message: error.message, detail: error.detail))
+                : .empty(error.message)
+        }
     }
 
     private func sessionState(

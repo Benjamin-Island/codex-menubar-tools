@@ -55,7 +55,7 @@ public struct TokenCounts: Equatable, Sendable, Codable {
     }
 }
 
-public struct SessionIdentity: Hashable, Sendable {
+public struct SessionIdentity: Hashable, Sendable, Codable {
     public let id: String
     public let name: String
     public let displayName: String
@@ -129,16 +129,22 @@ public struct TokenHistorySnapshot: Equatable, Sendable {
     public let days: [DailyUsage]
     public let heatmapDays: [HeatmapDay]
     public let selectedDefaultDate: Date
+    public let isComplete: Bool
+    public let pendingFileCount: Int
 
     public init(
         interval: DateInterval,
         days: [DailyUsage],
         heatmapDays: [HeatmapDay],
-        selectedDefaultDate: Date
+        selectedDefaultDate: Date,
+        isComplete: Bool = true,
+        pendingFileCount: Int = 0
     ) {
         self.interval = interval
         self.days = days
         self.heatmapDays = heatmapDays
         self.selectedDefaultDate = selectedDefaultDate
+        self.isComplete = isComplete
+        self.pendingFileCount = pendingFileCount
     }
 }

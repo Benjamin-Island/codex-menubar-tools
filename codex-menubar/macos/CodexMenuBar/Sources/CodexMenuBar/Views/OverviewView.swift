@@ -50,6 +50,14 @@ struct OverviewView: View {
                         text("30-day Token history", "30 天 Token 历史"),
                         subtitle: text("Monday–Sunday · Select a day for details", "周一至周日 · 选择日期查看详情")
                     )
+                    if !history.isComplete {
+                        Text(text(
+                            "Scanning · partial data · \(history.pendingFileCount) files remaining",
+                            "统计中 · 当前为部分数据 · 剩余 \(history.pendingFileCount) 个文件"
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
                     HeatmapGrid(history: history, compact: true) { date in
                         store.showHistory(date: date)
                     }

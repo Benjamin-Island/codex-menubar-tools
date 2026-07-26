@@ -17,6 +17,7 @@ final class AppDelegate: NSObject, NSApplicationDelegate {
 
         let reader = DashboardReader(
             logIndex: IncrementalCodexLogIndex(),
+            todayLogIndex: IncrementalCodexLogIndex.todayUsageIndex(),
             historyAggregator: TokenHistoryAggregator(),
             rateLimitReducer: RateLimitReducer(),
             sessionInventory: SessionInventory(

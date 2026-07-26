@@ -1,6 +1,6 @@
 import Foundation
 
-private struct DailyWindowBuilder: Equatable, Sendable {
+private struct DailyWindowBuilder: Equatable, Sendable, Codable {
     var first: DailyRateLimitWindowObservation?
     var last: DailyRateLimitWindowObservation?
     var firstResetAt: Double?
@@ -28,7 +28,7 @@ private struct DailyWindowBuilder: Equatable, Sendable {
     }
 }
 
-private struct DailyFamilyBuilder: Equatable, Sendable {
+private struct DailyFamilyBuilder: Equatable, Sendable, Codable {
     var primary = DailyWindowBuilder()
     var secondary = DailyWindowBuilder()
 
@@ -52,7 +52,7 @@ private func observationOrder(
     return lhs.sequence < rhs.sequence
 }
 
-struct SessionLogAccumulator: Equatable, Sendable {
+struct SessionLogAccumulator: Equatable, Sendable, Codable {
     private static let typeMarker = Data("\"type\"".utf8)
     private static let relevantRecordMarkers = [
         "\"session_meta\"",

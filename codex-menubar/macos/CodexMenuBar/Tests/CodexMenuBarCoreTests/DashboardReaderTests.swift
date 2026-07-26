@@ -112,6 +112,55 @@ final class DashboardReaderTests: XCTestCase {
         XCTAssertEqual(usage.primary?.todayInitialRemainingPercent, 80)
     }
 
+    func testPartialHistoryStaysVisibleAndReportsPendingFiles() {
+        let reader = makeReader(
+            indexResults: [.success(snapshot(
+                summaries: [],
+                isComplete: false,
+                pendingFileCount: 3
+            ))],
+            processes: .success([])
+        )
+
+        guard case let .content(history) = reader.read().history else {
+            return XCTFail("Expected partial history content")
+        }
+        XCTAssertFalse(history.isComplete)
+        XCTAssertEqual(history.pendingFileCount, 3)
+    }
+
+    func testTodayFastIndexSuppliesUsageBeforeHistoryScanCompletes() {
+        let observation = DailyRateLimitWindowObservation(
+            usedPercent: 20,
+            resetsAt: nil,
+            reportedAt: now,
+            sequence: 1,
+            sourcePath: "/sessions/today.jsonl"
+        )
+        let trace = DailyRateLimitTrace(
+            day: utcCalendar().startOfDay(for: now),
+            canonical: DailyRateLimitFamilyTrace(
+                primary: DailyRateLimitWindowTrace(first: observation, last: observation, didReset: false),
+                secondary: nil
+            ),
+            fallback: nil
+        )
+        let historyIndex = DashboardIndexFake(results: [
+            .success(snapshot(summaries: [], isComplete: false, pendingFileCount: 8))
+        ])
+        let todayIndex = DashboardIndexFake(results: [
+            .success(snapshot(summaries: [
+                summary(hasRateLimit: true, totalTokens: 0, dailyRateLimitTrace: trace)
+            ]))
+        ])
+        let reader = makeReader(index: historyIndex, todayIndex: todayIndex, processes: .success([]))
+
+        guard case let .content(usage) = reader.read().rateLimit else {
+            return XCTFail("Expected usage from fast index")
+        }
+        XCTAssertEqual(usage.primary?.todayInitialRemainingPercent, 80)
+    }
+
     private func makeReader(
         indexResults: [Result<IncrementalLogIndexSnapshot, Error>],
         processes: Result<[ProcessSnapshot], Error>
@@ -121,10 +170,12 @@ final class DashboardReaderTests: XCTestCase {
 
     private func makeReader(
         index: DashboardIndexFake,
+        todayIndex: DashboardIndexFake? = nil,
         processes: Result<[ProcessSnapshot], Error>
     ) -> DashboardReader {
         DashboardReader(
             logIndex: index,
+            todayLogIndex: todayIndex,
             historyAggregator: TokenHistoryAggregator(),
             rateLimitReducer: RateLimitReducer(),
             sessionInventory: SessionInventory(
@@ -141,9 +192,16 @@ final class DashboardReaderTests: XCTestCase {
 
     private func snapshot(
         summaries: [SessionLogSummary],
-        warnings: [ParseWarning] = []
+        warnings: [ParseWarning] = [],
+        isComplete: Bool = true,
+        pendingFileCount: Int = 0
     ) -> IncrementalLogIndexSnapshot {
-        IncrementalLogIndexSnapshot(summaries: summaries, warnings: warnings)
+        IncrementalLogIndexSnapshot(
+            summaries: summaries,
+            warnings: warnings,
+            isComplete: isComplete,
+            pendingFileCount: pendingFileCount
+        )
     }
 
     private func summary(

@@ -6,7 +6,9 @@ public struct TokenHistoryAggregator: Sendable {
     public func makeHistory(
         summaries: [SessionLogSummary],
         calendar inputCalendar: Calendar,
-        now: Date
+        now: Date,
+        isComplete: Bool = true,
+        pendingFileCount: Int = 0
     ) -> TokenHistorySnapshot {
         var calendar = inputCalendar
         calendar.firstWeekday = 2
@@ -26,7 +28,9 @@ public struct TokenHistoryAggregator: Sendable {
             sessionByID: sessionByID,
             countsByDayAndSession: countsByDayAndSession,
             calendar: calendar,
-            now: now
+            now: now,
+            isComplete: isComplete,
+            pendingFileCount: pendingFileCount
         )
     }
 
@@ -34,7 +38,9 @@ public struct TokenHistoryAggregator: Sendable {
         sessionByID: [String: SessionIdentity],
         countsByDayAndSession: [Date: [String: TokenCounts]],
         calendar: Calendar,
-        now: Date
+        now: Date,
+        isComplete: Bool,
+        pendingFileCount: Int
     ) -> TokenHistorySnapshot {
         let today = calendar.startOfDay(for: now)
         let interval = historyInterval(calendar: calendar, now: now)
@@ -79,7 +85,9 @@ public struct TokenHistoryAggregator: Sendable {
             interval: interval,
             days: days,
             heatmapDays: heatmapDays,
-            selectedDefaultDate: today
+            selectedDefaultDate: today,
+            isComplete: isComplete,
+            pendingFileCount: pendingFileCount
         )
     }
 

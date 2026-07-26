@@ -27,7 +27,7 @@
 ## Features
 
 - **Overview** — see current rate-limit windows and each window's initial remaining percentage for today, a compact Token heatmap, and shortcuts to live sessions.
-- **History** — explore the latest 60 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
+- **History** — explore the latest 30 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
 - **Sessions** — follow active top-level Codex terminal and Codex Desktop sessions, including activity, working directory, last update, and cumulative Tokens.
 - **Private by design** — inspect local Codex data without accounts, network requests, analytics, or a background service.
 
@@ -89,10 +89,15 @@ append-only JSONL session logs under `~/.codex/sessions`:
 - The incremental index reads only bytes appended since the last cursor. It
   parses `token_count` events for cumulative input, cached-input, output,
   reasoning, total-token, and rate-limit fields.
+- Session metadata reads are limited to the first line and 256 KiB. History
+  discovery visits only the latest 30 date-partitioned directories.
+- A local parsed-state cache records file identity, size, modification time,
+  parsed offset, and daily aggregates. Cold scans resume across refreshes and
+  stop after 64 MiB globally, 16 MiB per file, or 500 ms per pass.
 - Daily totals are calculated from differences between consecutive cumulative
   counters. Remaining quota is `100 - used_percent`, and reset time comes from
   the event's `resets_at` value.
-- The dashboard keeps 60 local-calendar days of history. Files opened by a live
+- The dashboard keeps 30 local-calendar days of history. Files opened by a live
   Codex process are retained even when they fall outside the normal history
   filter.
 
@@ -110,12 +115,13 @@ The app:
 - inspects current-user process metadata and writable rollout file associations to identify interactive TUIs;
 - does **not** read Codex credentials or `auth.json`;
 - does **not** make network requests;
-- does **not** write a cache, database, analytics, or log file;
+- writes only a local parsed-state cache under the macOS Caches directory;
+- does **not** write a database, analytics, or log file;
 - does **not** start, stop, or otherwise control Codex sessions.
 
-Session JSONL files are streamed in bounded chunks. While the app is running, appended bytes update in-memory daily summaries; raw historical Token events are not retained. The index is never written to disk, so restarting the app performs a fresh streaming scan.
+Session JSONL files are streamed in bounded chunks. Appended bytes update daily summaries, while raw historical JSONL records are never copied into the cache. Restarting restores validated per-file cursors and resumes only from appended or unfinished byte ranges.
 
-History includes every indexed local rollout source from the latest 60 local calendar days. The live Sessions page includes top-level interactive terminal sessions and user sessions currently open in Codex Desktop. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
+History includes every indexed local rollout source from the latest 30 local calendar days. Until a cold scan finishes, the UI explicitly labels the result as partial and shows the remaining file count. The live Sessions page includes top-level interactive terminal sessions and user sessions currently open in Codex Desktop. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
 
 ## Token semantics
 
