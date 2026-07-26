@@ -6,7 +6,9 @@ public struct TokenHistoryAggregator: Sendable {
     public func makeHistory(
         summaries: [SessionLogSummary],
         calendar inputCalendar: Calendar,
-        now: Date
+        now: Date,
+        isComplete: Bool = true,
+        pendingFileCount: Int = 0
     ) -> TokenHistorySnapshot {
         var calendar = inputCalendar
         calendar.firstWeekday = 2
@@ -26,7 +28,9 @@ public struct TokenHistoryAggregator: Sendable {
             sessionByID: sessionByID,
             countsByDayAndSession: countsByDayAndSession,
             calendar: calendar,
-            now: now
+            now: now,
+            isComplete: isComplete,
+            pendingFileCount: pendingFileCount
         )
     }
 
@@ -34,13 +38,15 @@ public struct TokenHistoryAggregator: Sendable {
         sessionByID: [String: SessionIdentity],
         countsByDayAndSession: [Date: [String: TokenCounts]],
         calendar: Calendar,
-        now: Date
+        now: Date,
+        isComplete: Bool,
+        pendingFileCount: Int
     ) -> TokenHistorySnapshot {
         let today = calendar.startOfDay(for: now)
         let interval = historyInterval(calendar: calendar, now: now)
         let start = interval.start
         var rawDays: [(date: Date, counts: TokenCounts, sessions: [SessionDayUsage], isFuture: Bool)] = []
-        for offset in 0..<60 {
+        for offset in 0..<HistoryWindow.dayCount {
             let date = calendar.date(byAdding: .day, value: offset, to: start)!
             let sessionCounts = countsByDayAndSession[date, default: [:]]
             let sessions = sessionCounts.compactMap { sessionID, counts -> SessionDayUsage? in
@@ -79,13 +85,15 @@ public struct TokenHistoryAggregator: Sendable {
             interval: interval,
             days: days,
             heatmapDays: heatmapDays,
-            selectedDefaultDate: today
+            selectedDefaultDate: today,
+            isComplete: isComplete,
+            pendingFileCount: pendingFileCount
         )
     }
 
     private func historyInterval(calendar: Calendar, now: Date) -> DateInterval {
         let today = calendar.startOfDay(for: now)
-        let start = calendar.date(byAdding: .day, value: -59, to: today)!
+        let start = HistoryWindow.start(calendar: calendar, now: now)
         let end = calendar.date(byAdding: .day, value: 1, to: today)!
         return DateInterval(start: start, end: end)
     }

@@ -27,9 +27,79 @@
 ## Features
 
 - **Overview** — see current rate-limit windows and each window's initial remaining percentage for today, a compact Token heatmap, and shortcuts to live sessions.
-- **History** — explore the latest 60 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
+- **History** — explore the latest 30 local days with daily Total, Input, Cached, Output, and Reasoning details plus per-session breakdowns.
 - **Sessions** — follow active top-level Codex terminal and Codex Desktop sessions, including activity, working directory, last update, and cumulative Tokens.
 - **Private by design** — inspect local Codex data without accounts, network requests, analytics, or a background service.
+
+## Pet Island
+
+Pet Island keeps usage and live-session status visible in a movable floating
+pet with an expandable task summary. It uses the same floating presentation on
+MacBook displays and external monitors.
+
+The island renders the user's local Codex custom pet in the same window as the
+usage metrics, so the pet and status never need to be manually aligned. It
+discovers read-only pet packages from:
+
+- `~/.codex/pets/*/pet.json`
+- `~/Library/Application Support/Codex/pets/*/pet.json`
+- `~/Library/Application Support/ChatGPT/pets/*/pet.json`
+
+Use **Pet Island** in the dashboard footer to show or hide the island, follow
+the current local Codex pet, or explicitly choose an installed custom pet.
+The expanded task summary includes a live pet-size slider from 75% to 300%;
+click its percentage to restore the 100% default. The movable and expanded
+windows and the edge-docked quota view all follow the selected scale.
+An idle pet uses the manifest's idle animation while a live task uses its
+directional running frames. Drag the pet left or right to move the panel and
+change its running direction, including across connected displays.
+Dropping it near either screen edge snaps the manifest's front-facing idle pet
+into a circular quota dock. Its ring and badge keep the remaining percentage
+and reset countdown visible without cropping or modifying the pet artwork. The
+dock has no opaque circular backing or outer shadow. Click it to reveal the
+summary, or drag it directly away from the edge to restore the movable pet.
+By default it follows Codex's `selected-avatar-id` from `~/.codex/config.toml`.
+If that value is missing or its package is unavailable, it falls back to the
+newest canonical local pet package (the folder name matches the manifest `id`)
+and ignores backup package folders. A pet id is stored in macOS user defaults
+only after the user explicitly chooses one from this app. Pet packages are
+never modified. If the Codex app's own pet overlay is enabled, turn one of the
+two overlays off to avoid showing the same pet twice.
+
+No pet artwork is bundled, copied, or redistributed by Codex Menu Bar. Every
+rendered frame is loaded at runtime from the local manifest's
+`spritesheetPath`, and the sprite layout follows its `spriteVersionNumber`.
+
+## Language
+
+Open the menu bar dashboard and use the compact **中 / EN** control beside
+**Pet Island**. The preference is persisted in macOS user defaults and updates
+both the dashboard and Pet Island.
+
+## How usage detection works
+
+Codex Menu Bar does not call a private usage API. It reads Codex's local,
+append-only JSONL session logs under `~/.codex/sessions`:
+
+- macOS FSEvents watches the directory with a 0.2-second delivery latency.
+- A 60-second timer is the fallback when filesystem events are coalesced or
+  unavailable.
+- Filesystem bursts are coalesced and delivered at most once every two seconds,
+  preventing rapid log writes from triggering repeated dashboard scans.
+- The incremental index reads only bytes appended since the last cursor. It
+  parses `token_count` events for cumulative input, cached-input, output,
+  reasoning, total-token, and rate-limit fields.
+- Session metadata reads are limited to the first line and 256 KiB. History
+  discovery visits only the latest 30 date-partitioned directories.
+- A local parsed-state cache records file identity, size, modification time,
+  parsed offset, and daily aggregates. Cold scans resume across refreshes and
+  stop after 64 MiB globally, 16 MiB per file, or 500 ms per pass.
+- Daily totals are calculated from differences between consecutive cumulative
+  counters. Remaining quota is `100 - used_percent`, and reset time comes from
+  the event's `resets_at` value.
+- The dashboard keeps 30 local-calendar days of history. Files opened by a live
+  Codex process are retained even when they fall outside the normal history
+  filter.
 
 ## Why Codex Menu Bar
 
@@ -45,12 +115,19 @@ The app:
 - inspects current-user process metadata and writable rollout file associations to identify interactive TUIs;
 - does **not** read Codex credentials or `auth.json`;
 - does **not** make network requests;
-- does **not** write a cache, database, analytics, or log file;
+- writes only a local parsed-state cache under the macOS Caches directory;
+- does **not** write a database, analytics, or log file;
 - does **not** start, stop, or otherwise control Codex sessions.
 
-Session JSONL files are streamed in bounded chunks. While the app is running, appended bytes update in-memory daily summaries; raw historical Token events are not retained. The index is never written to disk, so restarting the app performs a fresh streaming scan.
+Session JSONL files are streamed in bounded chunks. Appended bytes update daily summaries, while raw historical JSONL records are never copied into the cache. Restarting restores validated per-file cursors and resumes only from appended or unfinished byte ranges.
 
-History includes every indexed local rollout source from the latest 60 local calendar days. The live Sessions page includes top-level interactive terminal sessions and user sessions currently open in Codex Desktop. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
+History includes every indexed local rollout source from the latest 30 local calendar days. Until a cold scan finishes, the UI explicitly labels the result as partial and shows the remaining file count. The live Sessions page includes top-level interactive terminal sessions and user sessions currently open in Codex Desktop. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
+
+## Token semantics
+
+Codex records cumulative Token counters. The app converts consecutive cumulative values into increments, handles counter resets independently, and groups increments by system-local calendar day.
+
+`Total` is used as reported. Cached input and Reasoning are shown as detail fields and are never added to Total again.
 
 ## Requirements
 

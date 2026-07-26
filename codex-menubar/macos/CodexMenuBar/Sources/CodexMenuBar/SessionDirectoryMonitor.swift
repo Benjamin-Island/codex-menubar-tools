@@ -6,6 +6,10 @@ final class SessionDirectoryMonitor: @unchecked Sendable {
     private let onChange: @MainActor () -> Void
     private var stream: FSEventStreamRef?
     private var debounceTimer: Timer?
+    private var lastDeliveryAt: Date?
+
+    private static let eventDebounce: TimeInterval = 0.35
+    private static let minimumDeliveryInterval: TimeInterval = 2
 
     init(directory: URL, onChange: @escaping @MainActor () -> Void) {
         self.directory = directory
@@ -67,9 +71,18 @@ final class SessionDirectoryMonitor: @unchecked Sendable {
     private func scheduleChange() {
         DispatchQueue.main.async { [weak self] in
             guard let self else { return }
-            self.debounceTimer?.invalidate()
-            self.debounceTimer = Timer.scheduledTimer(withTimeInterval: 0.35, repeats: false) { [weak self] _ in
+            guard self.debounceTimer == nil else { return }
+            let sinceLastDelivery = self.lastDeliveryAt.map {
+                Date().timeIntervalSince($0)
+            } ?? .infinity
+            let delay = max(
+                Self.eventDebounce,
+                Self.minimumDeliveryInterval - sinceLastDelivery
+            )
+            self.debounceTimer = Timer.scheduledTimer(withTimeInterval: delay, repeats: false) { [weak self] _ in
                 guard let self else { return }
+                self.debounceTimer = nil
+                self.lastDeliveryAt = Date()
                 Task { @MainActor in self.onChange() }
             }
         }

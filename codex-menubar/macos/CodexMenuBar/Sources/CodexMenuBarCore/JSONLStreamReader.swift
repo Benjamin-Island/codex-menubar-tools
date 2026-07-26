@@ -50,7 +50,7 @@ struct JSONLFrameOutput: Equatable, Sendable {
     let warnings: [ParseWarning]
 }
 
-struct JSONLFramingState: Equatable, Sendable {
+struct JSONLFramingState: Equatable, Sendable, Codable {
     private static let responseItemMarker = Data(#""type":"response_item""#.utf8)
     private static let customToolCallOutputMarker = Data(#""type":"custom_tool_call_output""#.utf8)
     private static let maximumClassificationBytes = 1_024

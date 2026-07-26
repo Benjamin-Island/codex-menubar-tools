@@ -11,9 +11,13 @@ final class StatusController: NSObject, NSPopoverDelegate {
     private let sessionsDirectory: URL
     private let renderer: StatusItemRenderer
     private let outsideClickEventSource: any OutsideClickEventSource
+    private let petIslandPreferences: PetIslandPreferences
+    private let languagePreferences: AppLanguagePreferences
     private var cancellables: Set<AnyCancellable> = []
     private var monitor: SessionDirectoryMonitor?
+    private var petConfigurationMonitor: PetConfigurationMonitor?
     private var refreshTimer: Timer?
+    private var petIslandController: PetIslandController?
     private lazy var dismissalCoordinator = PopoverDismissalCoordinator(
         eventSource: outsideClickEventSource,
         closePopover: { [weak self] in self?.popover.performClose(nil) }
@@ -23,12 +27,16 @@ final class StatusController: NSObject, NSPopoverDelegate {
         store: DashboardStore,
         sessionsDirectory: URL,
         renderer: StatusItemRenderer = StatusItemRenderer(),
-        outsideClickEventSource: any OutsideClickEventSource = GlobalMouseDownEventSource()
+        outsideClickEventSource: any OutsideClickEventSource = GlobalMouseDownEventSource(),
+        petIslandPreferences: PetIslandPreferences = PetIslandPreferences(),
+        languagePreferences: AppLanguagePreferences = AppLanguagePreferences()
     ) {
         self.store = store
         self.sessionsDirectory = sessionsDirectory
         self.renderer = renderer
         self.outsideClickEventSource = outsideClickEventSource
+        self.petIslandPreferences = petIslandPreferences
+        self.languagePreferences = languagePreferences
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
     }
@@ -38,7 +46,13 @@ final class StatusController: NSObject, NSPopoverDelegate {
         popover.animates = true
         popover.delegate = self
         popover.contentSize = NSSize(width: 620, height: 520)
-        popover.contentViewController = NSHostingController(rootView: DashboardView(store: store))
+        popover.contentViewController = NSHostingController(
+            rootView: DashboardView(
+                store: store,
+                petIslandPreferences: petIslandPreferences,
+                languagePreferences: languagePreferences
+            )
+        )
 
         if let button = statusItem.button {
             button.target = self
@@ -47,16 +61,29 @@ final class StatusController: NSObject, NSPopoverDelegate {
             button.imagePosition = .imageOnly
             button.setAccessibilityLabel("Codex Menu Bar")
         }
+        petIslandController = PetIslandController(
+            store: store,
+            preferences: petIslandPreferences,
+            languagePreferences: languagePreferences,
+            screenProvider: { [weak self] in
+                self?.statusItem.button?.window?.screen
+                    ?? NSScreen.main
+                    ?? NSScreen.screens.first
+            },
+            openDashboard: { [weak self] in self?.showPopover() }
+        )
         store.$snapshot
             .sink { [weak self] snapshot in self?.apply(snapshot) }
             .store(in: &cancellables)
         apply(store.snapshot)
         ensureMonitor()
+        ensurePetConfigurationMonitor()
         store.refresh()
 
-        let timer = Timer(timeInterval: 5, repeats: true) { [weak self] _ in
+        let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.ensureMonitor()
+                self?.ensurePetConfigurationMonitor()
                 self?.store.refresh()
             }
         }
@@ -65,14 +92,18 @@ final class StatusController: NSObject, NSPopoverDelegate {
     }
 
     @objc private func togglePopover() {
-        guard let button = statusItem.button else { return }
         if popover.isShown {
             popover.performClose(nil)
         } else {
-            popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
-            dismissalCoordinator.start()
-            store.refresh()
+            showPopover()
         }
+    }
+
+    private func showPopover() {
+        guard !popover.isShown, let button = statusItem.button else { return }
+        popover.show(relativeTo: button.bounds, of: button, preferredEdge: .minY)
+        dismissalCoordinator.start()
+        store.refresh()
     }
 
     func popoverDidClose(_ notification: Notification) {
@@ -88,12 +119,35 @@ final class StatusController: NSObject, NSPopoverDelegate {
         monitor = candidate
     }
 
+    private func ensurePetConfigurationMonitor() {
+        guard petConfigurationMonitor == nil else { return }
+        let configURL = FileManager.default.homeDirectoryForCurrentUser
+            .appendingPathComponent(".codex/config.toml")
+        let petRoots = CodexPetCatalog.defaultRoots()
+        let candidate = PetConfigurationMonitor(
+            configURL: configURL,
+            petRoots: petRoots
+        ) { [weak self] in
+            self?.reloadPetConfiguration()
+        }
+        guard candidate.start() else { return }
+        petConfigurationMonitor = candidate
+    }
+
+    private func reloadPetConfiguration() {
+        petIslandPreferences.reloadLocalConfiguration(
+            pets: CodexPetCatalog().load(),
+            localSelectedPetID: CodexPetSelectionReader().selectedPetID()
+        )
+    }
+
     private func apply(_ snapshot: DashboardSnapshot) {
         let remainingPercent: Int?
         let hasUsageError: Bool
         switch snapshot.rateLimit {
         case let .content(usage):
-            remainingPercent = usage.primary?.remainingPercent
+            remainingPercent = usage.secondary?.remainingPercent
+                ?? usage.primary?.remainingPercent
             hasUsageError = false
         case .failure:
             remainingPercent = nil

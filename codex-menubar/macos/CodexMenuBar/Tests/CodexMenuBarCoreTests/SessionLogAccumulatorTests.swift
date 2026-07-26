@@ -18,7 +18,7 @@ final class SessionLogAccumulatorTests: XCTestCase {
         XCTAssertEqual(summary.dailyCounts[cutoff]?.total, 80)
         XCTAssertEqual(summary.dailyCounts[cutoff]?.input, 55)
         XCTAssertEqual(summary.latestTokenCounts.total, 20)
-        XCTAssertLessThanOrEqual(summary.dailyCounts.count, 60)
+        XCTAssertLessThanOrEqual(summary.dailyCounts.count, 30)
     }
 
     func testAccumulatorRetainsOnlyNewestRateLimit() throws {

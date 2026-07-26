@@ -3,12 +3,13 @@ import CodexMenuBarCore
 
 struct HistoryView: View {
     @ObservedObject var store: DashboardStore
+    @Environment(\.appDisplayLanguage) private var language
 
     var body: some View {
         Group {
             switch store.snapshot.history {
             case .loading:
-                LoadingPanel(title: "Loading Token history").padding(16)
+                LoadingPanel(title: text("Loading Token history", "正在读取 Token 历史")).padding(16)
             case let .empty(message):
                 EmptyPanel(message: message).padding(16)
             case let .failure(error):
@@ -24,16 +25,24 @@ struct HistoryView: View {
             VStack(alignment: .leading, spacing: 12) {
                 Panel {
                     VStack(alignment: .leading, spacing: 10) {
-                        SectionTitle("Token history", subtitle: "60 days · Monday–Sunday · Local time")
+                        SectionTitle(
+                            text("Token history", "Token 历史"),
+                            subtitle: text("30 days · Monday–Sunday · Local time", "30 天 · 周一至周日 · 本地时间")
+                        )
+                        if !history.isComplete {
+                            Text(progressText(history))
+                                .font(.caption)
+                                .foregroundStyle(.secondary)
+                        }
                         HeatmapGrid(history: history) { date in store.showDay(date) }
                         HStack(spacing: 12) {
-                            Text("Less").font(.caption).foregroundStyle(.secondary)
+                            Text(text("Less", "较少")).font(.caption).foregroundStyle(.secondary)
                             ForEach(0..<5) { level in
                                 RoundedRectangle(cornerRadius: 2)
                                     .fill(level == 0 ? Color.secondary.opacity(0.14) : Color.green.opacity(0.18 + Double(level) * 0.19))
                                     .frame(width: 10, height: 10)
                             }
-                            Text("More").font(.caption).foregroundStyle(.secondary)
+                            Text(text("More", "较多")).font(.caption).foregroundStyle(.secondary)
                         }
                     }
                 }
@@ -44,6 +53,13 @@ struct HistoryView: View {
         }
     }
 
+    private func progressText(_ history: TokenHistorySnapshot) -> String {
+        text(
+            "Scanning history · partial data · \(history.pendingFileCount) files remaining",
+            "历史统计中 · 当前为部分数据 · 剩余 \(history.pendingFileCount) 个文件"
+        )
+    }
+
     @ViewBuilder
     private func detail(_ history: TokenHistorySnapshot) -> some View {
         switch store.historySelection {
@@ -51,11 +67,14 @@ struct HistoryView: View {
             if let day = history.days.first(where: { Calendar.current.isDate($0.date, inSameDayAs: date) }) {
                 Panel {
                     VStack(alignment: .leading, spacing: 12) {
-                        SectionTitle(day.date.formatted(date: .complete, time: .omitted), subtitle: "Daily Token breakdown")
+                        SectionTitle(
+                            day.date.formatted(date: .complete, time: .omitted),
+                            subtitle: text("Daily Token breakdown", "当日 Token 明细")
+                        )
                         TokenBreakdown(counts: day.counts)
                         if !day.sessions.isEmpty {
                             Divider()
-                            Text("Sessions").font(.subheadline.weight(.semibold))
+                            Text(text("Sessions", "任务")).font(.subheadline.weight(.semibold))
                             ForEach(day.sessions) { session in
                                 Button {
                                     store.showHistoricalSession(date: day.date, sessionID: session.id)
@@ -82,7 +101,7 @@ struct HistoryView: View {
                         Button {
                             store.showDay(day.date)
                         } label: {
-                            Label("Back to Day", systemImage: "chevron.left")
+                            Label(text("Back to Day", "返回日期"), systemImage: "chevron.left")
                         }
                         .buttonStyle(.plain)
                         SectionTitle(session.session.displayName, subtitle: "\(day.date.formatted(date: .abbreviated, time: .omitted)) · \(session.session.sourceKind)")
@@ -94,5 +113,9 @@ struct HistoryView: View {
                 }
             }
         }
+    }
+
+    private func text(_ english: String, _ chinese: String) -> String {
+        appText(english, chinese, language: language)
     }
 }

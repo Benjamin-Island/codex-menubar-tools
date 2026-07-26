@@ -58,6 +58,95 @@ final class DashboardViewSmokeTests: XCTestCase {
         }
     }
 
+    func testPetIslandHasFiniteLayoutWithAndWithoutPet() {
+        let store = DashboardStore(
+            snapshot: fullSnapshot(),
+            reader: { DashboardSnapshot.loading(at: .distantPast) }
+        )
+        let defaults = UserDefaults(suiteName: "PetIslandViewSmokeTests")!
+        defaults.removePersistentDomain(forName: "PetIslandViewSmokeTests")
+        let preferences = PetIslandPreferences(pets: [], defaults: defaults)
+        preferences.petScalePercent = 300
+
+        let controller = NSHostingController(
+            rootView: PetIslandView(
+                store: store,
+                preferences: preferences,
+                isExpanded: false,
+                isPeeking: false,
+                dockEdge: nil,
+                initialDirection: .right,
+                toggleExpanded: {},
+                beginDrag: {},
+                changeDirection: { _ in },
+                updateDrag: { _ in },
+                endDrag: { _ in },
+                openDashboard: {}
+            )
+        )
+        controller.view.frame = CGRect(
+            origin: .zero,
+            size: PetIslandPlacement.size(expanded: false, petScale: 3)
+        )
+        controller.view.layoutSubtreeIfNeeded()
+        let size = controller.view.fittingSize
+        XCTAssertTrue(size.width.isFinite && size.height.isFinite)
+        XCTAssertGreaterThan(size.width, 0)
+        XCTAssertGreaterThan(size.height, 0)
+
+        let expanded = NSHostingController(
+            rootView: PetIslandView(
+                store: store,
+                preferences: preferences,
+                isExpanded: true,
+                isPeeking: false,
+                dockEdge: nil,
+                initialDirection: .right,
+                toggleExpanded: {},
+                beginDrag: {},
+                changeDirection: { _ in },
+                updateDrag: { _ in },
+                endDrag: { _ in },
+                openDashboard: {}
+            )
+        )
+        expanded.view.frame = CGRect(
+            origin: .zero,
+            size: PetIslandPlacement.size(expanded: true, petScale: 3)
+        )
+        expanded.view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(expanded.view.fittingSize.width.isFinite)
+        XCTAssertTrue(expanded.view.fittingSize.height.isFinite)
+
+        let peeking = NSHostingController(
+            rootView: PetIslandView(
+                store: store,
+                preferences: preferences,
+                isExpanded: false,
+                isPeeking: true,
+                dockEdge: .right,
+                initialDirection: .right,
+                toggleExpanded: {},
+                beginDrag: {},
+                changeDirection: { _ in },
+                updateDrag: { _ in },
+                endDrag: { _ in },
+                openDashboard: {}
+            )
+        )
+        peeking.view.frame = CGRect(
+            origin: .zero,
+            size: PetIslandPlacement.size(
+                expanded: false,
+                peeking: true,
+                petScale: 3
+            )
+        )
+        peeking.view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(peeking.view.fittingSize.width.isFinite)
+        XCTAssertTrue(peeking.view.fittingSize.height.isFinite)
+    }
+
     private func fullSnapshot() -> DashboardSnapshot {
         let start = Date(timeIntervalSince1970: 1_700_000_000)
         let days = (0..<60).map { offset in

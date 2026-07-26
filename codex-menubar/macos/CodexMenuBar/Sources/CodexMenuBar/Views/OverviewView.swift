@@ -3,6 +3,7 @@ import CodexMenuBarCore
 
 struct OverviewView: View {
     @ObservedObject var store: DashboardStore
+    @Environment(\.appDisplayLanguage) private var language
 
     var body: some View {
         ScrollView {
@@ -20,11 +21,15 @@ struct OverviewView: View {
     private var usageSection: some View {
         switch store.snapshot.rateLimit {
         case .loading:
-            LoadingPanel(title: "Loading usage limits")
+            LoadingPanel(title: text("Loading usage limits", "正在读取额度"))
         case let .content(usage):
             HStack(alignment: .top, spacing: 12) {
-                UsageCard(title: "Primary", window: usage.primary)
-                UsageCard(title: "Secondary", window: usage.secondary)
+                ForEach(Array(usageWindows(usage).enumerated()), id: \.offset) { index, window in
+                    UsageCard(
+                        title: quotaTitle(index: index, count: usageWindows(usage).count),
+                        window: window
+                    )
+                }
             }
         case let .empty(message):
             EmptyPanel(message: message)
@@ -37,11 +42,22 @@ struct OverviewView: View {
     private var historySection: some View {
         switch store.snapshot.history {
         case .loading:
-            LoadingPanel(title: "Loading Token history")
+            LoadingPanel(title: text("Loading Token history", "正在读取 Token 历史"))
         case let .content(history):
             Panel {
                 VStack(alignment: .leading, spacing: 10) {
-                    SectionTitle("60-day Token history", subtitle: "Monday–Sunday · Select a day for details")
+                    SectionTitle(
+                        text("30-day Token history", "30 天 Token 历史"),
+                        subtitle: text("Monday–Sunday · Select a day for details", "周一至周日 · 选择日期查看详情")
+                    )
+                    if !history.isComplete {
+                        Text(text(
+                            "Scanning · partial data · \(history.pendingFileCount) files remaining",
+                            "统计中 · 当前为部分数据 · 剩余 \(history.pendingFileCount) 个文件"
+                        ))
+                        .font(.caption)
+                        .foregroundStyle(.secondary)
+                    }
                     HeatmapGrid(history: history, compact: true) { date in
                         store.showHistory(date: date)
                     }
@@ -58,18 +74,21 @@ struct OverviewView: View {
     private var sessionsSection: some View {
         switch store.snapshot.sessions {
         case .loading:
-            LoadingPanel(title: "Scanning interactive TUI sessions")
+            LoadingPanel(title: text("Scanning interactive TUI sessions", "正在扫描交互式终端任务"))
         case let .content(sessions):
             Panel {
                 VStack(alignment: .leading, spacing: 9) {
-                    SectionTitle("Live sessions", subtitle: "Terminal and Codex Desktop")
+                    SectionTitle(
+                        text("Live sessions", "当前任务"),
+                        subtitle: text("Terminal and Codex Desktop", "终端与 Codex Desktop")
+                    )
                     ForEach(sessions.prefix(4)) { session in
                         Button {
                             store.showLiveSession(id: session.id)
                         } label: {
                             SessionRow(
                                 title: session.displayTaskDescription,
-                                subtitle: "\(session.sourceKind) · PID \(session.pid) · \(session.activity.rawValue.capitalized)",
+                                subtitle: "\(session.sourceKind) · PID \(session.pid) · \(activityText(session.activity))",
                                 activity: session.activity,
                                 tokens: session.tokenCounts.total
                             )
@@ -83,5 +102,24 @@ struct OverviewView: View {
         case let .failure(error):
             ErrorPanel(error: error)
         }
+    }
+
+    private func activityText(_ activity: SessionActivity) -> String {
+        activity == .running ? text("Running", "运行中") : text("Stalled", "已暂停")
+    }
+
+    private func usageWindows(_ usage: UsageSnapshot) -> [WindowUsage] {
+        [usage.primary, usage.secondary].compactMap { $0 }
+    }
+
+    private func quotaTitle(index: Int, count: Int) -> String {
+        guard count > 1 else { return text("Usage limit", "额度") }
+        return index == 0
+            ? text("Primary", "短周期额度")
+            : text("Secondary", "长周期额度")
+    }
+
+    private func text(_ english: String, _ chinese: String) -> String {
+        appText(english, chinese, language: language)
     }
 }

@@ -207,6 +207,104 @@ final class IncrementalCodexLogIndexTests: XCTestCase {
         XCTAssertTrue(snapshot.warnings.contains { $0.message.contains("10,000-file safety limit") })
     }
 
+    func testPersistentCacheRestoresCursorAndOnlyReadsAppendedBytesAfterRestart() throws {
+        let fixture = try LogFixture(url: logURL(), records: [metadata(), token(total: 100)])
+        let cacheURL = root.appendingPathComponent("cache/log-index.json")
+        let firstReader = RecordingRangeReader()
+        let firstIndex = IncrementalCodexLogIndex(rangeReader: firstReader, cacheURL: cacheURL)
+
+        let first = try refresh(firstIndex)
+        XCTAssertEqual(first.summaries.first?.latestTokenCounts.total, 100)
+        XCTAssertTrue(FileManager.default.fileExists(atPath: cacheURL.path))
+
+        let secondReader = RecordingRangeReader()
+        let restoredIndex = IncrementalCodexLogIndex(rangeReader: secondReader, cacheURL: cacheURL)
+        let restored = try refresh(restoredIndex)
+        XCTAssertTrue(secondReader.ranges.isEmpty)
+        XCTAssertEqual(restored.summaries.first?.latestTokenCounts.total, 100)
+
+        let oldSize = fixture.byteSize
+        try fixture.append(token(total: 160))
+        let appended = try refresh(restoredIndex)
+        XCTAssertEqual(secondReader.ranges.last, oldSize..<fixture.byteSize)
+        XCTAssertEqual(appended.summaries.first?.latestTokenCounts.total, 160)
+        XCTAssertEqual(appended.summaries.first?.dailyCounts.values.first?.total, 160)
+
+        let cacheText = try String(contentsOf: cacheURL, encoding: .utf8)
+        for key in ["parserVersion", "inode", "modifiedAt", "size", "parsedOffset", "dailyCounts"] {
+            XCTAssertTrue(cacheText.contains("\"\(key)\""), "Missing cache field \(key)")
+        }
+    }
+
+    func testColdScanRespectsPerFileBudgetAndResumesUntilComplete() throws {
+        let records = [metadata()] + (1...20).map { token(total: $0 * 10) }
+        _ = try LogFixture(url: logURL(), records: records)
+        let reader = RecordingRangeReader()
+        let index = IncrementalCodexLogIndex(
+            rangeReader: reader,
+            chunkSize: 64,
+            globalByteBudget: 300,
+            perFileByteBudget: 200,
+            timeBudget: 10
+        )
+
+        var snapshot = try refresh(index)
+        XCTAssertFalse(snapshot.isComplete)
+        XCTAssertEqual(snapshot.pendingFileCount, 1)
+
+        var refreshCount = 1
+        while !snapshot.isComplete, refreshCount < 30 {
+            snapshot = try refresh(index)
+            refreshCount += 1
+        }
+
+        XCTAssertTrue(snapshot.isComplete)
+        XCTAssertEqual(snapshot.pendingFileCount, 0)
+        XCTAssertEqual(snapshot.summaries.first?.latestTokenCounts.total, 200)
+        XCTAssertGreaterThan(refreshCount, 1)
+        XCTAssertTrue(reader.ranges.allSatisfy { $0.count <= 200 })
+    }
+
+    func testColdScanStopsWhenTimeBudgetExpires() throws {
+        let records = [metadata()] + (1...20).map { token(total: $0 * 10) }
+        _ = try LogFixture(url: logURL(), records: records)
+        let reader = RecordingRangeReader()
+        let clock = SequenceClock(values: [0, 0, 1])
+        let index = IncrementalCodexLogIndex(
+            rangeReader: reader,
+            chunkSize: 64,
+            timeBudget: 0.5,
+            monotonicNow: { clock.next() }
+        )
+
+        let snapshot = try refresh(index)
+
+        XCTAssertFalse(snapshot.isComplete)
+        XCTAssertEqual(snapshot.pendingFileCount, 1)
+        XCTAssertEqual(index.cursorCount, 1)
+    }
+
+    func testParserVersionChangeInvalidatesPersistentCache() throws {
+        _ = try LogFixture(url: logURL(), records: [metadata(), token(total: 100)])
+        let cacheURL = root.appendingPathComponent("cache/versioned-index.json")
+        let first = IncrementalCodexLogIndex(
+            rangeReader: RecordingRangeReader(),
+            cacheURL: cacheURL,
+            parserVersion: 1
+        )
+        _ = try refresh(first)
+
+        let secondReader = RecordingRangeReader()
+        let second = IncrementalCodexLogIndex(
+            rangeReader: secondReader,
+            cacheURL: cacheURL,
+            parserVersion: 2
+        )
+        _ = try refresh(second)
+
+        XCTAssertEqual(secondReader.ranges.first?.lowerBound, 0)
+    }
+
     private func makeIndex(reader: RecordingRangeReader) -> IncrementalCodexLogIndex {
         IncrementalCodexLogIndex(rangeReader: reader)
     }
@@ -309,4 +407,23 @@ private final class LogFixture {
 
 private enum FixtureError: Error {
     case injectedReadFailure
+}
+
+private final class SequenceClock: @unchecked Sendable {
+    private let lock = NSLock()
+    private var values: [TimeInterval]
+    private var last: TimeInterval
+
+    init(values: [TimeInterval]) {
+        self.values = values
+        last = values.last ?? 0
+    }
+
+    func next() -> TimeInterval {
+        lock.lock()
+        defer { lock.unlock() }
+        guard !values.isEmpty else { return last }
+        last = values.removeFirst()
+        return last
+    }
 }
