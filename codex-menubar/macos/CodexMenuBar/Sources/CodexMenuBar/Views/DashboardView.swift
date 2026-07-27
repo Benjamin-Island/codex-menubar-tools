@@ -5,16 +5,19 @@ import CodexMenuBarCore
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
     @ObservedObject var languagePreferences: AppLanguagePreferences
-    let petUsageBadgePreferences: PetUsageBadgePreferences?
+    let petUsageBadgePermissionController:
+        PetUsageBadgePermissionController?
     @Environment(\.appDisplayLanguage) private var language
 
     init(
         store: DashboardStore,
-        petUsageBadgePreferences: PetUsageBadgePreferences? = nil,
+        petUsageBadgePermissionController:
+            PetUsageBadgePermissionController? = nil,
         languagePreferences: AppLanguagePreferences = AppLanguagePreferences()
     ) {
         self.store = store
-        self.petUsageBadgePreferences = petUsageBadgePreferences
+        self.petUsageBadgePermissionController =
+            petUsageBadgePermissionController
         self.languagePreferences = languagePreferences
     }
 
@@ -70,32 +73,43 @@ struct DashboardView: View {
     }
 
     private var footer: some View {
-        HStack {
-            Button {
-                store.refresh()
-            } label: {
-                Label(
-                    store.isRefreshing
-                        ? text("Refreshing", "刷新中")
-                        : text("Refresh", "刷新"),
-                    systemImage: "arrow.clockwise"
+        VStack(spacing: 6) {
+            if let petUsageBadgePermissionController {
+                PetUsageBadgePermissionMessage(
+                    permissionController:
+                        petUsageBadgePermissionController
                 )
             }
-            .disabled(store.isRefreshing)
-            if let petUsageBadgePreferences {
-                PetUsageBadgeSettingsControl(
-                    preferences: petUsageBadgePreferences
-                )
+            HStack {
+                Button {
+                    store.refresh()
+                } label: {
+                    Label(
+                        store.isRefreshing
+                            ? text("Refreshing", "刷新中")
+                            : text("Refresh", "刷新"),
+                        systemImage: "arrow.clockwise"
+                    )
+                }
+                .disabled(store.isRefreshing)
+                if let petUsageBadgePermissionController {
+                    PetUsageBadgeSettingsControl(
+                        permissionController:
+                            petUsageBadgePermissionController
+                    )
+                }
+                languageControl
+                Spacer()
+                Label(text("Local logs · Read-only", "本地日志 · 只读"), systemImage: "lock.shield")
+                    .font(.caption)
+                    .foregroundStyle(.secondary)
+                Spacer()
+                Button(text("Quit", "退出")) {
+                    NSApplication.shared.terminate(nil)
+                }
             }
-            languageControl
-            Spacer()
-            Label(text("Local logs · Read-only", "本地日志 · 只读"), systemImage: "lock.shield")
-                .font(.caption)
-                .foregroundStyle(.secondary)
-            Spacer()
-            Button(text("Quit", "退出")) { NSApplication.shared.terminate(nil) }
+            .controlSize(.small)
         }
-        .controlSize(.small)
         .padding(.horizontal, 16)
         .padding(.vertical, 10)
         .background(.bar)
@@ -128,7 +142,8 @@ struct DashboardView: View {
 }
 
 private struct PetUsageBadgeSettingsControl: View {
-    @ObservedObject var preferences: PetUsageBadgePreferences
+    @ObservedObject var permissionController:
+        PetUsageBadgePermissionController
     @Environment(\.appDisplayLanguage) private var language
 
     var body: some View {
@@ -137,7 +152,10 @@ private struct PetUsageBadgeSettingsControl: View {
                 "Show Usage by Codex Pet",
                 "在 Codex 宠物旁显示额度"
             ),
-            isOn: $preferences.isEnabled
+            isOn: Binding(
+                get: { permissionController.isEnabled },
+                set: { permissionController.setEnabled($0) }
+            )
         )
         .toggleStyle(.switch)
         .help(
@@ -150,5 +168,44 @@ private struct PetUsageBadgeSettingsControl: View {
 
     private func text(_ english: String, _ chinese: String) -> String {
         appText(english, chinese, language: language)
+    }
+}
+
+private struct PetUsageBadgePermissionMessage: View {
+    @ObservedObject var permissionController:
+        PetUsageBadgePermissionController
+    @Environment(\.appDisplayLanguage) private var language
+
+    var body: some View {
+        if let message {
+            HStack(spacing: 6) {
+                Image(systemName: iconName)
+                Text(message)
+                Spacer()
+            }
+            .font(.caption)
+            .foregroundStyle(messageColor)
+            .frame(maxWidth: .infinity)
+        }
+    }
+
+    private var message: String? {
+        PetUsageBadgePermissionPresentation.message(
+            for: permissionController.status,
+            language: language
+        )
+    }
+
+    private var iconName: String {
+        switch permissionController.status {
+        case .restartRequired:
+            "arrow.clockwise.circle.fill"
+        case .authorized, .permissionRequired, .denied:
+            "exclamationmark.triangle.fill"
+        }
+    }
+
+    private var messageColor: Color {
+        permissionController.status == .denied ? .red : .orange
     }
 }

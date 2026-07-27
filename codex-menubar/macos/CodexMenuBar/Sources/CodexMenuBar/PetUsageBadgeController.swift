@@ -98,7 +98,7 @@ final class PetUsageBadgeController {
     }
 
     private let store: DashboardStore
-    private let preferences: PetUsageBadgePreferences
+    private let permissionController: PetUsageBadgePermissionController
     private let languagePreferences: AppLanguagePreferences
     private let tracker: any PetUsageBadgeTracking
     private let outsideClickEventSource: any OutsideClickEventSource
@@ -113,7 +113,7 @@ final class PetUsageBadgeController {
 
     init(
         store: DashboardStore,
-        preferences: PetUsageBadgePreferences,
+        permissionController: PetUsageBadgePermissionController,
         languagePreferences: AppLanguagePreferences,
         tracker: any PetUsageBadgeTracking,
         outsideClickEventSource: any OutsideClickEventSource =
@@ -125,7 +125,7 @@ final class PetUsageBadgeController {
         summaryPanel: (any PetUsagePanel)? = nil
     ) {
         self.store = store
-        self.preferences = preferences
+        self.permissionController = permissionController
         self.languagePreferences = languagePreferences
         self.tracker = tracker
         self.outsideClickEventSource = outsideClickEventSource
@@ -147,11 +147,15 @@ final class PetUsageBadgeController {
         tracker.onUpdate = { [weak self] update in
             self?.handle(update)
         }
-        preferences.$isEnabled
+        permissionController.$isEnabled
+            .combineLatest(permissionController.$status)
+            .map { isEnabled, status in
+                isEnabled && status == .authorized
+            }
             .removeDuplicates()
             .dropFirst()
-            .sink { [weak self] enabled in
-                self?.enabledDidChange(enabled)
+            .sink { [weak self] canTrack in
+                self?.trackingEligibilityDidChange(canTrack)
             }
             .store(in: &cancellables)
         languagePreferences.$selection
@@ -162,7 +166,7 @@ final class PetUsageBadgeController {
             }
             .store(in: &cancellables)
 
-        if preferences.isEnabled {
+        if permissionController.canTrack {
             tracker.start()
         } else {
             apply(event: .disabled)
@@ -182,7 +186,7 @@ final class PetUsageBadgeController {
     }
 
     func toggleSummary() {
-        guard isStarted, preferences.isEnabled else { return }
+        guard isStarted, permissionController.canTrack else { return }
         if visibility == .summary {
             apply(event: .badgeClicked(summaryCanFit: true))
             return
@@ -198,8 +202,8 @@ final class PetUsageBadgeController {
         apply(event: .badgeClicked(summaryCanFit: candidate != nil))
     }
 
-    private func enabledDidChange(_ enabled: Bool) {
-        if enabled {
+    private func trackingEligibilityDidChange(_ canTrack: Bool) {
+        if canTrack {
             tracker.start()
         } else {
             tracker.stop()
@@ -210,7 +214,7 @@ final class PetUsageBadgeController {
     }
 
     private func handle(_ update: PetUsageBadgeTrackingUpdate) {
-        guard isStarted, preferences.isEnabled else { return }
+        guard isStarted, permissionController.canTrack else { return }
         guard let observation = update.observation else {
             geometry = nil
             summaryFrame = nil

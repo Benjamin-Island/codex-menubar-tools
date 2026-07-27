@@ -7,27 +7,11 @@ import CodexMenuBarCore
 @MainActor
 final class DashboardViewSmokeTests: XCTestCase {
     func testPetUsageSettingRendersAsNativeSwitch() {
-        let defaultsName = "DashboardViewSmokeTests-\(UUID().uuidString)"
-        let defaults = UserDefaults(suiteName: defaultsName)!
-        defaults.removePersistentDomain(forName: defaultsName)
-        defaults.set(true, forKey: PetUsageBadgePreferences.migrationKey)
-        defaults.set(true, forKey: PetUsageBadgePreferences.enabledKey)
-        defer { defaults.removePersistentDomain(forName: defaultsName) }
-
-        let store = DashboardStore(
-            snapshot: fullSnapshot(),
-            reader: { DashboardSnapshot.loading(at: .distantPast) }
+        let controller = makeSettingsController(
+            initiallyEnabled: true,
+            preflightResult: true,
+            requestResult: false
         )
-        let controller = NSHostingController(
-            rootView: DashboardView(
-                store: store,
-                petUsageBadgePreferences: PetUsageBadgePreferences(
-                    defaults: defaults
-                )
-            )
-        )
-        controller.view.frame = CGRect(x: 0, y: 0, width: 620, height: 520)
-        controller.view.layoutSubtreeIfNeeded()
 
         let switchControl = firstDescendant(
             of: NSSwitch.self,
@@ -41,6 +25,68 @@ final class DashboardViewSmokeTests: XCTestCase {
             switchControl?.state,
             .on,
             "A persisted enabled preference must visibly reopen in the on state"
+        )
+    }
+
+    func testMissingPermissionShowsRequiredMessageAndOffSwitch() {
+        let controller = makeSettingsController(
+            initiallyEnabled: true,
+            preflightResult: false,
+            requestResult: false
+        )
+
+        XCTAssertEqual(
+            firstDescendant(of: NSSwitch.self, in: controller.view)?.state,
+            .off
+        )
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.message(
+                for: .permissionRequired,
+                language: .english
+            ),
+            "Screen Recording permission is required"
+        )
+    }
+
+    func testDeniedPermissionShowsBlockedMessageAndOffSwitch() {
+        let controller = makeSettingsController(
+            initiallyEnabled: false,
+            preflightResult: false,
+            requestResult: false,
+            enableAfterInitialization: true
+        )
+
+        XCTAssertEqual(
+            firstDescendant(of: NSSwitch.self, in: controller.view)?.state,
+            .off
+        )
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.message(
+                for: .denied,
+                language: .english
+            ),
+            "Screen Recording permission was denied"
+        )
+    }
+
+    func testGrantedPermissionShowsRestartMessage() {
+        let controller = makeSettingsController(
+            initiallyEnabled: false,
+            preflightResult: false,
+            requestResult: true,
+            enableAfterInitialization: true
+        )
+
+        XCTAssertEqual(
+            firstDescendant(of: NSSwitch.self, in: controller.view)?.state,
+            .on
+        )
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.message(
+                for: .restartRequired,
+                language: .english
+            ),
+            "Restart Codex Menu Bar to finish enabling"
         )
     }
 
@@ -199,6 +245,51 @@ final class DashboardViewSmokeTests: XCTestCase {
         )
     }
 
+    private func makeSettingsController(
+        initiallyEnabled: Bool,
+        preflightResult: Bool,
+        requestResult: Bool,
+        enableAfterInitialization: Bool = false
+    ) -> NSHostingController<DashboardView> {
+        let defaultsName = "DashboardViewSmokeTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: defaultsName)!
+        defaults.removePersistentDomain(forName: defaultsName)
+        defaults.set(true, forKey: PetUsageBadgePreferences.migrationKey)
+        defaults.set(
+            initiallyEnabled,
+            forKey: PetUsageBadgePreferences.enabledKey
+        )
+        defaults.set(
+            AppLanguagePreference.english.rawValue,
+            forKey: AppLanguagePreferences.selectionKey
+        )
+        let preferences = PetUsageBadgePreferences(defaults: defaults)
+        let permissionController = PetUsageBadgePermissionController(
+            preferences: preferences,
+            permissionProvider: DashboardTestScreenCapturePermissionProvider(
+                preflightResult: preflightResult,
+                requestResult: requestResult
+            )
+        )
+        if enableAfterInitialization {
+            permissionController.setEnabled(true)
+        }
+        let store = DashboardStore(
+            snapshot: fullSnapshot(),
+            reader: { DashboardSnapshot.loading(at: .distantPast) }
+        )
+        let controller = NSHostingController(
+            rootView: DashboardView(
+                store: store,
+                petUsageBadgePermissionController: permissionController,
+                languagePreferences: AppLanguagePreferences(defaults: defaults)
+            )
+        )
+        controller.view.frame = CGRect(x: 0, y: 0, width: 620, height: 520)
+        controller.view.layoutSubtreeIfNeeded()
+        return controller
+    }
+
     private func firstDescendant<T: NSView>(
         of type: T.Type,
         in view: NSView
@@ -209,5 +300,26 @@ final class DashboardViewSmokeTests: XCTestCase {
         return view.subviews.lazy.compactMap {
             self.firstDescendant(of: type, in: $0)
         }.first
+    }
+}
+
+@MainActor
+private final class DashboardTestScreenCapturePermissionProvider:
+    ScreenCapturePermissionProviding
+{
+    let preflightResult: Bool
+    let requestResult: Bool
+
+    init(preflightResult: Bool, requestResult: Bool) {
+        self.preflightResult = preflightResult
+        self.requestResult = requestResult
+    }
+
+    func preflight() -> Bool {
+        preflightResult
+    }
+
+    func request() -> Bool {
+        requestResult
     }
 }
