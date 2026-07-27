@@ -28,7 +28,7 @@ final class PetUsageBadgeControllerTests: XCTestCase {
         XCTAssertFalse(harness.summary.isVisible)
         XCTAssertEqual(
             harness.badge.frame,
-            CGRect(x: 1_151, y: 147, width: 48, height: 28)
+            CGRect(x: 1_147, y: 147, width: 48, height: 28)
         )
     }
 

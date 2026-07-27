@@ -55,7 +55,10 @@ public final class DarwinProcessProvider: ProcessProviding, @unchecked Sendable 
                 executablePath = argumentZero
             }
             let openFilePaths = try reader.openFiles(pid: pid)
-                .filter { isWritable($0.openFlags) && isSessionLog($0.path) }
+                .filter {
+                    wasOpenedForWriting($0.openFlags)
+                        && isSessionLog($0.path)
+                }
                 .map(\.path)
             return ProcessSnapshot(
                 pid: info.pid,
@@ -73,9 +76,8 @@ public final class DarwinProcessProvider: ProcessProviding, @unchecked Sendable 
         }
     }
 
-    private func isWritable(_ flags: Int32) -> Bool {
-        let accessMode = flags & O_ACCMODE
-        return accessMode == O_WRONLY || accessMode == O_RDWR
+    private func wasOpenedForWriting(_ flags: Int32) -> Bool {
+        (flags & FWRITE) != 0
     }
 
     private func isSessionLog(_ path: String) -> Bool {
