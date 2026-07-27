@@ -11,7 +11,8 @@ final class StatusController: NSObject, NSPopoverDelegate {
     private let sessionsDirectory: URL
     private let renderer: StatusItemRenderer
     private let outsideClickEventSource: any OutsideClickEventSource
-    private let petUsageBadgePreferences: PetUsageBadgePreferences
+    private let petUsageBadgePermissionController:
+        PetUsageBadgePermissionController
     private let languagePreferences: AppLanguagePreferences
     private var cancellables: Set<AnyCancellable> = []
     private var monitor: SessionDirectoryMonitor?
@@ -35,7 +36,10 @@ final class StatusController: NSObject, NSPopoverDelegate {
         self.sessionsDirectory = sessionsDirectory
         self.renderer = renderer
         self.outsideClickEventSource = outsideClickEventSource
-        self.petUsageBadgePreferences = petUsageBadgePreferences
+        petUsageBadgePermissionController =
+            PetUsageBadgePermissionController(
+                preferences: petUsageBadgePreferences
+            )
         self.languagePreferences = languagePreferences
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -49,7 +53,8 @@ final class StatusController: NSObject, NSPopoverDelegate {
         popover.contentViewController = NSHostingController(
             rootView: DashboardView(
                 store: store,
-                petUsageBadgePreferences: petUsageBadgePreferences,
+                petUsageBadgePermissionController:
+                    petUsageBadgePermissionController,
                 languagePreferences: languagePreferences
             )
         )
@@ -74,7 +79,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
         )
         let badgeController = PetUsageBadgeController(
             store: store,
-            preferences: petUsageBadgePreferences,
+            permissionController: petUsageBadgePermissionController,
             languagePreferences: languagePreferences,
             tracker: tracker
         )

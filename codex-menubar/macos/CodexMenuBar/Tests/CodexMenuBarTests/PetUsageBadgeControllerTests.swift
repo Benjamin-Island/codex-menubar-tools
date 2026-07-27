@@ -11,11 +11,41 @@ final class PetUsageBadgeControllerTests: XCTestCase {
         harness.controller.start()
         XCTAssertEqual(harness.tracker.startCount, 1)
 
-        harness.preferences.isEnabled = false
+        harness.permissionController.setEnabled(false)
 
         XCTAssertEqual(harness.tracker.stopCount, 1)
         XCTAssertFalse(harness.badge.isVisible)
         XCTAssertFalse(harness.summary.isVisible)
+    }
+
+    func testMissingScreenCapturePermissionDoesNotStartTracking() {
+        let harness = makeHarness(permissionPreflightResult: false)
+
+        harness.controller.start()
+
+        XCTAssertEqual(harness.tracker.startCount, 0)
+        XCTAssertFalse(harness.permissionController.isEnabled)
+        XCTAssertEqual(
+            harness.permissionController.status,
+            .permissionRequired
+        )
+    }
+
+    func testNewlyGrantedPermissionWaitsForRestartBeforeTracking() {
+        let harness = makeHarness(
+            permissionPreflightResult: false,
+            permissionRequestResult: true
+        )
+        harness.controller.start()
+
+        harness.permissionController.setEnabled(true)
+
+        XCTAssertTrue(harness.permissionController.isEnabled)
+        XCTAssertEqual(
+            harness.permissionController.status,
+            .restartRequired
+        )
+        XCTAssertEqual(harness.tracker.startCount, 0)
     }
 
     func testAnchorDiscoveryShowsOnlyPlacedBadge() {
@@ -127,12 +157,23 @@ final class PetUsageBadgeControllerTests: XCTestCase {
                 appKitFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900),
                 visibleFrame: CGRect(x: 0, y: 0, width: 1_440, height: 900)
             )
-        ]
+        ],
+        permissionPreflightResult: Bool = true,
+        permissionRequestResult: Bool = false
     ) -> Harness {
         let suite = "PetUsageBadgeControllerTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
+        defaults.set(true, forKey: PetUsageBadgePreferences.migrationKey)
+        defaults.set(true, forKey: PetUsageBadgePreferences.enabledKey)
         let preferences = PetUsageBadgePreferences(defaults: defaults)
+        let permissionController = PetUsageBadgePermissionController(
+            preferences: preferences,
+            permissionProvider: ControllerTestScreenCapturePermissionProvider(
+                preflightResult: permissionPreflightResult,
+                requestResult: permissionRequestResult
+            )
+        )
         let tracker = FakePetUsageBadgeTracker()
         let badge = FakePetUsagePanel()
         let summary = FakePetUsagePanel()
@@ -143,7 +184,7 @@ final class PetUsageBadgeControllerTests: XCTestCase {
         )
         let controller = PetUsageBadgeController(
             store: store,
-            preferences: preferences,
+            permissionController: permissionController,
             languagePreferences: AppLanguagePreferences(defaults: defaults),
             tracker: tracker,
             outsideClickEventSource: outside,
@@ -154,6 +195,7 @@ final class PetUsageBadgeControllerTests: XCTestCase {
         return Harness(
             controller: controller,
             preferences: preferences,
+            permissionController: permissionController,
             tracker: tracker,
             badge: badge,
             summary: summary,
@@ -187,10 +229,32 @@ final class PetUsageBadgeControllerTests: XCTestCase {
 private struct Harness {
     let controller: PetUsageBadgeController
     let preferences: PetUsageBadgePreferences
+    let permissionController: PetUsageBadgePermissionController
     let tracker: FakePetUsageBadgeTracker
     let badge: FakePetUsagePanel
     let summary: FakePetUsagePanel
     let outside: FakeBadgeOutsideClickEventSource
+}
+
+@MainActor
+private final class ControllerTestScreenCapturePermissionProvider:
+    ScreenCapturePermissionProviding
+{
+    let preflightResult: Bool
+    let requestResult: Bool
+
+    init(preflightResult: Bool, requestResult: Bool) {
+        self.preflightResult = preflightResult
+        self.requestResult = requestResult
+    }
+
+    func preflight() -> Bool {
+        preflightResult
+    }
+
+    func request() -> Bool {
+        requestResult
+    }
 }
 
 @MainActor
