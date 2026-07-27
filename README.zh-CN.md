@@ -80,8 +80,8 @@ xcode-select --install
 > [!WARNING]
 > 此免费预览版面向 Apple Silicon Mac，使用临时签名且未经 Apple 公证。macOS 可能会阻止首次启动。
 
-- [下载 Codex Menu Bar v0.3.9](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.9/CodexMenuBar-v0.3.9-apple-silicon.zip)
-- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.9/CodexMenuBar-v0.3.9-apple-silicon.zip.sha256)
+- [下载 Codex Menu Bar v0.3.10](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.10/CodexMenuBar-v0.3.10-apple-silicon.zip)
+- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.10/CodexMenuBar-v0.3.10-apple-silicon.zip.sha256)
 
 解压下载文件，将 `CodexMenuBar.app` 移到 `Applications`，然后右键点击应用并选择“打开”完成首次启动。如果 macOS 仍然拒绝打开，请改为从源码构建，不要关闭系统级安全防护。
 
@@ -89,6 +89,7 @@ xcode-select --install
 
 | 版本 | 发布日期 | 主要更新 |
 | --- | --- | --- |
+| [v0.3.10](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.10) | 2026-07-27 | 修复屏幕边缘的 Pet 用量信息弹窗位置 |
 | [v0.3.9](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.9) | 2026-07-27 | 为原生 Pet 用量徽章提供清晰的屏幕录制权限流程 |
 | [v0.3.8](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.8) | 2026-07-27 | 为持久化的 Pet 用量设置提供清晰的原生开关状态 |
 | [v0.3.7](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.7) | 2026-07-27 | 可靠识别 Codex Desktop 会话，并缩短原生 Pet 用量徽章距离 |
