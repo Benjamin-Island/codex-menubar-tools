@@ -126,8 +126,8 @@ xcode-select --install
 > [!WARNING]
 > This free preview is built for Apple Silicon Macs, uses an ad-hoc signature, and is not Apple-notarized. macOS may block the first launch.
 
-- [Download Codex Menu Bar v0.3.6](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.6/CodexMenuBar-v0.3.6-apple-silicon.zip)
-- [SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.6/CodexMenuBar-v0.3.6-apple-silicon.zip.sha256)
+- [Download Codex Menu Bar v0.3.7](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.7/CodexMenuBar-v0.3.7-apple-silicon.zip)
+- [SHA-256 checksum](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.7/CodexMenuBar-v0.3.7-apple-silicon.zip.sha256)
 
 Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click the app and choose **Open** for the first launch. If macOS still refuses to open it, build from source instead of disabling system-wide security controls.
 
@@ -135,6 +135,7 @@ Unzip the download, move `CodexMenuBar.app` to `Applications`, then right-click 
 
 | Version | Released | Highlights |
 | --- | --- | --- |
+| [v0.3.7](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.7) | 2026-07-27 | Reliable Codex Desktop sessions and tighter Native Pet usage badge placement |
 | [v0.3.6](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.6) | 2026-07-27 | Native Pet usage badge with a dismissible usage summary |
 | [v0.3.5](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.5) | 2026-07-26 | Pet Island and bounded persistent 30-day history |
 | [v0.3.4](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.4) | 2026-07-25 | Initial remaining usage for today |
