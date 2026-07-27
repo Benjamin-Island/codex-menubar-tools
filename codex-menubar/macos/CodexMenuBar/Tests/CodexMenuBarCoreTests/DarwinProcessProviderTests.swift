@@ -8,7 +8,7 @@ final class DarwinProcessProviderTests: XCTestCase {
         XCTAssertNoThrow(try DarwinProcessProvider().processSnapshots())
     }
 
-    func testMapsFieldsAndKeepsOnlyWritableSessionLogs() throws {
+    func testMapsFieldsAndKeepsSessionLogsOpenedWithFWriteCapability() throws {
         let reader = FakeDarwinProcessReader(
             pids: .success([42]),
             processes: [42: .success(FakeDarwinProcess(
@@ -23,10 +23,26 @@ final class DarwinProcessProviderTests: XCTestCase {
                 arguments: ["codex", "resume"],
                 workingDirectory: "/Users/test/project",
                 openFiles: [
-                    DarwinOpenFile(path: "/Users/test/.codex/sessions/a.jsonl", openFlags: O_WRONLY),
-                    DarwinOpenFile(path: "/Users/test/.codex/sessions/b.jsonl", openFlags: O_RDONLY),
-                    DarwinOpenFile(path: "/Users/test/.codex/sessions/notes.txt", openFlags: O_RDWR),
-                    DarwinOpenFile(path: "/Users/test/elsewhere/c.jsonl", openFlags: O_RDWR)
+                    DarwinOpenFile(
+                        path: "/Users/test/.codex/sessions/read-write.jsonl",
+                        openFlags: FREAD | FWRITE
+                    ),
+                    DarwinOpenFile(
+                        path: "/Users/test/.codex/sessions/read-only.jsonl",
+                        openFlags: FREAD
+                    ),
+                    DarwinOpenFile(
+                        path: "/Users/test/.codex/sessions/write-only.jsonl",
+                        openFlags: FWRITE
+                    ),
+                    DarwinOpenFile(
+                        path: "/Users/test/.codex/sessions/notes.txt",
+                        openFlags: FREAD | FWRITE
+                    ),
+                    DarwinOpenFile(
+                        path: "/Users/test/elsewhere/unrelated.jsonl",
+                        openFlags: FREAD | FWRITE
+                    )
                 ]
             ))]
         )
@@ -38,7 +54,13 @@ final class DarwinProcessProviderTests: XCTestCase {
         let snapshot = try XCTUnwrap(provider.processSnapshots().first)
         XCTAssertEqual(snapshot.pid, 42)
         XCTAssertEqual(snapshot.arguments, ["codex", "resume"])
-        XCTAssertEqual(snapshot.openFilePaths, ["/Users/test/.codex/sessions/a.jsonl"])
+        XCTAssertEqual(
+            snapshot.openFilePaths,
+            [
+                "/Users/test/.codex/sessions/read-write.jsonl",
+                "/Users/test/.codex/sessions/write-only.jsonl"
+            ]
+        )
     }
 
     func testDisappearingProcessIsSkippedAndTopLevelFailurePropagates() throws {
