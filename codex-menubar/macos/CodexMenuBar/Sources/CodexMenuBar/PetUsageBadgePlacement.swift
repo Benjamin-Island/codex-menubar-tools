@@ -54,6 +54,18 @@ enum PetUsageBadgePlacement {
                 y: anchorFrame.midY - badgeSize.height / 2,
                 width: badgeSize.width,
                 height: badgeSize.height
+            ),
+            CGRect(
+                x: anchorFrame.midX - badgeSize.width / 2,
+                y: anchorFrame.maxY + gap,
+                width: badgeSize.width,
+                height: badgeSize.height
+            ),
+            CGRect(
+                x: anchorFrame.midX - badgeSize.width / 2,
+                y: anchorFrame.minY - gap - badgeSize.height,
+                width: badgeSize.width,
+                height: badgeSize.height
             )
         ]
         let safe = candidates.enumerated().filter {

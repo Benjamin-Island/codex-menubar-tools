@@ -222,13 +222,7 @@ actor CodexPetWindowLocator: PetWindowLocating {
                         && Self.distance($0.frame, anchor.frame)
                             <= profile.maximumAdjacencyDistance
                 }
-                let hasComposition = validating.contains {
-                    profile.compositionWidthRange.contains($0.frame.width)
-                        && profile.compositionHeightRange.contains(
-                            $0.frame.height
-                        )
-                }
-                guard hasComposition else { return nil }
+                guard !validating.isEmpty else { return nil }
 
                 let tracked = ([anchor] + validating).sorted { $0.id < $1.id }
                 let obstacles = validating

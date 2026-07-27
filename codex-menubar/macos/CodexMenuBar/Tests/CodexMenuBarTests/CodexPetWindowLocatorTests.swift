@@ -18,6 +18,50 @@ final class CodexPetWindowLocatorTests: XCTestCase {
         XCTAssertEqual(result.obstacleFrames, [windows[2].frame])
     }
 
+    func testDiscoversMeasuredCompactOnlyClusterFromCodex26721() async throws {
+        let windows = [
+            window(
+                id: 1_481,
+                x: 1_610,
+                y: 820,
+                width: 243,
+                height: 253,
+                layer: 2
+            ),
+            window(
+                id: 1_244,
+                x: 1_536,
+                y: 885,
+                width: 384,
+                height: 123,
+                layer: 3
+            ),
+            window(
+                id: 1_482,
+                x: 0,
+                y: 1_080,
+                width: 0,
+                height: 0,
+                layer: 3
+            )
+        ]
+
+        let discovered = await makeLocator(windows: windows).discover()
+        let result = try XCTUnwrap(discovered)
+
+        XCTAssertEqual(result.anchorWindowID, 1_481)
+        XCTAssertEqual(Set(result.trackedWindowIDs), Set([1_244, 1_481]))
+        XCTAssertEqual(result.obstacleFrames, [windows[1].frame])
+    }
+
+    func testAnchorWithoutAdjacentLayerThreeValidationWindowIsRejected() async {
+        let result = await makeLocator(
+            windows: [window(id: 10)]
+        ).discover()
+
+        XCTAssertNil(result)
+    }
+
     func testOptionalNamesCannotRescueInvalidGeometry() async {
         var windows = cluster(names: true)
         windows[0] = window(

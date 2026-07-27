@@ -87,9 +87,9 @@ final class PetUsageBadgeControllerTests: XCTestCase {
         let cramped = makeHarness(
             screens: [
                 PetUsageScreenDescriptor(
-                    quartzFrame: CGRect(x: 0, y: 0, width: 300, height: 300),
-                    appKitFrame: CGRect(x: 0, y: 0, width: 300, height: 300),
-                    visibleFrame: CGRect(x: 0, y: 0, width: 300, height: 300)
+                    quartzFrame: CGRect(x: 0, y: 0, width: 300, height: 100),
+                    appKitFrame: CGRect(x: 0, y: 0, width: 300, height: 100),
+                    visibleFrame: CGRect(x: 0, y: 0, width: 300, height: 100)
                 )
             ]
         )
@@ -98,7 +98,7 @@ final class PetUsageBadgeControllerTests: XCTestCase {
             .init(
                 observation: observation(
                     x: 20,
-                    y: 220,
+                    y: 20,
                     width: 260,
                     height: 60
                 ),

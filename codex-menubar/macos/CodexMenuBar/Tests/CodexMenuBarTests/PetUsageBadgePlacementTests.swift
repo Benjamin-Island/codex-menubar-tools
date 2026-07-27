@@ -88,6 +88,38 @@ final class PetUsageBadgePlacementTests: XCTestCase {
         )
     }
 
+    func testMeasuredBottomRightPetUsesSafeAbovePlacement() throws {
+        let anchor = CGRect(x: 1_610, y: 7, width: 243, height: 253)
+        let obstacle = CGRect(x: 1_536, y: 72, width: 384, height: 123)
+        let visible = CGRect(x: 0, y: 54, width: 1_920, height: 996)
+
+        let badge = try XCTUnwrap(
+            PetUsageBadgePlacement.badgeFrame(
+                anchorFrame: anchor,
+                obstacleFrames: [obstacle],
+                visibleFrame: visible,
+                previousFrame: nil
+            )
+        )
+        XCTAssertEqual(
+            badge,
+            CGRect(x: 1_707.5, y: 268, width: 48, height: 28)
+        )
+
+        let summary = try XCTUnwrap(
+            PetUsageBadgePlacement.summaryFrame(
+                badgeFrame: badge,
+                anchorFrame: anchor,
+                obstacleFrames: [obstacle],
+                visibleFrame: visible
+            )
+        )
+        XCTAssertEqual(
+            summary,
+            CGRect(x: 1_578.5, y: 304, width: 306, height: 66)
+        )
+    }
+
     func testSummaryExpandsAwayFromPetWithoutChangingBadgeFrame() throws {
         let anchor = CGRect(x: 100, y: 100, width: 100, height: 100)
         let badge = CGRect(x: 208, y: 100, width: 48, height: 28)
