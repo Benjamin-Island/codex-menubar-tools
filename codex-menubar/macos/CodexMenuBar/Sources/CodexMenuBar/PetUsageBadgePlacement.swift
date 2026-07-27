@@ -140,7 +140,60 @@ enum PetUsageBadgePlacement {
         let vertical = badgeFrame.midY >= visibleFrame.midY
             ? [below, above]
             : [above, below]
-        return (horizontal + vertical).first {
+        let insetVisibleFrame = visibleFrame.insetBy(
+            dx: edgeMargin,
+            dy: edgeMargin
+        )
+        let anchorAlignedX = min(
+            max(
+                anchorFrame.midX - summarySize.width / 2,
+                insetVisibleFrame.minX
+            ),
+            insetVisibleFrame.maxX - summarySize.width
+        )
+        let anchorAlignedY = min(
+            max(
+                anchorFrame.midY - summarySize.height / 2,
+                insetVisibleFrame.minY
+            ),
+            insetVisibleFrame.maxY - summarySize.height
+        )
+        let aboveAnchor = CGRect(
+            x: anchorAlignedX,
+            y: anchorFrame.maxY + summaryGap,
+            width: summarySize.width,
+            height: summarySize.height
+        )
+        let belowAnchor = CGRect(
+            x: anchorAlignedX,
+            y: anchorFrame.minY - summaryGap - summarySize.height,
+            width: summarySize.width,
+            height: summarySize.height
+        )
+        let rightOfAnchor = CGRect(
+            x: anchorFrame.maxX + summaryGap,
+            y: anchorAlignedY,
+            width: summarySize.width,
+            height: summarySize.height
+        )
+        let leftOfAnchor = CGRect(
+            x: anchorFrame.minX - summaryGap - summarySize.width,
+            y: anchorAlignedY,
+            width: summarySize.width,
+            height: summarySize.height
+        )
+        let anchorVertical = badgeFrame.midY >= anchorFrame.midY
+            ? [aboveAnchor, belowAnchor]
+            : [belowAnchor, aboveAnchor]
+        let anchorHorizontal = badgeFrame.midX >= anchorFrame.midX
+            ? [rightOfAnchor, leftOfAnchor]
+            : [leftOfAnchor, rightOfAnchor]
+        return (
+            horizontal
+                + vertical
+                + anchorVertical
+                + anchorHorizontal
+        ).first {
             isSafe(
                 $0,
                 visibleFrame: visibleFrame,
