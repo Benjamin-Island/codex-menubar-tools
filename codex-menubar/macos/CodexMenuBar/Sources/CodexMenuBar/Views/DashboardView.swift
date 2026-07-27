@@ -139,7 +139,7 @@ private struct PetUsageBadgeSettingsControl: View {
             ),
             isOn: $preferences.isEnabled
         )
-        .toggleStyle(.button)
+        .toggleStyle(.switch)
         .help(
             text(
                 "Shown only while the Codex native Pet is visible",

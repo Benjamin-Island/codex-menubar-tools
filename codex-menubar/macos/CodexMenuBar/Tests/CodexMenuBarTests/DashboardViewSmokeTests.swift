@@ -6,6 +6,44 @@ import CodexMenuBarCore
 
 @MainActor
 final class DashboardViewSmokeTests: XCTestCase {
+    func testPetUsageSettingRendersAsNativeSwitch() {
+        let defaultsName = "DashboardViewSmokeTests-\(UUID().uuidString)"
+        let defaults = UserDefaults(suiteName: defaultsName)!
+        defaults.removePersistentDomain(forName: defaultsName)
+        defaults.set(true, forKey: PetUsageBadgePreferences.migrationKey)
+        defaults.set(true, forKey: PetUsageBadgePreferences.enabledKey)
+        defer { defaults.removePersistentDomain(forName: defaultsName) }
+
+        let store = DashboardStore(
+            snapshot: fullSnapshot(),
+            reader: { DashboardSnapshot.loading(at: .distantPast) }
+        )
+        let controller = NSHostingController(
+            rootView: DashboardView(
+                store: store,
+                petUsageBadgePreferences: PetUsageBadgePreferences(
+                    defaults: defaults
+                )
+            )
+        )
+        controller.view.frame = CGRect(x: 0, y: 0, width: 620, height: 520)
+        controller.view.layoutSubtreeIfNeeded()
+
+        let switchControl = firstDescendant(
+            of: NSSwitch.self,
+            in: controller.view
+        )
+        XCTAssertNotNil(
+            switchControl,
+            "The persistent badge setting must use a visually explicit native switch"
+        )
+        XCTAssertEqual(
+            switchControl?.state,
+            .on,
+            "A persisted enabled preference must visibly reopen in the on state"
+        )
+    }
+
     func testUsageCardExposesTodayInitialTextFromWindowState() {
         let window = WindowUsage(
             label: "5h",
@@ -159,5 +197,17 @@ final class DashboardViewSmokeTests: XCTestCase {
             reportedAt: nil,
             sourcePath: "/sessions/one.jsonl"
         )
+    }
+
+    private func firstDescendant<T: NSView>(
+        of type: T.Type,
+        in view: NSView
+    ) -> T? {
+        if let match = view as? T {
+            return match
+        }
+        return view.subviews.lazy.compactMap {
+            self.firstDescendant(of: type, in: $0)
+        }.first
     }
 }
