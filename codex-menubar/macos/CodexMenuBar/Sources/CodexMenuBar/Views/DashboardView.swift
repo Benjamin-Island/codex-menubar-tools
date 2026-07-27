@@ -5,16 +5,16 @@ import CodexMenuBarCore
 struct DashboardView: View {
     @ObservedObject var store: DashboardStore
     @ObservedObject var languagePreferences: AppLanguagePreferences
-    let petIslandPreferences: PetIslandPreferences?
+    let petUsageBadgePreferences: PetUsageBadgePreferences?
     @Environment(\.appDisplayLanguage) private var language
 
     init(
         store: DashboardStore,
-        petIslandPreferences: PetIslandPreferences? = nil,
+        petUsageBadgePreferences: PetUsageBadgePreferences? = nil,
         languagePreferences: AppLanguagePreferences = AppLanguagePreferences()
     ) {
         self.store = store
-        self.petIslandPreferences = petIslandPreferences
+        self.petUsageBadgePreferences = petUsageBadgePreferences
         self.languagePreferences = languagePreferences
     }
 
@@ -82,8 +82,10 @@ struct DashboardView: View {
                 )
             }
             .disabled(store.isRefreshing)
-            if let petIslandPreferences {
-                PetIslandSettingsControl(preferences: petIslandPreferences)
+            if let petUsageBadgePreferences {
+                PetUsageBadgeSettingsControl(
+                    preferences: petUsageBadgePreferences
+                )
             }
             languageControl
             Spacer()
@@ -125,42 +127,25 @@ struct DashboardView: View {
     }
 }
 
-private struct PetIslandSettingsControl: View {
-    @ObservedObject var preferences: PetIslandPreferences
+private struct PetUsageBadgeSettingsControl: View {
+    @ObservedObject var preferences: PetUsageBadgePreferences
     @Environment(\.appDisplayLanguage) private var language
 
     var body: some View {
-        Menu {
-            Toggle(text("Show Pet Island", "显示宠物岛"), isOn: $preferences.isEnabled)
-            if !preferences.pets.isEmpty {
-                Divider()
-                Toggle(
-                    text("Follow Local Pet", "跟随本地宠物形象"),
-                    isOn: Binding(
-                        get: { preferences.followsLocalPet },
-                        set: { preferences.setFollowsLocalPet($0) }
-                    )
-                )
-                Divider()
-                ForEach(preferences.pets) { pet in
-                    Button {
-                        preferences.selectPet(id: pet.id)
-                        preferences.isEnabled = true
-                    } label: {
-                        if pet.id == preferences.selectedPetID {
-                            Label(pet.displayName, systemImage: "checkmark")
-                        } else {
-                            Text(pet.displayName)
-                        }
-                    }
-                }
-            } else {
-                Text(text("No custom Codex pets found", "未找到 Codex 自定义宠物"))
-            }
-        } label: {
-            Label(text("Pet Island", "宠物岛"), systemImage: "pawprint.fill")
-        }
-        .help(text("Choose a custom pet from ~/.codex/pets", "从 ~/.codex/pets 选择自定义宠物"))
+        Toggle(
+            text(
+                "Show Usage by Codex Pet",
+                "在 Codex 宠物旁显示额度"
+            ),
+            isOn: $preferences.isEnabled
+        )
+        .toggleStyle(.button)
+        .help(
+            text(
+                "Shown only while the Codex native Pet is visible",
+                "仅在 Codex 原生宠物可见时显示"
+            )
+        )
     }
 
     private func text(_ english: String, _ chinese: String) -> String {
