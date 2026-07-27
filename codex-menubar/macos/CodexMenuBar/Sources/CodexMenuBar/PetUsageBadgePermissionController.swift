@@ -10,7 +10,6 @@ enum PetUsageBadgePermissionRepairReason: Equatable {
 enum PetUsageBadgePermissionStatus: Equatable {
     case authorized
     case permissionRequired
-    case denied
     case repairRequired(reason: PetUsageBadgePermissionRepairReason)
     case repairing
     case repairFailed
@@ -31,18 +30,21 @@ enum PetUsageBadgePermissionPresentation {
                 "需要“屏幕录制”权限",
                 language: language
             )
-        case .denied:
-            appText(
-                "Screen Recording permission was denied",
-                "“屏幕录制”权限已被拒绝",
-                language: language
-            )
-        case .repairRequired:
-            appText(
-                "Screen Recording permission is required",
-                "需要“屏幕录制”权限",
-                language: language
-            )
+        case let .repairRequired(reason):
+            switch reason {
+            case .upgradeMismatch:
+                appText(
+                    "App update requires Screen Recording re-authorization",
+                    "App 更新后需要重新授权“屏幕录制”",
+                    language: language
+                )
+            case .requestNotGranted:
+                appText(
+                    "Screen Recording permission was not granted",
+                    "尚未授予“屏幕录制”权限",
+                    language: language
+                )
+            }
         case .repairing:
             appText(
                 "Repairing Screen Recording permission",
@@ -61,6 +63,70 @@ enum PetUsageBadgePermissionPresentation {
                 "请重启 Codex Menu Bar 以完成启用",
                 language: language
             )
+        }
+    }
+
+    static func repairActionTitle(
+        language: AppDisplayLanguage
+    ) -> String {
+        appText(
+            "Reset and Re-authorize",
+            "重置并重新授权",
+            language: language
+        )
+    }
+
+    static func repairConfirmationTitle(
+        language: AppDisplayLanguage
+    ) -> String {
+        appText(
+            "Reset Screen Recording permission?",
+            "重置“屏幕录制”权限？",
+            language: language
+        )
+    }
+
+    static func repairConfirmationMessage(
+        language: AppDisplayLanguage
+    ) -> String {
+        appText(
+            "This clears only Codex Menu Bar’s Screen Recording permission record. macOS will ask for permission again.",
+            "这只会清除 Codex Menu Bar 的“屏幕录制”权限记录。macOS 随后会再次请求授权。",
+            language: language
+        )
+    }
+
+    static func repairConfirmationActionTitle(
+        language: AppDisplayLanguage
+    ) -> String {
+        appText("Reset Permission", "重置权限", language: language)
+    }
+
+    static func repairConfirmationCancelTitle(
+        language: AppDisplayLanguage
+    ) -> String {
+        appText("Cancel", "取消", language: language)
+    }
+
+    static func showsRepairAction(
+        for status: PetUsageBadgePermissionStatus
+    ) -> Bool {
+        switch status {
+        case .repairRequired, .repairing, .repairFailed:
+            true
+        case .authorized, .permissionRequired, .restartRequired:
+            false
+        }
+    }
+
+    static func isRepairActionEnabled(
+        for status: PetUsageBadgePermissionStatus
+    ) -> Bool {
+        switch status {
+        case .repairRequired, .repairFailed:
+            true
+        case .authorized, .permissionRequired, .repairing, .restartRequired:
+            false
         }
     }
 }

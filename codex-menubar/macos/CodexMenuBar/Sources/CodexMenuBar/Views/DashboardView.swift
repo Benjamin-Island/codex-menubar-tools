@@ -158,6 +158,7 @@ private struct PetUsageBadgeSettingsControl: View {
             )
         )
         .toggleStyle(.switch)
+        .disabled(permissionController.isRepairing)
         .help(
             text(
                 "Shown only while the Codex native Pet is visible",
@@ -175,18 +176,71 @@ private struct PetUsageBadgePermissionMessage: View {
     @ObservedObject var permissionController:
         PetUsageBadgePermissionController
     @Environment(\.appDisplayLanguage) private var language
+    @State private var isShowingRepairConfirmation = false
 
     var body: some View {
         if let message {
-            HStack(spacing: 6) {
-                Image(systemName: iconName)
-                Text(message)
-                Spacer()
+            VStack(alignment: .leading, spacing: 6) {
+                HStack(spacing: 6) {
+                    Image(systemName: iconName)
+                    Text(message)
+                    Spacer()
+                }
+                if showsRepairAction {
+                    HStack {
+                        Spacer()
+                        Button(
+                            PetUsageBadgePermissionPresentation
+                                .repairActionTitle(language: language)
+                        ) {
+                            isShowingRepairConfirmation = true
+                        }
+                        .buttonStyle(.bordered)
+                        .disabled(
+                            !PetUsageBadgePermissionPresentation
+                                .isRepairActionEnabled(
+                                    for: permissionController.status
+                                )
+                        )
+                    }
+                    .controlSize(.small)
+                }
             }
             .font(.caption)
             .foregroundStyle(messageColor)
             .frame(maxWidth: .infinity)
+            .alert(
+                PetUsageBadgePermissionPresentation
+                    .repairConfirmationTitle(language: language),
+                isPresented: $isShowingRepairConfirmation
+            ) {
+                Button(
+                    PetUsageBadgePermissionPresentation
+                        .repairConfirmationCancelTitle(language: language),
+                    role: .cancel
+                ) {}
+                Button(
+                    PetUsageBadgePermissionPresentation
+                        .repairConfirmationActionTitle(language: language),
+                    role: .destructive
+                ) {
+                    Task {
+                        await permissionController.repairPermission()
+                    }
+                }
+            } message: {
+                Text(
+                    PetUsageBadgePermissionPresentation
+                        .repairConfirmationMessage(language: language)
+                )
+            }
         }
+    }
+
+    private var showsRepairAction: Bool {
+        PetUsageBadgePermissionPresentation.showsRepairAction(
+            for: permissionController.status
+        )
     }
 
     private var message: String? {
@@ -203,7 +257,6 @@ private struct PetUsageBadgePermissionMessage: View {
         case
             .authorized,
             .permissionRequired,
-            .denied,
             .repairRequired,
             .repairing,
             .repairFailed:
@@ -212,8 +265,7 @@ private struct PetUsageBadgePermissionMessage: View {
     }
 
     private var messageColor: Color {
-        permissionController.status == .denied
-            || permissionController.status == .repairFailed
+        permissionController.status == .repairFailed
             ? .red : .orange
     }
 }
