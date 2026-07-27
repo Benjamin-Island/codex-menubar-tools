@@ -2,10 +2,16 @@ import Combine
 import CoreGraphics
 import Foundation
 
+enum PetUsageBadgePermissionRepairReason: Equatable {
+    case upgradeMismatch
+    case requestNotGranted
+}
+
 enum PetUsageBadgePermissionStatus: Equatable {
     case authorized
     case permissionRequired
     case denied
+    case repairRequired(reason: PetUsageBadgePermissionRepairReason)
     case restartRequired
 }
 
@@ -27,6 +33,12 @@ enum PetUsageBadgePermissionPresentation {
             appText(
                 "Screen Recording permission was denied",
                 "“屏幕录制”权限已被拒绝",
+                language: language
+            )
+        case .repairRequired:
+            appText(
+                "Screen Recording permission is required",
+                "需要“屏幕录制”权限",
                 language: language
             )
         case .restartRequired:
@@ -69,18 +81,36 @@ final class PetUsageBadgePermissionController: ObservableObject {
 
     private let preferences: PetUsageBadgePreferences
     private let permissionProvider: any ScreenCapturePermissionProviding
+    private let currentAppVersion: String
 
     init(
         preferences: PetUsageBadgePreferences,
         permissionProvider: any ScreenCapturePermissionProviding =
-            SystemScreenCapturePermissionProvider()
+            SystemScreenCapturePermissionProvider(),
+        currentAppVersion: String =
+            Bundle.main.object(
+                forInfoDictionaryKey: "CFBundleShortVersionString"
+            ) as? String ?? "unknown"
     ) {
         self.preferences = preferences
         self.permissionProvider = permissionProvider
+        self.currentAppVersion = currentAppVersion
 
         if permissionProvider.preflight() {
             isEnabled = preferences.isEnabled
             status = .authorized
+            preferences.lastAuthorizedAppVersion = currentAppVersion
+            preferences.pendingPermissionRepairVersion = nil
+        } else if
+            preferences.pendingPermissionRepairVersion == currentAppVersion
+                || preferences.lastAuthorizedAppVersion.map({
+                    $0 != currentAppVersion
+                }) == true
+        {
+            isEnabled = false
+            status = .repairRequired(reason: .upgradeMismatch)
+            preferences.isEnabled = false
+            preferences.pendingPermissionRepairVersion = currentAppVersion
         } else {
             isEnabled = false
             status = .permissionRequired

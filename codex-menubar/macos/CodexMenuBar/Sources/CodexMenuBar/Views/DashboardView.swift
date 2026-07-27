@@ -200,7 +200,7 @@ private struct PetUsageBadgePermissionMessage: View {
         switch permissionController.status {
         case .restartRequired:
             "arrow.clockwise.circle.fill"
-        case .authorized, .permissionRequired, .denied:
+        case .authorized, .permissionRequired, .denied, .repairRequired:
             "exclamationmark.triangle.fill"
         }
     }

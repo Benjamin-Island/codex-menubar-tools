@@ -3,6 +3,97 @@ import XCTest
 
 @MainActor
 final class PetUsageBadgePermissionControllerTests: XCTestCase {
+    func testAuthorizedStartupRecordsCurrentVersionAndClearsPendingRepair() {
+        let (preferences, defaults) = makePreferences(enabled: true)
+        defaults.set(
+            "0.3.10",
+            forKey:
+                PetUsageBadgePreferences.pendingPermissionRepairVersionKey
+        )
+
+        let controller = PetUsageBadgePermissionController(
+            preferences: preferences,
+            permissionProvider: FakeScreenCapturePermissionProvider(
+                preflightResult: true,
+                requestResult: false
+            ),
+            currentAppVersion: "0.3.11"
+        )
+
+        XCTAssertEqual(controller.status, .authorized)
+        XCTAssertEqual(
+            preferences.lastAuthorizedAppVersion,
+            "0.3.11"
+        )
+        XCTAssertNil(preferences.pendingPermissionRepairVersion)
+    }
+
+    func testFailedPreflightAfterPreviouslyAuthorizedVersionRequiresRepair() {
+        let (preferences, defaults) = makePreferences(enabled: true)
+        defaults.set(
+            "0.3.10",
+            forKey: PetUsageBadgePreferences.lastAuthorizedAppVersionKey
+        )
+
+        let controller = PetUsageBadgePermissionController(
+            preferences: preferences,
+            permissionProvider: FakeScreenCapturePermissionProvider(
+                preflightResult: false,
+                requestResult: false
+            ),
+            currentAppVersion: "0.3.11"
+        )
+
+        XCTAssertFalse(controller.isEnabled)
+        XCTAssertEqual(
+            controller.status,
+            .repairRequired(reason: .upgradeMismatch)
+        )
+        XCTAssertEqual(
+            preferences.pendingPermissionRepairVersion,
+            "0.3.11"
+        )
+    }
+
+    func testPendingRepairSurvivesRelaunchInSameVersion() {
+        let (preferences, defaults) = makePreferences(enabled: false)
+        defaults.set(
+            "0.3.11",
+            forKey:
+                PetUsageBadgePreferences.pendingPermissionRepairVersionKey
+        )
+
+        let controller = PetUsageBadgePermissionController(
+            preferences: preferences,
+            permissionProvider: FakeScreenCapturePermissionProvider(
+                preflightResult: false,
+                requestResult: false
+            ),
+            currentAppVersion: "0.3.11"
+        )
+
+        XCTAssertEqual(
+            controller.status,
+            .repairRequired(reason: .upgradeMismatch)
+        )
+    }
+
+    func testMissingPermissionWithoutHistoryUsesOrdinaryRequiredState() {
+        let (preferences, _) = makePreferences(enabled: false)
+
+        let controller = PetUsageBadgePermissionController(
+            preferences: preferences,
+            permissionProvider: FakeScreenCapturePermissionProvider(
+                preflightResult: false,
+                requestResult: false
+            ),
+            currentAppVersion: "0.3.11"
+        )
+
+        XCTAssertEqual(controller.status, .permissionRequired)
+        XCTAssertNil(preferences.pendingPermissionRepairVersion)
+    }
+
     func testMissingPermissionDisablesPersistedSettingWithoutPromptingAtLaunch() {
         let (preferences, defaults) = makePreferences(enabled: true)
         let provider = FakeScreenCapturePermissionProvider(
