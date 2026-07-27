@@ -1,6 +1,6 @@
 # Native Pet Usage Badge Design
 
-日期：2026-07-27  
+日期：2026-07-27
 状态：用户已确认
 
 ## 背景
