@@ -200,12 +200,20 @@ private struct PetUsageBadgePermissionMessage: View {
         switch permissionController.status {
         case .restartRequired:
             "arrow.clockwise.circle.fill"
-        case .authorized, .permissionRequired, .denied, .repairRequired:
+        case
+            .authorized,
+            .permissionRequired,
+            .denied,
+            .repairRequired,
+            .repairing,
+            .repairFailed:
             "exclamationmark.triangle.fill"
         }
     }
 
     private var messageColor: Color {
-        permissionController.status == .denied ? .red : .orange
+        permissionController.status == .denied
+            || permissionController.status == .repairFailed
+            ? .red : .orange
     }
 }

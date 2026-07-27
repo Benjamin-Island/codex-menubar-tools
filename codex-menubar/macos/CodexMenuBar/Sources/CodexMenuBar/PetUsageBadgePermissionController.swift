@@ -12,6 +12,8 @@ enum PetUsageBadgePermissionStatus: Equatable {
     case permissionRequired
     case denied
     case repairRequired(reason: PetUsageBadgePermissionRepairReason)
+    case repairing
+    case repairFailed
     case restartRequired
 }
 
@@ -39,6 +41,18 @@ enum PetUsageBadgePermissionPresentation {
             appText(
                 "Screen Recording permission is required",
                 "需要“屏幕录制”权限",
+                language: language
+            )
+        case .repairing:
+            appText(
+                "Repairing Screen Recording permission",
+                "正在修复“屏幕录制”权限",
+                language: language
+            )
+        case .repairFailed:
+            appText(
+                "Screen Recording permission repair failed",
+                "“屏幕录制”权限修复失败",
                 language: language
             )
         case .restartRequired:
@@ -79,14 +93,31 @@ final class PetUsageBadgePermissionController: ObservableObject {
         isEnabled && status == .authorized
     }
 
+    var canRepair: Bool {
+        if case .repairRequired = status {
+            true
+        } else if status == .repairFailed {
+            true
+        } else {
+            false
+        }
+    }
+
+    var isRepairing: Bool {
+        status == .repairing
+    }
+
     private let preferences: PetUsageBadgePreferences
     private let permissionProvider: any ScreenCapturePermissionProviding
+    private let permissionResetter: any ScreenCapturePermissionResetting
     private let currentAppVersion: String
 
     init(
         preferences: PetUsageBadgePreferences,
         permissionProvider: any ScreenCapturePermissionProviding =
             SystemScreenCapturePermissionProvider(),
+        permissionResetter: any ScreenCapturePermissionResetting =
+            SystemScreenCapturePermissionResetter(),
         currentAppVersion: String =
             Bundle.main.object(
                 forInfoDictionaryKey: "CFBundleShortVersionString"
@@ -94,6 +125,7 @@ final class PetUsageBadgePermissionController: ObservableObject {
     ) {
         self.preferences = preferences
         self.permissionProvider = permissionProvider
+        self.permissionResetter = permissionResetter
         self.currentAppVersion = currentAppVersion
 
         if permissionProvider.preflight() {
@@ -131,6 +163,8 @@ final class PetUsageBadgePermissionController: ObservableObject {
             status = .authorized
             isEnabled = true
             preferences.isEnabled = true
+            preferences.lastAuthorizedAppVersion = currentAppVersion
+            preferences.pendingPermissionRepairVersion = nil
             return
         }
 
@@ -138,10 +172,39 @@ final class PetUsageBadgePermissionController: ObservableObject {
             status = .restartRequired
             isEnabled = true
             preferences.isEnabled = true
+            preferences.lastAuthorizedAppVersion = currentAppVersion
+            preferences.pendingPermissionRepairVersion = nil
         } else {
-            status = .denied
+            status = .repairRequired(reason: .requestNotGranted)
             isEnabled = false
             preferences.isEnabled = false
+            preferences.pendingPermissionRepairVersion = currentAppVersion
+        }
+    }
+
+    func repairPermission() async {
+        guard canRepair, !isRepairing else {
+            return
+        }
+
+        status = .repairing
+        isEnabled = false
+        preferences.isEnabled = false
+        preferences.pendingPermissionRepairVersion = currentAppVersion
+
+        switch await permissionResetter.reset() {
+        case .failure:
+            status = .repairFailed
+        case .success:
+            if permissionProvider.request() {
+                status = .restartRequired
+                isEnabled = true
+                preferences.isEnabled = true
+                preferences.lastAuthorizedAppVersion = currentAppVersion
+                preferences.pendingPermissionRepairVersion = nil
+            } else {
+                status = .repairRequired(reason: .requestNotGranted)
+            }
         }
     }
 }
