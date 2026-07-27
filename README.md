@@ -45,8 +45,16 @@ cannot be identified safely. Closing the summary never moves the Pet or the
 badge.
 
 Detection uses read-only window metadata from the local Codex Desktop process.
-It does not read pet artwork or Codex configuration, and it does not require
-Accessibility or Screen Recording permission.
+It does not read pet artwork or Codex configuration and does not require
+Accessibility permission. macOS does require **Screen Recording** permission
+for the app to identify the native Pet window. The first time you enable the
+badge, approve the system request and restart Codex Menu Bar when prompted.
+
+Ad-hoc preview builds can lose a previously working Screen Recording grant
+after an update even while System Settings still shows it as enabled. When
+Codex Menu Bar detects this condition, use **Reset and Re-authorize** and
+confirm the alert. The repair clears only this app's Screen Recording
+permission record, asks macOS for access again, and never runs automatically.
 
 ## Language
 
