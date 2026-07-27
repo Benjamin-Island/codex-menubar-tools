@@ -31,50 +31,28 @@
 - **Sessions** — follow active top-level Codex terminal and Codex Desktop sessions, including activity, working directory, last update, and cumulative Tokens.
 - **Private by design** — inspect local Codex data without accounts, network requests, analytics, or a background service.
 
-## Pet Island
+## Native Pet usage badge
 
-Pet Island keeps usage and live-session status visible in a movable floating
-pet with an expandable task summary. It uses the same floating presentation on
-MacBook displays and external monitors.
+Codex Menu Bar can place a small **Primary remaining** badge beside the native
+Pet shown by Codex Desktop. It does not create or render a second pet. Click the
+badge to open a compact summary with the current project or task, Primary and
+Secondary remaining percentages, and the number of running sessions.
 
-The island renders the user's local Codex custom pet in the same window as the
-usage metrics, so the pet and status never need to be manually aligned. It
-discovers read-only pet packages from:
+Enable **Show Usage by Codex Pet** in the dashboard footer, then show the native
+Pet in Codex Desktop. The badge follows the Pet across displays, closes its
+summary while the Pet is moving, and hides when the Pet is tucked away or
+cannot be identified safely. Closing the summary never moves the Pet or the
+badge.
 
-- `~/.codex/pets/*/pet.json`
-- `~/Library/Application Support/Codex/pets/*/pet.json`
-- `~/Library/Application Support/ChatGPT/pets/*/pet.json`
-
-Use **Pet Island** in the dashboard footer to show or hide the island, follow
-the current local Codex pet, or explicitly choose an installed custom pet.
-The expanded task summary includes a live pet-size slider from 75% to 300%;
-click its percentage to restore the 100% default. The movable and expanded
-windows and the edge-docked quota view all follow the selected scale.
-An idle pet uses the manifest's idle animation while a live task uses its
-directional running frames. Drag the pet left or right to move the panel and
-change its running direction, including across connected displays.
-Dropping it near either screen edge snaps the manifest's front-facing idle pet
-into a circular quota dock. Its ring and badge keep the remaining percentage
-and reset countdown visible without cropping or modifying the pet artwork. The
-dock has no opaque circular backing or outer shadow. Click it to reveal the
-summary, or drag it directly away from the edge to restore the movable pet.
-By default it follows Codex's `selected-avatar-id` from `~/.codex/config.toml`.
-If that value is missing or its package is unavailable, it falls back to the
-newest canonical local pet package (the folder name matches the manifest `id`)
-and ignores backup package folders. A pet id is stored in macOS user defaults
-only after the user explicitly chooses one from this app. Pet packages are
-never modified. If the Codex app's own pet overlay is enabled, turn one of the
-two overlays off to avoid showing the same pet twice.
-
-No pet artwork is bundled, copied, or redistributed by Codex Menu Bar. Every
-rendered frame is loaded at runtime from the local manifest's
-`spritesheetPath`, and the sprite layout follows its `spriteVersionNumber`.
+Detection uses read-only window metadata from the local Codex Desktop process.
+It does not read pet artwork or Codex configuration, and it does not require
+Accessibility or Screen Recording permission.
 
 ## Language
 
 Open the menu bar dashboard and use the compact **中 / EN** control beside
-**Pet Island**. The preference is persisted in macOS user defaults and updates
-both the dashboard and Pet Island.
+**Show Usage by Codex Pet**. The preference is persisted in macOS user defaults
+and updates both the dashboard and the native Pet usage badge.
 
 ## How usage detection works
 
