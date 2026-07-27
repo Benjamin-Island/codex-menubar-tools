@@ -95,9 +95,12 @@ final class SystemCodexWindowMetadataProvider:
     func windows(withIDs ids: [CGWindowID]) async -> [QuartzWindowDescriptor] {
         guard !ids.isEmpty else { return [] }
         return await Task.detached(priority: .utility) {
-            let numbers = ids.map(NSNumber.init(value:)) as CFArray
-            let dictionaries = CGWindowListCreateDescriptionFromArray(numbers)
-                as? [[String: Any]] ?? []
+            let dictionaries = ids.flatMap { id in
+                CGWindowListCopyWindowInfo(
+                    [.optionIncludingWindow, .excludeDesktopElements],
+                    id
+                ) as? [[String: Any]] ?? []
+            }
             return Self.decode(dictionaries)
         }.value
     }
@@ -195,7 +198,12 @@ actor CodexPetWindowLocator: PetWindowLocating {
             return nil
         }
 
-        let windows = await provider.windows(withIDs: previous.trackedWindowIDs)
+        let targeted = await provider.windows(
+            withIDs: previous.trackedWindowIDs
+        )
+        let windows = targeted.isEmpty
+            ? await provider.visibleWindows()
+            : targeted
         let matches = observations(windows: windows, application: application)
             .filter { $0.anchorWindowID == previous.anchorWindowID }
         return matches.count == 1 ? matches[0] : nil

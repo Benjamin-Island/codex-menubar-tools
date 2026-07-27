@@ -160,6 +160,23 @@ final class CodexPetWindowLocatorTests: XCTestCase {
         XCTAssertNil(missingResult)
     }
 
+    func testTargetedRefreshFallsBackWhenWindowIDLookupIsUnavailable() async throws {
+        let windows = cluster()
+        let provider = FakeWindowMetadataProvider(
+            applications: codexApplications(),
+            visible: windows,
+            targeted: []
+        )
+        let locator = CodexPetWindowLocator(provider: provider)
+        let discovered = await locator.discover()
+        let original = try XCTUnwrap(discovered)
+
+        let refreshed = await locator.refresh(original)
+
+        XCTAssertEqual(refreshed?.anchorWindowID, original.anchorWindowID)
+        XCTAssertEqual(refreshed?.trackedWindowIDs, original.trackedWindowIDs)
+    }
+
     private func makeLocator(
         windows: [QuartzWindowDescriptor],
         applications: [CodexApplicationDescriptor]? = nil
