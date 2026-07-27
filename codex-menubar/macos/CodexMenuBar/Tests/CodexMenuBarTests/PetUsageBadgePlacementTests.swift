@@ -121,6 +121,28 @@ final class PetUsageBadgePlacementTests: XCTestCase {
         )
     }
 
+    func testSummaryFallsBackAboveBottomRightPetWhenBadgeCandidatesOverflow()
+        throws
+    {
+        let visible = CGRect(x: 0, y: 54, width: 1_920, height: 996)
+        let anchor = CGRect(x: 1_668, y: 33, width: 243, height: 253)
+        let badge = CGRect(x: 1_765.5, y: 258, width: 48, height: 28)
+
+        let summary = try XCTUnwrap(
+            PetUsageBadgePlacement.summaryFrame(
+                badgeFrame: badge,
+                anchorFrame: anchor,
+                obstacleFrames: [],
+                visibleFrame: visible
+            )
+        )
+
+        XCTAssertTrue(visible.insetBy(dx: 4, dy: 4).contains(summary))
+        XCTAssertFalse(summary.intersects(anchor))
+        XCTAssertFalse(summary.intersects(badge))
+        XCTAssertGreaterThanOrEqual(summary.minY, anchor.maxY)
+    }
+
     func testSummaryExpandsAwayFromPetWithoutChangingBadgeFrame() throws {
         let anchor = CGRect(x: 100, y: 100, width: 100, height: 100)
         let badge = CGRect(x: 208, y: 100, width: 48, height: 28)
