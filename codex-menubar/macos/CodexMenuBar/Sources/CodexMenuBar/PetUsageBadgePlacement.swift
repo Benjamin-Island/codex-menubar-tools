@@ -4,7 +4,9 @@ import Foundation
 enum PetUsageBadgePlacement {
     static let badgeSize = CGSize(width: 48, height: 28)
     static let summarySize = CGSize(width: 306, height: 66)
-    static let gap: CGFloat = 8
+    static let badgeGap: CGFloat = 4
+    static let summaryGap: CGFloat = 8
+    static let anchorTransparencyInset: CGFloat = 32
     static let edgeMargin: CGFloat = 4
 
     static func appKitFrame(
@@ -30,49 +32,58 @@ enum PetUsageBadgePlacement {
         visibleFrame: CGRect,
         previousFrame: CGRect?
     ) -> CGRect? {
+        let canUseTransparentInset =
+            anchorFrame.height
+            >= anchorTransparencyInset * 2 + badgeSize.height
+        let visualAnchorFrame = anchorFrame.insetBy(
+            dx: 0,
+            dy: canUseTransparentInset ? anchorTransparencyInset : 0
+        )
         let candidates = [
             CGRect(
-                x: anchorFrame.maxX + gap,
+                x: anchorFrame.maxX + badgeGap,
                 y: anchorFrame.minY,
                 width: badgeSize.width,
                 height: badgeSize.height
             ),
             CGRect(
-                x: anchorFrame.minX - gap - badgeSize.width,
+                x: anchorFrame.minX - badgeGap - badgeSize.width,
                 y: anchorFrame.minY,
                 width: badgeSize.width,
                 height: badgeSize.height
             ),
             CGRect(
-                x: anchorFrame.maxX + gap,
+                x: anchorFrame.maxX + badgeGap,
                 y: anchorFrame.midY - badgeSize.height / 2,
                 width: badgeSize.width,
                 height: badgeSize.height
             ),
             CGRect(
-                x: anchorFrame.minX - gap - badgeSize.width,
+                x: anchorFrame.minX - badgeGap - badgeSize.width,
                 y: anchorFrame.midY - badgeSize.height / 2,
                 width: badgeSize.width,
                 height: badgeSize.height
             ),
             CGRect(
                 x: anchorFrame.midX - badgeSize.width / 2,
-                y: anchorFrame.maxY + gap,
+                y: visualAnchorFrame.maxY + badgeGap,
                 width: badgeSize.width,
                 height: badgeSize.height
             ),
             CGRect(
                 x: anchorFrame.midX - badgeSize.width / 2,
-                y: anchorFrame.minY - gap - badgeSize.height,
+                y: visualAnchorFrame.minY - badgeGap - badgeSize.height,
                 width: badgeSize.width,
                 height: badgeSize.height
             )
         ]
         let safe = candidates.enumerated().filter {
-            isSafe(
+            isBadgeSafe(
                 $0.element,
                 visibleFrame: visibleFrame,
-                excludedFrames: [anchorFrame] + obstacleFrames
+                anchorFrame: anchorFrame,
+                visualAnchorFrame: visualAnchorFrame,
+                obstacleFrames: obstacleFrames
             )
         }
         guard !safe.isEmpty else { return nil }
@@ -100,26 +111,26 @@ enum PetUsageBadgePlacement {
         visibleFrame: CGRect
     ) -> CGRect? {
         let right = CGRect(
-            x: badgeFrame.maxX + gap,
+            x: badgeFrame.maxX + summaryGap,
             y: badgeFrame.midY - summarySize.height / 2,
             width: summarySize.width,
             height: summarySize.height
         )
         let left = CGRect(
-            x: badgeFrame.minX - gap - summarySize.width,
+            x: badgeFrame.minX - summaryGap - summarySize.width,
             y: badgeFrame.midY - summarySize.height / 2,
             width: summarySize.width,
             height: summarySize.height
         )
         let above = CGRect(
             x: badgeFrame.midX - summarySize.width / 2,
-            y: badgeFrame.maxY + gap,
+            y: badgeFrame.maxY + summaryGap,
             width: summarySize.width,
             height: summarySize.height
         )
         let below = CGRect(
             x: badgeFrame.midX - summarySize.width / 2,
-            y: badgeFrame.minY - gap - summarySize.height,
+            y: badgeFrame.minY - summaryGap - summarySize.height,
             width: summarySize.width,
             height: summarySize.height
         )
@@ -135,6 +146,30 @@ enum PetUsageBadgePlacement {
                 visibleFrame: visibleFrame,
                 excludedFrames: [badgeFrame, anchorFrame] + obstacleFrames
             )
+        }
+    }
+
+    private static func isBadgeSafe(
+        _ candidate: CGRect,
+        visibleFrame: CGRect,
+        anchorFrame: CGRect,
+        visualAnchorFrame: CGRect,
+        obstacleFrames: [CGRect]
+    ) -> Bool {
+        let insetVisibleFrame = visibleFrame.insetBy(
+            dx: edgeMargin,
+            dy: edgeMargin
+        )
+        guard
+            !insetVisibleFrame.isNull,
+            insetVisibleFrame.contains(candidate),
+            !candidate.intersects(visualAnchorFrame)
+        else {
+            return false
+        }
+        return !obstacleFrames.contains { obstacleFrame in
+            let overlap = candidate.intersection(obstacleFrame)
+            return !overlap.isNull && !anchorFrame.contains(overlap)
         }
     }
 
