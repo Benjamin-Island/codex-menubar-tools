@@ -11,13 +11,12 @@ final class StatusController: NSObject, NSPopoverDelegate {
     private let sessionsDirectory: URL
     private let renderer: StatusItemRenderer
     private let outsideClickEventSource: any OutsideClickEventSource
-    private let petIslandPreferences: PetIslandPreferences
+    private let petUsageBadgePreferences: PetUsageBadgePreferences
     private let languagePreferences: AppLanguagePreferences
     private var cancellables: Set<AnyCancellable> = []
     private var monitor: SessionDirectoryMonitor?
-    private var petConfigurationMonitor: PetConfigurationMonitor?
     private var refreshTimer: Timer?
-    private var petIslandController: PetIslandController?
+    private var petUsageBadgeController: PetUsageBadgeController?
     private lazy var dismissalCoordinator = PopoverDismissalCoordinator(
         eventSource: outsideClickEventSource,
         closePopover: { [weak self] in self?.popover.performClose(nil) }
@@ -28,14 +27,15 @@ final class StatusController: NSObject, NSPopoverDelegate {
         sessionsDirectory: URL,
         renderer: StatusItemRenderer = StatusItemRenderer(),
         outsideClickEventSource: any OutsideClickEventSource = GlobalMouseDownEventSource(),
-        petIslandPreferences: PetIslandPreferences = PetIslandPreferences(),
+        petUsageBadgePreferences: PetUsageBadgePreferences =
+            PetUsageBadgePreferences(),
         languagePreferences: AppLanguagePreferences = AppLanguagePreferences()
     ) {
         self.store = store
         self.sessionsDirectory = sessionsDirectory
         self.renderer = renderer
         self.outsideClickEventSource = outsideClickEventSource
-        self.petIslandPreferences = petIslandPreferences
+        self.petUsageBadgePreferences = petUsageBadgePreferences
         self.languagePreferences = languagePreferences
         statusItem = NSStatusBar.system.statusItem(withLength: NSStatusItem.variableLength)
         super.init()
@@ -49,7 +49,7 @@ final class StatusController: NSObject, NSPopoverDelegate {
         popover.contentViewController = NSHostingController(
             rootView: DashboardView(
                 store: store,
-                petIslandPreferences: petIslandPreferences,
+                petUsageBadgePreferences: petUsageBadgePreferences,
                 languagePreferences: languagePreferences
             )
         )
@@ -61,29 +61,35 @@ final class StatusController: NSObject, NSPopoverDelegate {
             button.imagePosition = .imageOnly
             button.setAccessibilityLabel("Codex Menu Bar")
         }
-        petIslandController = PetIslandController(
-            store: store,
-            preferences: petIslandPreferences,
-            languagePreferences: languagePreferences,
-            screenProvider: { [weak self] in
-                self?.statusItem.button?.window?.screen
-                    ?? NSScreen.main
-                    ?? NSScreen.screens.first
-            },
-            openDashboard: { [weak self] in self?.showPopover() }
+        let tracker = PetUsageBadgeTracker(
+            locator: CodexPetWindowLocator(),
+            codexIsRunning: {
+                await MainActor.run {
+                    !NSRunningApplication.runningApplications(
+                        withBundleIdentifier:
+                            CodexPetWindowLocator.codexBundleIdentifier
+                    ).isEmpty
+                }
+            }
         )
+        let badgeController = PetUsageBadgeController(
+            store: store,
+            preferences: petUsageBadgePreferences,
+            languagePreferences: languagePreferences,
+            tracker: tracker
+        )
+        badgeController.start()
+        petUsageBadgeController = badgeController
         store.$snapshot
             .sink { [weak self] snapshot in self?.apply(snapshot) }
             .store(in: &cancellables)
         apply(store.snapshot)
         ensureMonitor()
-        ensurePetConfigurationMonitor()
         store.refresh()
 
         let timer = Timer(timeInterval: 60, repeats: true) { [weak self] _ in
             Task { @MainActor in
                 self?.ensureMonitor()
-                self?.ensurePetConfigurationMonitor()
                 self?.store.refresh()
             }
         }
@@ -117,28 +123,6 @@ final class StatusController: NSObject, NSPopoverDelegate {
         }
         guard candidate.start() else { return }
         monitor = candidate
-    }
-
-    private func ensurePetConfigurationMonitor() {
-        guard petConfigurationMonitor == nil else { return }
-        let configURL = FileManager.default.homeDirectoryForCurrentUser
-            .appendingPathComponent(".codex/config.toml")
-        let petRoots = CodexPetCatalog.defaultRoots()
-        let candidate = PetConfigurationMonitor(
-            configURL: configURL,
-            petRoots: petRoots
-        ) { [weak self] in
-            self?.reloadPetConfiguration()
-        }
-        guard candidate.start() else { return }
-        petConfigurationMonitor = candidate
-    }
-
-    private func reloadPetConfiguration() {
-        petIslandPreferences.reloadLocalConfiguration(
-            pets: CodexPetCatalog().load(),
-            localSelectedPetID: CodexPetSelectionReader().selectedPetID()
-        )
     }
 
     private func apply(_ snapshot: DashboardSnapshot) {

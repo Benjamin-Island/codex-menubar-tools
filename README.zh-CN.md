@@ -31,9 +31,13 @@
 - **会话** — 跟踪活跃的顶层 Codex 终端会话和 Codex Desktop 会话，并显示活动状态、工作目录、最后更新时间和累计 Token。
 - **隐私优先** — 无需账户、网络请求、分析服务或后台服务，即可查看本地 Codex 数据。
 
-## Pet Island
+## 原生 Pet 用量徽标
 
-Pet Island 会把主要用量剩余额度和实时会话状态显示在可拖动的悬浮宠物旁，并可展开查看任务摘要。它只读取本机已有的 Codex 宠物包，不会捆绑、复制或修改宠物素材。你可以在仪表盘底部启用或关闭 Pet Island、跟随 Codex 当前宠物、选择已安装宠物，并将大小调整为 75%–300%。拖到屏幕边缘后会收纳成额度圆环；展开、移动、贴边和多显示器切换都会保持所选比例。
+Codex Menu Bar 可以在 Codex Desktop 自带的原生 Pet 旁显示一个小型 **Primary 剩余额度**徽标，不再创建或渲染第二只宠物。点击徽标会打开紧凑摘要，显示当前项目或任务、Primary 与 Secondary 剩余百分比，以及运行中的会话数量。
+
+在仪表盘底部启用**在 Codex 宠物旁显示额度**，然后在 Codex Desktop 中显示原生 Pet。徽标会跟随 Pet 跨显示器移动；Pet 移动时会关闭摘要，Pet 被收起或无法被安全识别时会自动隐藏。关闭摘要不会移动 Pet 或徽标。
+
+检测过程只读取本机 Codex Desktop 进程的窗口元数据，不读取宠物素材或 Codex 配置，也不需要“辅助功能”或“屏幕录制”权限。
 
 ## 为什么使用 Codex Menu Bar
 
@@ -76,8 +80,8 @@ xcode-select --install
 > [!WARNING]
 > 此免费预览版面向 Apple Silicon Mac，使用临时签名且未经 Apple 公证。macOS 可能会阻止首次启动。
 
-- [下载 Codex Menu Bar v0.3.5](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.5/CodexMenuBar-v0.3.5-apple-silicon.zip)
-- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.5/CodexMenuBar-v0.3.5-apple-silicon.zip.sha256)
+- [下载 Codex Menu Bar v0.3.6](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.6/CodexMenuBar-v0.3.6-apple-silicon.zip)
+- [SHA-256 校验值](https://github.com/Benjamin-Island/codex-menubar-tools/releases/download/v0.3.6/CodexMenuBar-v0.3.6-apple-silicon.zip.sha256)
 
 解压下载文件，将 `CodexMenuBar.app` 移到 `Applications`，然后右键点击应用并选择“打开”完成首次启动。如果 macOS 仍然拒绝打开，请改为从源码构建，不要关闭系统级安全防护。
 
@@ -85,6 +89,7 @@ xcode-select --install
 
 | 版本 | 发布日期 | 主要更新 |
 | --- | --- | --- |
+| [v0.3.6](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.6) | 2026-07-27 | 原生 Pet 用量徽章与可关闭的用量摘要 |
 | [v0.3.5](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.5) | 2026-07-26 | Pet Island 与有界持久化 30 天历史 |
 | [v0.3.4](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.4) | 2026-07-25 | 显示今日初始剩余额度 |
 | [v0.3.3](https://github.com/Benjamin-Island/codex-menubar-tools/releases/tag/v0.3.3) | 2026-07-24 | 实时跟踪 Codex Desktop 会话 |

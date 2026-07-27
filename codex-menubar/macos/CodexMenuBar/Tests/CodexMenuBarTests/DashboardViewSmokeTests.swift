@@ -58,93 +58,45 @@ final class DashboardViewSmokeTests: XCTestCase {
         }
     }
 
-    func testPetIslandHasFiniteLayoutWithAndWithoutPet() {
+    func testNativePetBadgeAndSummaryHaveFiniteFixedLayouts() {
         let store = DashboardStore(
             snapshot: fullSnapshot(),
             reader: { DashboardSnapshot.loading(at: .distantPast) }
         )
-        let defaults = UserDefaults(suiteName: "PetIslandViewSmokeTests")!
-        defaults.removePersistentDomain(forName: "PetIslandViewSmokeTests")
-        let preferences = PetIslandPreferences(pets: [], defaults: defaults)
-        preferences.petScalePercent = 300
 
-        let controller = NSHostingController(
-            rootView: PetIslandView(
+        let badge = NSHostingController(
+            rootView: PetUsageBadgeView(
                 store: store,
-                preferences: preferences,
-                isExpanded: false,
-                isPeeking: false,
-                dockEdge: nil,
-                initialDirection: .right,
-                toggleExpanded: {},
-                beginDrag: {},
-                changeDirection: { _ in },
-                updateDrag: { _ in },
-                endDrag: { _ in },
-                openDashboard: {}
+                language: .english,
+                onClick: {}
             )
         )
-        controller.view.frame = CGRect(
+        badge.view.frame = CGRect(
             origin: .zero,
-            size: PetIslandPlacement.size(expanded: false, petScale: 3)
+            size: PetUsageBadgePlacement.badgeSize
         )
-        controller.view.layoutSubtreeIfNeeded()
-        let size = controller.view.fittingSize
-        XCTAssertTrue(size.width.isFinite && size.height.isFinite)
-        XCTAssertGreaterThan(size.width, 0)
-        XCTAssertGreaterThan(size.height, 0)
+        badge.view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(badge.view.fittingSize.width.isFinite)
+        XCTAssertTrue(badge.view.fittingSize.height.isFinite)
+        XCTAssertEqual(badge.view.fittingSize, PetUsageBadgePlacement.badgeSize)
 
-        let expanded = NSHostingController(
-            rootView: PetIslandView(
+        let summary = NSHostingController(
+            rootView: PetUsageSummaryView(
                 store: store,
-                preferences: preferences,
-                isExpanded: true,
-                isPeeking: false,
-                dockEdge: nil,
-                initialDirection: .right,
-                toggleExpanded: {},
-                beginDrag: {},
-                changeDirection: { _ in },
-                updateDrag: { _ in },
-                endDrag: { _ in },
-                openDashboard: {}
+                language: .english
             )
         )
-        expanded.view.frame = CGRect(
+        summary.view.frame = CGRect(
             origin: .zero,
-            size: PetIslandPlacement.size(expanded: true, petScale: 3)
+            size: PetUsageBadgePlacement.summarySize
         )
-        expanded.view.layoutSubtreeIfNeeded()
-        XCTAssertTrue(expanded.view.fittingSize.width.isFinite)
-        XCTAssertTrue(expanded.view.fittingSize.height.isFinite)
-
-        let peeking = NSHostingController(
-            rootView: PetIslandView(
-                store: store,
-                preferences: preferences,
-                isExpanded: false,
-                isPeeking: true,
-                dockEdge: .right,
-                initialDirection: .right,
-                toggleExpanded: {},
-                beginDrag: {},
-                changeDirection: { _ in },
-                updateDrag: { _ in },
-                endDrag: { _ in },
-                openDashboard: {}
-            )
+        summary.view.layoutSubtreeIfNeeded()
+        XCTAssertTrue(summary.view.fittingSize.width.isFinite)
+        XCTAssertTrue(summary.view.fittingSize.height.isFinite)
+        XCTAssertEqual(
+            summary.view.fittingSize,
+            PetUsageBadgePlacement.summarySize
         )
-        peeking.view.frame = CGRect(
-            origin: .zero,
-            size: PetIslandPlacement.size(
-                expanded: false,
-                peeking: true,
-                petScale: 3
-            )
-        )
-        peeking.view.layoutSubtreeIfNeeded()
-        XCTAssertTrue(peeking.view.fittingSize.width.isFinite)
-        XCTAssertTrue(peeking.view.fittingSize.height.isFinite)
     }
 
     private func fullSnapshot() -> DashboardSnapshot {
