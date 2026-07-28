@@ -48,7 +48,7 @@ final class DashboardViewSmokeTests: XCTestCase {
         )
     }
 
-    func testDeniedPermissionShowsBlockedMessageAndOffSwitch() {
+    func testRequestWithoutGrantShowsRepairMessageAndOffSwitch() {
         let controller = makeSettingsController(
             initiallyEnabled: false,
             preflightResult: false,
@@ -62,11 +62,118 @@ final class DashboardViewSmokeTests: XCTestCase {
         )
         XCTAssertEqual(
             PetUsageBadgePermissionPresentation.message(
-                for: .denied,
+                for: .repairRequired(reason: .requestNotGranted),
                 language: .english
             ),
-            "Screen Recording permission was denied"
+            "Screen Recording permission was not granted"
         )
+    }
+
+    func testUpgradeRepairCopyIsSpecificAndLocalized() {
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.message(
+                for: .repairRequired(reason: .upgradeMismatch),
+                language: .english
+            ),
+            "App update requires Screen Recording re-authorization"
+        )
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.message(
+                for: .repairRequired(reason: .upgradeMismatch),
+                language: .simplifiedChinese
+            ),
+            "App 更新后需要重新授权“屏幕录制”"
+        )
+    }
+
+    func testRepairConfirmationCopyExplainsTargetedReset() {
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.repairActionTitle(
+                language: .english
+            ),
+            "Reset and Re-authorize"
+        )
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.repairConfirmationTitle(
+                language: .simplifiedChinese
+            ),
+            "重置“屏幕录制”权限？"
+        )
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.repairConfirmationMessage(
+                language: .english
+            ),
+            "This clears only Codex Menu Bar’s Screen Recording permission record. macOS will ask for permission again."
+        )
+        XCTAssertEqual(
+            PetUsageBadgePermissionPresentation.repairConfirmationMessage(
+                language: .simplifiedChinese
+            ),
+            "这只会清除 Codex Menu Bar 的“屏幕录制”权限记录。macOS 随后会再次请求授权。"
+        )
+    }
+
+    func testUpgradeMismatchExposesRepairActionWithFiniteLayout() {
+        let controller = makeSettingsController(
+            initiallyEnabled: false,
+            preflightResult: false,
+            requestResult: false,
+            lastAuthorizedAppVersion: "0.3.10",
+            currentAppVersion: "0.3.11"
+        )
+
+        XCTAssertTrue(
+            PetUsageBadgePermissionPresentation.showsRepairAction(
+                for: .repairRequired(reason: .upgradeMismatch)
+            )
+        )
+        XCTAssertTrue(
+            PetUsageBadgePermissionPresentation.isRepairActionEnabled(
+                for: .repairRequired(reason: .upgradeMismatch)
+            )
+        )
+        XCTAssertTrue(controller.view.fittingSize.width.isFinite)
+        XCTAssertTrue(controller.view.fittingSize.height.isFinite)
+    }
+
+    func testRepairingDisablesRepairButtonAndToggle() async {
+        let resetter = SuspendedDashboardPermissionResetter()
+        let harness = makeSettingsHarness(
+            initiallyEnabled: false,
+            preflightResult: false,
+            requestResult: false,
+            lastAuthorizedAppVersion: "0.3.10",
+            currentAppVersion: "0.3.11",
+            permissionResetter: resetter
+        )
+
+        let repairTask = Task {
+            await harness.permissionController.repairPermission()
+        }
+        await resetter.waitUntilResetStarts()
+        await Task.yield()
+        harness.hostingController.view.layoutSubtreeIfNeeded()
+
+        XCTAssertTrue(
+            PetUsageBadgePermissionPresentation.showsRepairAction(
+                for: harness.permissionController.status
+            )
+        )
+        XCTAssertFalse(
+            PetUsageBadgePermissionPresentation.isRepairActionEnabled(
+                for: harness.permissionController.status
+            )
+        )
+        XCTAssertEqual(
+            firstDescendant(
+                of: NSSwitch.self,
+                in: harness.hostingController.view
+            )?.isEnabled,
+            false
+        )
+
+        await resetter.finish(with: .failure(.nonzeroExit(1)))
+        await repairTask.value
     }
 
     func testGrantedPermissionShowsRestartMessage() {
@@ -249,8 +356,30 @@ final class DashboardViewSmokeTests: XCTestCase {
         initiallyEnabled: Bool,
         preflightResult: Bool,
         requestResult: Bool,
-        enableAfterInitialization: Bool = false
+        enableAfterInitialization: Bool = false,
+        lastAuthorizedAppVersion: String? = nil,
+        currentAppVersion: String = "0.3.11"
     ) -> NSHostingController<DashboardView> {
+        makeSettingsHarness(
+            initiallyEnabled: initiallyEnabled,
+            preflightResult: preflightResult,
+            requestResult: requestResult,
+            enableAfterInitialization: enableAfterInitialization,
+            lastAuthorizedAppVersion: lastAuthorizedAppVersion,
+            currentAppVersion: currentAppVersion
+        ).hostingController
+    }
+
+    private func makeSettingsHarness(
+        initiallyEnabled: Bool,
+        preflightResult: Bool,
+        requestResult: Bool,
+        enableAfterInitialization: Bool = false,
+        lastAuthorizedAppVersion: String? = nil,
+        currentAppVersion: String = "0.3.11",
+        permissionResetter: any ScreenCapturePermissionResetting =
+            SystemScreenCapturePermissionResetter()
+    ) -> DashboardSettingsHarness {
         let defaultsName = "DashboardViewSmokeTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: defaultsName)!
         defaults.removePersistentDomain(forName: defaultsName)
@@ -264,12 +393,15 @@ final class DashboardViewSmokeTests: XCTestCase {
             forKey: AppLanguagePreferences.selectionKey
         )
         let preferences = PetUsageBadgePreferences(defaults: defaults)
+        preferences.lastAuthorizedAppVersion = lastAuthorizedAppVersion
         let permissionController = PetUsageBadgePermissionController(
             preferences: preferences,
             permissionProvider: DashboardTestScreenCapturePermissionProvider(
                 preflightResult: preflightResult,
                 requestResult: requestResult
-            )
+            ),
+            permissionResetter: permissionResetter,
+            currentAppVersion: currentAppVersion
         )
         if enableAfterInitialization {
             permissionController.setEnabled(true)
@@ -287,20 +419,30 @@ final class DashboardViewSmokeTests: XCTestCase {
         )
         controller.view.frame = CGRect(x: 0, y: 0, width: 620, height: 520)
         controller.view.layoutSubtreeIfNeeded()
-        return controller
+        return DashboardSettingsHarness(
+            hostingController: controller,
+            permissionController: permissionController
+        )
     }
 
     private func firstDescendant<T: NSView>(
         of type: T.Type,
-        in view: NSView
+        in view: NSView,
+        where predicate: @escaping (T) -> Bool = { _ in true }
     ) -> T? {
-        if let match = view as? T {
+        if let match = view as? T, predicate(match) {
             return match
         }
         return view.subviews.lazy.compactMap {
-            self.firstDescendant(of: type, in: $0)
+            self.firstDescendant(of: type, in: $0, where: predicate)
         }.first
     }
+}
+
+@MainActor
+private struct DashboardSettingsHarness {
+    let hostingController: NSHostingController<DashboardView>
+    let permissionController: PetUsageBadgePermissionController
 }
 
 @MainActor
@@ -321,5 +463,40 @@ private final class DashboardTestScreenCapturePermissionProvider:
 
     func request() -> Bool {
         requestResult
+    }
+}
+
+private actor SuspendedDashboardPermissionResetter:
+    ScreenCapturePermissionResetting
+{
+    private var resetContinuation:
+        CheckedContinuation<Result<Void, ScreenCapturePermissionResetError>, Never>?
+    private var startWaiters: [CheckedContinuation<Void, Never>] = []
+    private var didStart = false
+
+    func reset() async -> Result<Void, ScreenCapturePermissionResetError> {
+        didStart = true
+        startWaiters.forEach { $0.resume() }
+        startWaiters.removeAll()
+
+        return await withCheckedContinuation { continuation in
+            resetContinuation = continuation
+        }
+    }
+
+    func waitUntilResetStarts() async {
+        if didStart {
+            return
+        }
+        await withCheckedContinuation { continuation in
+            startWaiters.append(continuation)
+        }
+    }
+
+    func finish(
+        with result: Result<Void, ScreenCapturePermissionResetError>
+    ) {
+        resetContinuation?.resume(returning: result)
+        resetContinuation = nil
     }
 }

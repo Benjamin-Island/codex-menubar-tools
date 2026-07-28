@@ -31,6 +31,23 @@ final class PetUsageBadgeControllerTests: XCTestCase {
         )
     }
 
+    func testUpgradeRepairStateDoesNotStartTracking() {
+        let harness = makeHarness(
+            permissionPreflightResult: false,
+            lastAuthorizedAppVersion: "0.3.10",
+            currentAppVersion: "0.3.11"
+        )
+
+        harness.controller.start()
+
+        XCTAssertEqual(harness.tracker.startCount, 0)
+        XCTAssertFalse(harness.permissionController.isEnabled)
+        XCTAssertEqual(
+            harness.permissionController.status,
+            .repairRequired(reason: .upgradeMismatch)
+        )
+    }
+
     func testNewlyGrantedPermissionWaitsForRestartBeforeTracking() {
         let harness = makeHarness(
             permissionPreflightResult: false,
@@ -159,20 +176,30 @@ final class PetUsageBadgeControllerTests: XCTestCase {
             )
         ],
         permissionPreflightResult: Bool = true,
-        permissionRequestResult: Bool = false
+        permissionRequestResult: Bool = false,
+        lastAuthorizedAppVersion: String? = nil,
+        currentAppVersion: String = "0.3.11"
     ) -> Harness {
         let suite = "PetUsageBadgeControllerTests-\(UUID().uuidString)"
         let defaults = UserDefaults(suiteName: suite)!
         defaults.removePersistentDomain(forName: suite)
         defaults.set(true, forKey: PetUsageBadgePreferences.migrationKey)
         defaults.set(true, forKey: PetUsageBadgePreferences.enabledKey)
+        if let lastAuthorizedAppVersion {
+            defaults.set(
+                lastAuthorizedAppVersion,
+                forKey:
+                    PetUsageBadgePreferences.lastAuthorizedAppVersionKey
+            )
+        }
         let preferences = PetUsageBadgePreferences(defaults: defaults)
         let permissionController = PetUsageBadgePermissionController(
             preferences: preferences,
             permissionProvider: ControllerTestScreenCapturePermissionProvider(
                 preflightResult: permissionPreflightResult,
                 requestResult: permissionRequestResult
-            )
+            ),
+            currentAppVersion: currentAppVersion
         )
         let tracker = FakePetUsageBadgeTracker()
         let badge = FakePetUsagePanel()
