@@ -66,23 +66,25 @@ Use these fixed source ranges and crops:
 |---|---:|---:|---|
 | `main-dashboard` | `9.8–18.8s` | `1280:1080:1220:60` | Open dashboard; show Overview, History, and Sessions |
 | `main-control` | `19.2–25.6s` | `1280:1080:1220:60` | Return to Overview and clearly show the Pet usage control |
-| `main-follow` | `32.6–37.8s` | `1280:1080:2560:860` | Show the usage indicator following the native Pet |
-| `main-summary` | `40.8–44.3s` | `1280:1080:2560:860` | Show the clicked indicator and expanded summary |
+| `main-follow` | `32.6–37.8s` | `960:810:2880:1200`, scaled to 1280×1080 | Show the usage indicator following the native Pet |
+| `main-summary` | `38.5–42.3s` | `960:810:2880:1200`, scaled to 1280×1080 | Show the click and expanded summary without the later closed state |
 
-Render the dashboard segment, enabling opaque neutral card-color masks only
-after the Sessions tab becomes visible:
+Render the dashboard segment, enabling strong privacy blurs only after the
+Sessions tab becomes visible:
 
 ```bash
 ffmpeg -hide_banner -y \
   -i "/Users/benjaminz/Desktop/Screen Recording 2026-07-28 at 10.51.31.mov" \
-  -vf "\
-trim=start=9.8:end=18.8,setpts=PTS-STARTPTS,\
-crop=1280:1080:1220:60,fps=30,\
-drawbox=x=90:y=310:w=520:h=390:color=0xEEF1F3:t=fill:enable='between(t,7.4,9.0)',\
-drawbox=x=640:y=300:w=610:h=135:color=0xE1E6E9:t=fill:enable='between(t,7.4,9.0)',\
-drawbox=x=640:y=680:w=610:h=115:color=0xE1E6E9:t=fill:enable='between(t,7.4,9.0)',\
-format=yuv420p,setsar=1" \
-  -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
+  -filter_complex "\
+[0:v]trim=start=9.8:end=18.8,setpts=PTS-STARTPTS,\
+crop=1280:1080:1220:60,fps=30,format=yuv420p,split=4[b0][s1][s2][s3];\
+[s1]crop=520:390:90:310,gblur=sigma=25:steps=6[m1];\
+[b0][m1]overlay=90:310:enable='between(t,7.4,9.0)'[o1];\
+[s2]crop=610:135:640:300,gblur=sigma=25:steps=6[m2];\
+[o1][m2]overlay=640:300:enable='between(t,7.4,9.0)'[o2];\
+[s3]crop=610:115:640:680,gblur=sigma=25:steps=6[m3];\
+[o2][m3]overlay=640:680:enable='between(t,7.4,9.0)',setsar=1[out]" \
+  -map "[out]" -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
   /tmp/codex-menubar-main-dashboard.mp4
 ```
 
@@ -94,29 +96,38 @@ Render the control and follow segments:
 ```bash
 ffmpeg -hide_banner -y \
   -i "/Users/benjaminz/Desktop/Screen Recording 2026-07-28 at 10.51.31.mov" \
-  -vf "trim=start=19.2:end=25.6,setpts=PTS-STARTPTS,crop=1280:1080:1220:60,fps=30,format=yuv420p,setsar=1" \
-  -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
+  -filter_complex "\
+[0:v]trim=start=19.2:end=25.6,setpts=PTS-STARTPTS,\
+crop=1280:1080:1220:60,fps=30,format=yuv420p,split=4[b0][s1][s2][s3];\
+[s1]crop=520:390:90:310,gblur=sigma=25:steps=6[m1];\
+[b0][m1]overlay=90:310:enable='between(t,0,2.0)'[o1];\
+[s2]crop=610:135:640:300,gblur=sigma=25:steps=6[m2];\
+[o1][m2]overlay=640:300:enable='between(t,0,2.0)'[o2];\
+[s3]crop=610:115:640:680,gblur=sigma=25:steps=6[m3];\
+[o2][m3]overlay=640:680:enable='between(t,0,2.0)',setsar=1[out]" \
+  -map "[out]" -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
   /tmp/codex-menubar-main-control.mp4
 
 ffmpeg -hide_banner -y \
   -i "/Users/benjaminz/Desktop/Screen Recording 2026-07-28 at 10.51.31.mov" \
-  -vf "trim=start=32.6:end=37.8,setpts=PTS-STARTPTS,crop=1280:1080:2560:860,fps=30,format=yuv420p,setsar=1" \
+  -vf "trim=start=32.6:end=37.8,setpts=PTS-STARTPTS,crop=960:810:2880:1200,scale=1280:1080:flags=lanczos,fps=30,format=yuv420p,setsar=1" \
   -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
   /tmp/codex-menubar-main-follow.mp4
 ```
 
-Render the summary segment with an opaque summary-card-color mask over only
-the real project/task title:
+Render the summary segment with a strong blur over only the real project/task
+title:
 
 ```bash
 ffmpeg -hide_banner -y \
   -i "/Users/benjaminz/Desktop/Screen Recording 2026-07-28 at 10.51.31.mov" \
-  -vf "\
-trim=start=40.8:end=44.3,setpts=PTS-STARTPTS,\
-crop=1280:1080:2560:860,fps=30,\
-drawbox=x=650:y=555:w=600:h=90:color=0xB7DDD4:t=fill,\
-format=yuv420p,setsar=1" \
-  -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
+  -filter_complex "\
+[0:v]trim=start=38.5:end=42.3,setpts=PTS-STARTPTS,\
+crop=960:810:2880:1200,scale=1280:1080:flags=lanczos,\
+fps=30,format=yuv420p,split=2[base][titlesrc];\
+[titlesrc]crop=560:70:470:300,gblur=sigma=30:steps=6[titleblur];\
+[base][titleblur]overlay=470:300:enable='between(t,1.1,3.8)',setsar=1[out]" \
+  -map "[out]" -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
   /tmp/codex-menubar-main-summary.mp4
 ```
 
@@ -142,7 +153,7 @@ ffmpeg -hide_banner -y \
   docs/assets/codex-menubar-demo.mp4
 ```
 
-Expected duration: 24.1 seconds, allowing ±0.2 seconds for timestamp
+Expected duration: 24.4 seconds, allowing ±0.2 seconds for timestamp
 normalization.
 
 - [ ] **Step 4: Generate the hero GIF from the sanitized MP4**
@@ -236,8 +247,8 @@ Use these fixed source ranges and crops:
 | Segment | Source range | Crop | Purpose |
 |---|---:|---:|---|
 | `pet-control` | `21.2–24.8s` | `1280:1080:1220:60` | Clearly show “Show Usage by Codex Pet” |
-| `pet-follow` | `33.0–37.2s` | `1280:1080:2560:860` | Show the 76% indicator following the Pet |
-| `pet-summary` | `40.8–44.3s` | `1280:1080:2560:860` | Click the indicator and show its summary |
+| `pet-follow` | `33.0–37.2s` | `960:810:2880:1200`, scaled to 1280×1080 | Show the 76% indicator following the Pet |
+| `pet-summary` | `38.5–42.3s` | `960:810:2880:1200`, scaled to 1280×1080 | Click the indicator and show its summary |
 
 Render the three segments:
 
@@ -250,22 +261,23 @@ ffmpeg -hide_banner -y \
 
 ffmpeg -hide_banner -y \
   -i "/Users/benjaminz/Desktop/Screen Recording 2026-07-28 at 10.51.31.mov" \
-  -vf "trim=start=33.0:end=37.2,setpts=PTS-STARTPTS,crop=1280:1080:2560:860,fps=30,format=yuv420p,setsar=1" \
+  -vf "trim=start=33.0:end=37.2,setpts=PTS-STARTPTS,crop=960:810:2880:1200,scale=1280:1080:flags=lanczos,fps=30,format=yuv420p,setsar=1" \
   -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
   /tmp/codex-pet-usage-follow.mp4
 
 ffmpeg -hide_banner -y \
   -i "/Users/benjaminz/Desktop/Screen Recording 2026-07-28 at 10.51.31.mov" \
-  -vf "\
-trim=start=40.8:end=44.3,setpts=PTS-STARTPTS,\
-crop=1280:1080:2560:860,fps=30,\
-drawbox=x=650:y=555:w=600:h=90:color=0xB7DDD4:t=fill,\
-format=yuv420p,setsar=1" \
-  -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
+  -filter_complex "\
+[0:v]trim=start=38.5:end=42.3,setpts=PTS-STARTPTS,\
+crop=960:810:2880:1200,scale=1280:1080:flags=lanczos,\
+fps=30,format=yuv420p,split=2[base][titlesrc];\
+[titlesrc]crop=560:70:470:300,gblur=sigma=30:steps=6[titleblur];\
+[base][titleblur]overlay=470:300:enable='between(t,1.1,3.8)',setsar=1[out]" \
+  -map "[out]" -an -c:v libx264 -preset slow -crf 22 -pix_fmt yuv420p \
   /tmp/codex-pet-usage-summary.mp4
 ```
 
-Expected total duration after concatenation: 11.3 seconds, allowing ±0.2
+Expected total duration after concatenation: 11.6 seconds, allowing ±0.2
 seconds.
 
 - [ ] **Step 2: Concatenate and encode the Pet MP4**
@@ -310,7 +322,7 @@ and extract frames 0.1 seconds before and after both concatenation boundaries.
 
 Expected:
 
-- MP4 is H.264, 1280×1080, 30 fps, `yuv420p`, silent, and 11.1–11.5 seconds.
+- MP4 is H.264, 1280×1080, 30 fps, `yuv420p`, silent, and 11.4–11.8 seconds.
 - GIF duration matches within 0.2 seconds and size is at most 10 MiB.
 - The control, Pet, 76% indicator, and summary metrics are legible.
 - The real summary title and all unrelated desktop chrome are absent.
@@ -434,8 +446,8 @@ Probe all four files and require:
   fast-start metadata;
 - both GIF files are animated, match the corresponding MP4 duration within 0.2
   seconds, and are at most 10 MiB;
-- hero duration is 23.9–24.3 seconds;
-- Pet duration is 11.1–11.5 seconds.
+- hero duration is 24.2–24.6 seconds;
+- Pet duration is 11.4–11.8 seconds.
 
 - [ ] **Step 2: Decode every final media file**
 
