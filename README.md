@@ -111,19 +111,16 @@ The app:
 - inspects current-user process metadata and writable rollout file associations to identify interactive TUIs;
 - does **not** read Codex credentials or `auth.json`;
 - does **not** make network requests;
-- writes only a local parsed-state cache under the macOS Caches directory;
+- writes only its parsed-state cache under the macOS Caches directory and
+  application preferences in macOS user defaults;
+- does **not** modify Codex data; Screen Recording repair resets only this
+  app's permission record and only after explicit confirmation;
 - does **not** write a database, analytics, or log file;
 - does **not** start, stop, or otherwise control Codex sessions.
 
 Session JSONL files are streamed in bounded chunks. Appended bytes update daily summaries, while raw historical JSONL records are never copied into the cache. Restarting restores validated per-file cursors and resumes only from appended or unfinished byte ranges.
 
 History includes every indexed local rollout source from the latest 30 local calendar days. Until a cold scan finishes, the UI explicitly labels the result as partial and shows the remaining file count. The live Sessions page includes top-level interactive terminal sessions and user sessions currently open in Codex Desktop. At most 10,000 ordinary logs are indexed, plus every log required by a currently running session.
-
-## Token semantics
-
-Codex records cumulative Token counters. The app converts consecutive cumulative values into increments, handles counter resets independently, and groups increments by system-local calendar day.
-
-`Total` is used as reported. Cached input and Reasoning are shown as detail fields and are never added to Total again.
 
 ## Requirements
 
