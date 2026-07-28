@@ -35,6 +35,16 @@
 
 Codex Menu Bar 可以在 Codex Desktop 自带的原生 Pet 旁显示一个小型 **Primary 剩余额度**徽标，不再创建或渲染第二只宠物。点击徽标会打开紧凑摘要，显示当前项目或任务、Primary 与 Secondary 剩余百分比，以及运行中的会话数量。
 
+<p align="center">
+  <a href="docs/assets/codex-pet-usage-demo.mp4">
+    <img alt="原生 Pet 用量徽标演示" src="docs/assets/codex-pet-usage-demo.gif">
+  </a>
+</p>
+
+<p align="center">
+  <a href="docs/assets/codex-pet-usage-demo.mp4">观看原生 Pet 用量徽标高清 MP4 视频</a>
+</p>
+
 在仪表盘底部启用**在 Codex 宠物旁显示额度**，然后在 Codex Desktop 中显示原生 Pet。徽标会跟随 Pet 跨显示器移动；Pet 移动时会关闭摘要，Pet 被收起或无法被安全识别时会自动隐藏。关闭摘要不会移动 Pet 或徽标。
 
 检测过程只读取本机 Codex Desktop 进程的窗口元数据，不读取宠物素材或 Codex 配置，也不需要“辅助功能”权限。为了识别原生 Pet 窗口，macOS 会要求授予 **“屏幕录制”**权限。第一次启用徽标时，请批准系统授权请求，并在提示后重启 Codex Menu Bar。

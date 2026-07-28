@@ -38,6 +38,16 @@ Pet shown by Codex Desktop. It does not create or render a second pet. Click the
 badge to open a compact summary with the current project or task, Primary and
 Secondary remaining percentages, and the number of running sessions.
 
+<p align="center">
+  <a href="docs/assets/codex-pet-usage-demo.mp4">
+    <img alt="Native Pet usage badge demo" src="docs/assets/codex-pet-usage-demo.gif">
+  </a>
+</p>
+
+<p align="center">
+  <a href="docs/assets/codex-pet-usage-demo.mp4">Watch the Native Pet usage badge demo in high-quality MP4</a>
+</p>
+
 Enable **Show Usage by Codex Pet** in the dashboard footer, then show the native
 Pet in Codex Desktop. The badge follows the Pet across displays, closes its
 summary while the Pet is moving, and hides when the Pet is tucked away or
